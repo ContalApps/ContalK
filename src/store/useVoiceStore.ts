@@ -1,4 +1,5 @@
 import { create } from 'zustand'
+import { microphoneOptions, publishSafeMicrophone, setSafeMicrophoneEnabled } from '../media/microphone'
 import { startScreenShare, stopScreenShare } from '../media/screenShare'
 import {
   Room,
@@ -28,6 +29,11 @@ interface VoiceState {
   activeChannelId: string | null
   activeChannelName: string | null
   connectionStatus: 'disconnected' | 'connecting' | 'connected' | 'reconnecting'
+  microphoneDeviceId: string
+  microphoneLabel: string
+  microphoneError: string | null
+  micMutedBeforeDeafen: boolean
+  selectMicrophone: (deviceId: string) => Promise<void>
   isMicMuted: boolean
   isDeafened: boolean
   isCameraOn: boolean
@@ -139,6 +145,10 @@ export const useVoiceStore = create<VoiceState>((set, get) => ({
   activeChannelId: null,
   activeChannelName: null,
   connectionStatus: 'disconnected',
+  microphoneDeviceId: localStorage.getItem('contalk-microphone-id') || '',
+  microphoneLabel: '',
+  microphoneError: null,
+  micMutedBeforeDeafen: false,
   isMicMuted: false,
   isDeafened: false,
   isCameraOn: false,
@@ -301,11 +311,7 @@ export const useVoiceStore = create<VoiceState>((set, get) => ({
       const room = new Room({
         adaptiveStream: true,
         dynacast: true,
-        audioCaptureDefaults: {
-          autoGainControl: true,
-          echoCancellation: true,
-          noiseSuppression: true,
-        },
+        audioCaptureDefaults: microphoneOptions(get().microphoneDeviceId),
       })
 
       const triggerUpdate = () => {
@@ -403,9 +409,10 @@ export const useVoiceStore = create<VoiceState>((set, get) => ({
 
       // 5. Ativar microfone local se permitido
       try {
-        await room.localParticipant.setMicrophoneEnabled(true)
+        const label = await publishSafeMicrophone(room, get().microphoneDeviceId)
+        set({ microphoneLabel: label, microphoneError: null })
       } catch (micErr) {
-        console.warn('Microfone não pôde ser ativado automaticamente:', micErr)
+        set({ isMicMuted: true, microphoneError: micErr instanceof Error ? micErr.message : 'Não foi possível abrir o microfone. Escolha uma entrada em Configurações de áudio.' })
       }
 
       set({
@@ -470,33 +477,35 @@ export const useVoiceStore = create<VoiceState>((set, get) => ({
 
     const nextMuted = !isMicMuted
     try {
-      await currentRoom.localParticipant.setMicrophoneEnabled(!nextMuted)
+      const label = await setSafeMicrophoneEnabled(currentRoom, !nextMuted, get().microphoneDeviceId)
+      set({ microphoneLabel: label, microphoneError: null })
       set({ isMicMuted: !currentRoom.localParticipant.isMicrophoneEnabled })
       get().refreshParticipants()
     } catch (err) {
-      console.error('Erro ao alternar microfone:', err)
+      set({ microphoneError: err instanceof Error ? err.message : 'Falha ao abrir o microfone.' })
     }
   },
 
+  selectMicrophone: async deviceId => {
+    const { currentRoom, isMicMuted, isDeafened } = get()
+    try {
+      let label = ''
+      if (currentRoom) label = await publishSafeMicrophone(currentRoom, deviceId, isMicMuted || isDeafened)
+      localStorage.setItem('contalk-microphone-id', deviceId)
+      set({ microphoneDeviceId: deviceId, microphoneLabel: label, microphoneError: null })
+      get().refreshParticipants()
+    } catch (error) { set({ microphoneError: error instanceof Error ? error.message : 'Não foi possível trocar de microfone.' }); get().refreshParticipants(); throw error }
+  },
   toggleDeafen: async () => {
-    const { currentRoom, isDeafened } = get()
+    const { currentRoom, isDeafened, isMicMuted, microphoneDeviceId, micMutedBeforeDeafen } = get()
     if (!currentRoom) return
-
     const nextDeafened = !isDeafened
-    const audioContainer = getAudioContainer()
-    const audioElements = audioContainer.querySelectorAll('audio')
-
-    audioElements.forEach((el) => {
-      el.muted = nextDeafened
-    })
-
-    if (nextDeafened) {
-      await currentRoom.localParticipant.setMicrophoneEnabled(false)
-      set({ isDeafened: true, isMicMuted: true })
-    } else {
-      await currentRoom.localParticipant.setMicrophoneEnabled(true)
-      set({ isDeafened: false, isMicMuted: false })
-    }
+    getAudioContainer().querySelectorAll('audio').forEach(el => { el.muted = nextDeafened })
+    set({ isDeafened: nextDeafened, ...(nextDeafened ? { micMutedBeforeDeafen: isMicMuted } : {}) })
+    try {
+      await setSafeMicrophoneEnabled(currentRoom, !nextDeafened && !micMutedBeforeDeafen, microphoneDeviceId)
+      set({ microphoneError: null })
+    } catch (error) { set({ microphoneError: error instanceof Error ? error.message : 'Falha no microfone.' }) }
     get().refreshParticipants()
   },
 

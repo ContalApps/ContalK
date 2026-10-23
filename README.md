@@ -150,3 +150,9 @@ A sala LiveKit `contalk-community-presence-v1` mantém a presença dos clientes 
 Não existe cadastro central de contas. Contas são armazenadas no computador; o diretório combina contas locais e pessoas conhecidas na presença. Clientes offline não recebem mensagens novas nem alterações imediatamente. Canais e histórico são persistidos no armazenamento local, e canais conhecidos são compartilhados ao conectar. Todos devem atualizar para a 0.1.3 para participar dessa sincronização. Um backend persistente ainda é necessário para cadastro global, histórico central, autenticação entre dispositivos e permissões de administração.
 
 Validação manual recomendada: conectar três contas em computadores diferentes; alterar foto e nome durante uma chamada; verificar entrada/saída e reconexão; criar um canal, abrir no outro computador e entrar em voz; usar o botão direito para ajustar o volume; reiniciar e confirmar que foto e canais continuam salvos.
+
+## Entrada do microfone (0.1.4)
+
+Use a engrenagem na barra inferior esquerda para selecionar o microfone físico. O botão de teste usa apenas uma captura local e um medidor; não conecta o áudio aos alto-falantes nem publica a captura no LiveKit. A captura de voz é independente da captura de tela, com mono, supressão de ruído, cancelamento de eco e ganho automático desativado. As entradas de loopback conhecidas são rejeitadas pelo nome antes da publicação. Essa detecção não substitui a escolha correta do dispositivo e não garante rejeição de todo mixer virtual existente.
+
+Para investigar vazamento do Discord sem transmissão: com fones, fique em silêncio enquanto outra pessoa fala no Discord e observe o medidor. Se ele reagir na entrada física correta, verifique o mixer/driver e o cabo/adaptador do headset. Não é possível separar com garantia vozes já misturadas pelo hardware na mesma entrada. O teste no equipamento afetado permanece necessário.
