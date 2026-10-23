@@ -1,7 +1,7 @@
 import { useEffect } from 'react'
 import { useAuthStore } from './store/useAuthStore'
 import { AuthScreen } from './components/AuthScreen'
-import { ContalkLayout } from './components/ContalkLayout'
+import { ConTALKLayout } from './components/ConTALKLayout'
 
 function App() {
   const { isAuthenticated, isLoading, checkSession } = useAuthStore()
@@ -21,7 +21,7 @@ function App() {
             <div className="absolute inset-0 rounded-full bg-purple-600/40 blur-xl animate-pulse" />
             <img
               src="./contalk-avatar.png"
-              alt="ContalK Logo"
+              alt="ConTALK Logo"
               className="relative w-28 h-28 rounded-full shadow-2xl border-2 border-purple-400/60 object-cover"
             />
           </div>
@@ -33,7 +33,7 @@ function App() {
           </p>
           <div className="flex items-center gap-2.5 px-4 py-2 rounded-full bg-purple-950/50 border border-purple-800/40 text-xs text-purple-300 font-medium shadow-lg">
             <span className="w-2 h-2 rounded-full bg-purple-400 animate-ping" />
-            Iniciando ContalK...
+            Iniciando ConTALK...
           </div>
         </div>
       </div>
@@ -44,7 +44,7 @@ function App() {
     return <AuthScreen />
   }
 
-  return <ContalkLayout />
+  return <ConTALKLayout />
 }
 
 export default App

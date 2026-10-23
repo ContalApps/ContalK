@@ -38,7 +38,7 @@ export function setupCaptureAudio(window: BrowserWindow) {
         args = ['--monitor', String(bounds.x), String(bounds.y), String(bounds.x + bounds.width), String(bounds.y + bounds.height), '--exclude', String(process.pid)]
       }
       const executable = app.isPackaged ? path.join(process.resourcesPath, 'audio', 'contalk-audio.exe') : path.join(process.env.APP_ROOT!, 'native', 'bin', 'contalk-audio.exe')
-      if (!fs.existsSync(executable)) throw new Error('O componente de áudio não foi instalado. Reinstale a versão mais recente do ContalK.')
+      if (!fs.existsSync(executable)) throw new Error('O componente de áudio não foi instalado. Reinstale a versão mais recente do ConTALK.')
       const id = randomUUID()
       const child = spawn(executable, args, { windowsHide: true, stdio: 'pipe' })
       active = { id, child }

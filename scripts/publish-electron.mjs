@@ -14,7 +14,7 @@ const git = args => execFileSync('git', args, { encoding: 'utf8' }).trim()
 if (git(['status', '--porcelain'])) throw new Error('Faça commit das alterações antes de publicar.')
 const sha = git(['rev-parse', 'HEAD'])
 if (git(['rev-list', '-n', '1', tag]) !== sha) throw new Error('A tag da versão precisa apontar para o commit atual.')
-const installer = `ContalK-Setup-${version}.exe`
+const installer = `ConTALK-Setup-${version}.exe`
 const required = [installer, `${installer}.blockmap`, 'latest.yml']
 for (const file of required) if (!existsSync(path.join('release', file))) throw new Error(`Arquivo ausente: ${file}. Execute npm run build:electron.`)
 const manifest = load(readFileSync('release/latest.yml', 'utf8'))
@@ -26,7 +26,7 @@ let release
 try { release = JSON.parse(gh(['release', 'view', tag, '--json', 'isDraft,url'])) }
 catch (error) { if (!String(error.stderr).includes('release not found')) throw error }
 if (release && !release.isDraft) throw new Error('A versão já foi publicada. Use uma nova versão; não substitua instaladores em uso.')
-if (!release) gh(['release', 'create', tag, '--draft', '--verify-tag', '--target', sha, '--title', `ContalK v${version}`, '--notes-file', notes])
+if (!release) gh(['release', 'create', tag, '--draft', '--verify-tag', '--target', sha, '--title', `ConTALK v${version}`, '--notes-file', notes])
 // Upload the update manifest last. The release stays hidden until all assets exist.
 for (const file of required) gh(['release', 'upload', tag, path.join('release', file), '--clobber'])
 const assets = JSON.parse(gh(['release', 'view', tag, '--json', 'assets'])).assets

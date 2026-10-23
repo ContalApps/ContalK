@@ -7,7 +7,7 @@ export function setupStorage(window:BrowserWindow,getUsername:()=>string|null) {
   const selected=new Map<string,string>()
   const configPath=()=>{
     const username=getUsername()
-    if(!username)throw new Error('Entre no ContalK antes de configurar o armazenamento.')
+    if(!username)throw new Error('Entre no ConTALK antes de configurar o armazenamento.')
     return path.join(app.getPath('userData'),'storage-'+createHash('sha256').update(username).digest('hex')+'.enc')
   }
   let uploading=false
@@ -26,7 +26,7 @@ export function setupStorage(window:BrowserWindow,getUsername:()=>string|null) {
       if((url.protocol!=='https:'&&!['localhost','127.0.0.1'].includes(url.hostname))||url.username||url.password||!/^https?:$/.test(url.protocol)||!value.token?.trim())throw new Error('Informe um endereço HTTPS e sua chave de acesso.')
       if(!safeStorage.isEncryptionAvailable())throw new Error('Proteção de credenciais do sistema indisponível.')
       const identity=await fetch(new URL('/identity',url),{headers:{Authorization:'Bearer '+value.token.trim()}})
-      if(!identity.ok || String((await identity.json()).username).toLowerCase()!==getUsername()?.toLowerCase())throw new Error('A chave de armazenamento não corresponde ao seu usuário ContalK.')
+      if(!identity.ok || String((await identity.json()).username).toLowerCase()!==getUsername()?.toLowerCase())throw new Error('A chave de armazenamento não corresponde ao seu usuário ConTALK.')
       writeFileSync(configPath(),safeStorage.encryptString(JSON.stringify({url:url.origin,token:value.token.trim()})))
     },
     'storage-select':async()=>{
@@ -77,6 +77,6 @@ export function setupStorage(window:BrowserWindow,getUsername:()=>string|null) {
       await shell.openExternal(target.href)
     },
   }
-  for(const [name,handler] of Object.entries(handlers))ipcMain.handle(name,(event,...args)=>{trusted(event);if(!getUsername())throw new Error('Entre no ContalK.');return handler(event,...args)})
+  for(const [name,handler] of Object.entries(handlers))ipcMain.handle(name,(event,...args)=>{trusted(event);if(!getUsername())throw new Error('Entre no ConTALK.');return handler(event,...args)})
   window.once('closed',()=>{for(const name of Object.keys(handlers))ipcMain.removeHandler(name)})
 }

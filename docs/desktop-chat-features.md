@@ -4,9 +4,9 @@ Implementação na branch dev-caliari, para o aplicativo Electron.
 
 ## Armazenamento central no Telegram
 
-A conta do administrador é a central de arquivos. A sessão MTProto fica somente no serviço Node; nenhum aplicativo recebe a sessão, API Hash ou senha do Telegram. O serviço cria um canal **privado** chamado `ContalK Storage`. Os usuários acessam os arquivos pelo serviço, sem entrar no canal. Um canal público exporia as publicações e não é necessário para esta arquitetura.
+A conta do administrador é a central de arquivos. A sessão MTProto fica somente no serviço Node; nenhum aplicativo recebe a sessão, API Hash ou senha do Telegram. O serviço cria um canal **privado** chamado `ConTALK Storage`. Os usuários acessam os arquivos pelo serviço, sem entrar no canal. Um canal público exporia as publicações e não é necessário para esta arquitetura.
 
-O estudo do TeleDrive considerou `src/lib/telegram/client.ts`, `channelManager.ts`, `loginFlow.ts` e `uploader.ts` no repositório https://github.com/senapati484/teledrive. A implementação do ContalK é independente e usa GramJS, sessão isolada e upload em partes; não incorpora o código do TeleDrive. Consulte também https://core.telegram.org/api/files para os limites e o protocolo. O pacote GramJS `telegram` instalado atualmente está arquivado; uma eventual migração para o sucessor requer validação de compatibilidade.
+O estudo do TeleDrive considerou `src/lib/telegram/client.ts`, `channelManager.ts`, `loginFlow.ts` e `uploader.ts` no repositório https://github.com/senapati484/teledrive. A implementação do ConTALK é independente e usa GramJS, sessão isolada e upload em partes; não incorpora o código do TeleDrive. Consulte também https://core.telegram.org/api/files para os limites e o protocolo. O pacote GramJS `telegram` instalado atualmente está arquivado; uma eventual migração para o sucessor requer validação de compatibilidade.
 
 ### Configuração do servidor
 
@@ -33,7 +33,7 @@ Publique o serviço atrás de um proxy HTTPS. O proxy precisa aceitar até 2 GB 
 
 Ao anexar o primeiro arquivo, informe o endereço HTTPS e a chave individual fornecidos pelo administrador. A engrenagem junto ao campo de mensagem permite trocar esses dados. As credenciais são protegidas pelo `safeStorage` do Electron. Para um teste local, o endereço pode ser `http://127.0.0.1:8788`.
 
-A chave individual é associada ao username no servidor. Use a mesma associação para todas as instalações desse usuário e chaves diferentes para usuários diferentes. A configuração atual é manual, adequada ao teste com usuários provisionados pelo administrador. Ainda não há provisionamento automático integrado ao login ContalK nem controle de acesso por canal no serviço: usuários provisionados que obtenham o identificador de um arquivo conseguem solicitar seu download. Não publique o serviço como armazenamento aberto.
+A chave individual é associada ao username no servidor. Use a mesma associação para todas as instalações desse usuário e chaves diferentes para usuários diferentes. A configuração atual é manual, adequada ao teste com usuários provisionados pelo administrador. Ainda não há provisionamento automático integrado ao login ConTALK nem controle de acesso por canal no serviço: usuários provisionados que obtenham o identificador de um arquivo conseguem solicitar seu download. Não publique o serviço como armazenamento aberto.
 
 Arquivos selecionados pela janela nativa: até 2 GiB (2.147.483.648 bytes). Imagens coladas: até 1 MiB nesta implementação. Os limites e a disponibilidade do Telegram continuam aplicáveis; o aplicativo não promete uma garantia contratual de armazenamento ilimitado. O download usa um link assinado válido por 15 minutos, aberto no navegador. Imagens recebem uma miniatura local; PDFs e outros arquivos recebem cartão de nome/tamanho e download. Miniaturas antigas sem Telegram continuam legíveis.
 
@@ -47,11 +47,11 @@ A visualização única registra um recibo atômico no servidor por username e m
 
 ## Desktop, voz e atualizações
 
-O sino no topo do aplicativo mostra atualizações e permite iniciar download/instalação. A verificação ocorre cinco segundos após abrir, a cada cinco minutos e ao focar a janela. O app se oculta durante o download; o progresso separado continua visível. Ao concluir, o instalador silencioso fecha e reabre o app. Falhas devolvem a janela. A barra de título permanece nativa; o sino fica no cabeçalho do ContalK.
+O sino no topo do aplicativo mostra atualizações e permite iniciar download/instalação. A verificação ocorre cinco segundos após abrir, a cada cinco minutos e ao focar a janela. O app se oculta durante o download; o progresso separado continua visível. Ao concluir, o instalador silencioso fecha e reabre o app. Falhas devolvem a janela. A barra de título permanece nativa; o sino fica no cabeçalho do ConTALK.
 
 `Microfone` abre a seleção da entrada, mantendo teste local e opções de silenciar. `Áudio` abre a seleção da saída. A saída escolhida é aplicada à sala atual e às próximas chamadas. As permissões e o suporte do dispositivo seguem o Chromium/Windows.
 
-Fechar a janela mantém o processo na bandeja e preserva a conexão. Clique esquerdo ou direito no ícone abre o menu, que inclui `Fechar ContalK`. O ícone anima barras enquanto o LiveKit indica que o microfone local está transmitindo voz; não é um medidor de amplitude PCM. A instalação de atualizações pode encerrar o processo normalmente.
+Fechar a janela mantém o processo na bandeja e preserva a conexão. Clique esquerdo ou direito no ícone abre o menu, que inclui `Fechar ConTALK`. O ícone anima barras enquanto o LiveKit indica que o microfone local está transmitindo voz; não é um medidor de amplitude PCM. A instalação de atualizações pode encerrar o processo normalmente.
 
 ## Validação
 

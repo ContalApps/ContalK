@@ -1,6 +1,6 @@
 {
-  "productName": "ContalK",
-  "version": "0.1.11",
+  "productName": "ConTALK",
+  "version": "0.1.12",
   "identifier": "com.contalk.app",
   "build": {
     "frontendDist": "../dist",
@@ -11,7 +11,7 @@
   "app": {
     "windows": [
       {
-        "title": "ContalK",
+        "title": "ConTALK",
         "width": 1280,
         "height": 800,
         "resizable": true,

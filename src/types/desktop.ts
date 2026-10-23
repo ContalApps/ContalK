@@ -3,6 +3,7 @@ export type UpdateState = {
   version: string
   progress: number
   error?: string
+  releaseNotes?: string
 }
 export interface DesktopSource {
   id: string

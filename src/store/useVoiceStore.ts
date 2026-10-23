@@ -69,7 +69,7 @@ interface VoiceState {
   ) => Promise<void>
 }
 
-// Conexão direta com o LiveKit Cloud do ContalK
+// Conexão direta com o LiveKit Cloud do ConTALK
 const LIVEKIT_URL = 'wss://contalk-vwlfqz0q.livekit.cloud'
 const LIVEKIT_API_KEY = 'APIoDkLmBTDG5T5'
 const LIVEKIT_API_SECRET = 'ahn9v2PgmEIJCxM1QQARYd1j39r76pq4bWrVx7KFcnD'

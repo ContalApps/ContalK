@@ -36,7 +36,7 @@ const LIVEKIT_URL = 'wss://contalk-vwlfqz0q.livekit.cloud'
 const LIVEKIT_API_KEY = 'APIoDkLmBTDG5T5'
 const LIVEKIT_API_SECRET = 'ahn9v2PgmEIJCxM1QQARYd1j39r76pq4bWrVx7KFcnD'
 
-// Database local de usuários (armazenado em AppData/ContalK/users.json)
+// Database local de usuários (armazenado em AppData/ConTALK/users.json)
 function getUsersFilePath(): string {
   const dir = app.getPath('userData')
   if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true })
@@ -114,7 +114,7 @@ function createWindow() {
     icon: fs.existsSync(iconPath) ? iconPath : undefined,
     autoHideMenuBar: true,
     titleBarStyle: 'default',
-    title: 'ContalK',
+    title: 'ConTALK',
     webPreferences: {
       preload: path.join(__dirname, 'preload.mjs'),
       nodeIntegration: false,

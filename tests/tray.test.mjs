@@ -15,7 +15,7 @@ function fixture(){
 test('closing hides the app; left-click menu offers an explicit exit',()=>{
  const f=fixture();let prevented=false;f.window.emit('close',{preventDefault(){prevented=true}})
  assert.equal(prevented,true);assert.equal(f.hidden,1);assert.equal(f.quits,0)
- f.tray.emit('click');assert.equal(f.menu.at(-1).label,'Fechar ContalK');f.menu.at(-1).click()
+ f.tray.emit('click');assert.equal(f.menu.at(-1).label,'Fechar ConTALK');f.menu.at(-1).click()
  prevented=false;f.window.emit('close',{preventDefault(){prevented=true}});assert.equal(prevented,false);assert.equal(f.quits,1);f.window.emit('closed')
 })
 test('tray animation only accepts speaking state from the trusted renderer',()=>{

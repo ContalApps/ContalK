@@ -21,7 +21,7 @@ if(key.length!==32)throw new Error('Configure TELEGRAM_VAULT_KEY com 32 bytes em
 const vault=path.join(directory,'telegram.enc')
 const encrypt=value=>sealSession(value,key)
 const decrypt=data=>openSession(data,key)
-const client=new TelegramClient(new StringSession(existsSync(vault)?decrypt(readFileSync(vault)):''),Number(process.env.TELEGRAM_API_ID),process.env.TELEGRAM_API_HASH,{connectionRetries:5,deviceModel:'ContalK Storage'})
+const client=new TelegramClient(new StringSession(existsSync(vault)?decrypt(readFileSync(vault)):''),Number(process.env.TELEGRAM_API_ID),process.env.TELEGRAM_API_HASH,{connectionRetries:5,deviceModel:'ConTALK Storage'})
 client.setLogLevel('error')
 if(process.argv[2]==='login'){
  const terminal=createInterface({input:process.stdin,output:process.stdout})
@@ -37,9 +37,9 @@ let channel
 const channelFile=path.join(directory,'channel.json')
 if(existsSync(channelFile)){const saved=JSON.parse(readFileSync(channelFile,'utf8'));channel=await client.getEntity(new Api.InputPeerChannel({channelId:utils.parseID(saved.id),accessHash:utils.parseID(saved.accessHash)}))}
 else{
- const existing=(await client.getDialogs({limit:200})).find(d=>d.title==='ContalK Storage'&&d.isChannel&&!d.entity?.username)
+ const existing=(await client.getDialogs({limit:200})).find(d=>d.title==='ConTALK Storage'&&d.isChannel&&!d.entity?.username)
  channel=existing?.entity
- if(!channel){const result=await client.invoke(new Api.channels.CreateChannel({title:'ContalK Storage',about:'Arquivos compartilhados no ContalK',broadcast:true}));channel=result.chats[0]}
+ if(!channel){const result=await client.invoke(new Api.channels.CreateChannel({title:'ConTALK Storage',about:'Arquivos compartilhados no ConTALK',broadcast:true}));channel=result.chats[0]}
  writeFileSync(channelFile,JSON.stringify({id:String(channel.id),accessHash:String(channel.accessHash)}),{mode:0o600})
 }
 if(channel.username)throw new Error('O canal central deve ser privado.')
@@ -89,7 +89,7 @@ const server=createServer(async(req,res)=>{
    await pipeline(req,new Transform({transform(chunk,_encoding,done){bytes+=chunk.length;done(bytes>maxSize?new Error('Arquivo grande demais'):null,chunk)}}),createWriteStream(temp,{flags:'wx',mode:0o600}))
    if(statSync(temp).size!==size)throw new Error('Upload incompleto.')
    const name=decodeURIComponent(String(req.headers['x-file-name']||'arquivo')).replace(/[\r\n]/g,'').slice(0,200)
-   const message=await client.sendFile(channel,{file:new CustomFile(name,size,temp),forceDocument:true,workers:4,caption:'ContalK '+fileId})
+   const message=await client.sendFile(channel,{file:new CustomFile(name,size,temp),forceDocument:true,workers:4,caption:'ConTALK '+fileId})
    const record={owner,name,size,messageId:message.id}
    const metadata=path.join(directory,fileId+'.json')
    writeFileSync(metadata+'.tmp',JSON.stringify(record),{mode:0o600});renameSync(metadata+'.tmp',metadata)

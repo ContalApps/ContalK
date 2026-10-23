@@ -6,8 +6,8 @@ export function setupTray(window:BrowserWindow) {
   let quitting=false, speaking=false, phase=0
   const idle=nativeImage.createFromPath(path.join(process.env.VITE_PUBLIC!, 'app-icon.png')).resize({width:24,height:24})
   const tray=new Tray(idle)
-  tray.setToolTip('ContalK')
-  const menu=()=>Menu.buildFromTemplate([{label:'Abrir ContalK',click:()=>{showMainWindow(window)}},{type:'separator'},{label:'Fechar ContalK',click:()=>{quitting=true;app.quit()}}])
+  tray.setToolTip('ConTALK')
+  const menu=()=>Menu.buildFromTemplate([{label:'Abrir ConTALK',click:()=>{showMainWindow(window)}},{type:'separator'},{label:'Fechar ConTALK',click:()=>{quitting=true;app.quit()}}])
   tray.on('click',()=>tray.popUpContextMenu(menu()))
   tray.on('right-click',()=>tray.popUpContextMenu(menu()))
   tray.on('double-click',()=>{showMainWindow(window)})

@@ -4,6 +4,21 @@ import { EventEmitter } from 'node:events'
 import { loadTypescript } from './load-typescript.mjs'
 function createStore(initial) { if(initial) return createStore()(initial); return init => { let state; const set=patch=>{state={...state,...(typeof patch==='function'?patch(state):patch)}}; const get=()=>state;state=init(set,get);return {getState:get} } }
 function appStore() { return loadTypescript('src/store/useAppStore.ts',{'zustand':{create:createStore},'zustand/middleware':{persist:init=>init}},{crypto:{randomUUID:()=> 'channel-new'}}).useAppStore }
+
+test('brand migration preserves saved channels, messages and custom server names', () => {
+ let merge
+ const store = loadTypescript('src/store/useAppStore.ts', {'zustand':{create:createStore},'zustand/middleware':{persist:(init,options)=>{merge=options.merge;return init}}}).useAppStore
+ const current = store.getState()
+ const messages = { 'saved-channel': [{id:'saved-message',content:'Conversa preservada'}] }
+ const saved = { servers:[{id:'srv-1',name:'ContalK HQ',channels:[{id:'saved-channel',name:'Sala personalizada'}]},{id:'custom',name:'Meu servidor',channels:[]}],messages }
+ const result = merge(saved,current)
+ assert.equal(result.servers[0].name,'ConTALK HQ')
+ assert.equal(result.servers[0].channels[0].id,'saved-channel')
+ assert.equal(result.messages,messages)
+ assert.equal(result.servers[1].name,'Meu servidor')
+ saved.servers[0].name='Meu nome personalizado'
+ assert.equal(merge(saved,current).servers[0].name,'Meu nome personalizado')
+})
 test('starts without demo messages; creates bounded persistent-ready channel data without duplicates',()=>{
  const store=appStore();assert.equal(Object.keys(store.getState().messages).length,0)
  store.getState().addChannel('srv-1','  cinema  ','voice','new-1')

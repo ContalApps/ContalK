@@ -149,7 +149,7 @@ fn main() {
                 store: Mutex::new(auth_store),
             });
 
-            tracing::info!("ContalK initialized with auth DB at {:?}", db_path);
+            tracing::info!("ConTALK initialized with auth DB at {:?}", db_path);
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
@@ -161,5 +161,5 @@ fn main() {
             get_livekit_token,
         ])
         .run(tauri::generate_context!())
-        .expect("erro ao iniciar ContalK");
+        .expect("erro ao iniciar ConTALK");
 }
