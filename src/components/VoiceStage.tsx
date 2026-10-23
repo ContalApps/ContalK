@@ -5,7 +5,7 @@ import { useCommunityStore } from '../store/useCommunityStore'
 import { Track } from 'livekit-client'
 import { ParticipantVolumePopup } from './ParticipantVolumePopup'
 import { ScreenShareModal } from './ScreenShareModal'
-import { StreamVolumeControl } from './StreamVolumeControl'
+import { StreamAudioPopover } from './StreamVolumeControl'
 import { FriendButton } from './FriendButton'
 
 function VideoTrackView({
@@ -151,7 +151,7 @@ function ScreenShareViewer({
       </div>
 
       {/* Bottom overlay para o usuário transmissor local */}
-      {!participant.isLocal && <div className="ct-stream-overlay"><StreamVolumeControl identity={participant.identity} name={participant.name}/></div>}
+      {!participant.isLocal && <div className="ct-stream-overlay"><StreamAudioPopover identity={participant.identity} name={participant.name}/></div>}
       {participant.isLocal && onStopSharing && (
         <div className="absolute bottom-3 flex items-center gap-3 bg-black/85 backdrop-blur-md px-4 py-1.5 rounded-full border border-purple-500/30 shadow-2xl pointer-events-auto">
           <span className="text-xs text-purple-200 flex items-center gap-2 font-medium">
