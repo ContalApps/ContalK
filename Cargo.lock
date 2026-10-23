@@ -645,7 +645,7 @@ dependencies = [
 
 [[package]]
 name = "contalspeak"
-version = "0.1.6"
+version = "0.1.7"
 dependencies = [
  "base64 0.22.1",
  "chrono",
@@ -666,7 +666,7 @@ dependencies = [
 
 [[package]]
 name = "contalspeak-core"
-version = "0.1.6"
+version = "0.1.7"
 dependencies = [
  "bcrypt",
  "chrono",

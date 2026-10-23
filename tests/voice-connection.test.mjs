@@ -16,9 +16,9 @@ function fixture({metadataFailure=false,connectFailure=false,firstConnectGate}={
   async disconnect(){this.disconnects++;this.state='disconnected';this.emit('Disconnected')}
  }
  const store=loadTypescript('src/store/useVoiceStore.ts',{
-  zustand:{create},'livekit-client':{Room,RoomEvent:events,Track:{Source:{Camera:'camera',ScreenShare:'screen'},Kind:{Audio:'audio'}}},
+  zustand:{create},'livekit-client':{Room,RoomEvent:events,Track:{Source:{Camera:'camera',ScreenShare:'screen',ScreenShareAudio:'screen-audio',Microphone:'microphone'},Kind:{Audio:'audio'}}},
   '../../shared/livekit-grant.mjs':{roomGrant:()=>({})},
-  '../media/microphone':{microphoneOptions:()=>({}),publishSafeMicrophone:async room=>{room.localParticipant.isMicrophoneEnabled=true;return 'test microphone'}},
+  '../media/microphone':{microphoneOptions:()=>({}),setSafeMicrophoneEnabled:async(room,enabled)=>{room.localParticipant.isMicrophoneEnabled=enabled;return 'test microphone'},publishSafeMicrophone:async room=>{room.localParticipant.isMicrophoneEnabled=true;return 'test microphone'}},
   '../media/screenShare':{stopScreenShare:async()=>{},startScreenShare:async()=>{}},
  },{window:{contalkDesktop:{getLiveKitToken:async()=> 'test-token'}},localStorage:{getItem:()=>null,setItem(){}},document:{getElementById:()=>container},console:{error(){},warn(){}}}).useVoiceStore
  return {store,rooms}
@@ -58,4 +58,21 @@ test('leaving during connect cannot publish a live connection later',async()=>{
  const first=store.getState().joinChannel('one','One',user);await new Promise(resolve=>setImmediate(resolve))
  await store.getState().leaveChannel();gate.resolve();assert.equal(await first,false)
  assert.equal(store.getState().connectionStatus,'disconnected');assert.equal(store.getState().currentRoom,null);assert.equal(rooms[0].state,'disconnected')
+})
+
+test('voice and stream gains are independent, persist on new subscriptions and both respect deafen',async()=>{
+ const {store,rooms}=fixture();await store.getState().joinChannel('one','One',user)
+ const track=source=>({kind:'audio',source,gain:1,setVolume(value){this.gain=value},attach:()=>({})})
+ const mic=track('microphone'),screen=track('screen-audio'),other=track('screen-audio')
+ const peer={identity:'peer',audioTrackPublications:new Map([['mic',{source:'microphone',audioTrack:mic}],['screen',{source:'screen-audio',audioTrack:screen}]]),getTrackPublication:()=>undefined}
+ rooms[0].remoteParticipants.set('peer',peer);rooms[0].remoteParticipants.set('other',{identity:'other',audioTrackPublications:new Map([['screen',{source:'screen-audio',audioTrack:other}]]),getTrackPublication:()=>undefined})
+ store.getState().setUserVolume('peer',40);store.getState().setStreamVolume('peer',175)
+ assert.equal(mic.gain,.4);assert.equal(screen.gain,1.75);assert.equal(other.gain,1)
+ store.getState().setStreamVolume('peer',0);assert.equal(mic.gain,.4);assert.equal(screen.gain,0)
+ const replacement=track('screen-audio');rooms[0].emit('TrackSubscribed',replacement,{source:'screen-audio'},peer);assert.equal(replacement.gain,0)
+ await store.getState().toggleDeafen();assert.equal(mic.gain,0);assert.equal(other.gain,0)
+ store.getState().setStreamVolume('peer',150);store.getState().setUserVolume('peer',80);assert.equal(screen.gain,0);assert.equal(mic.gain,0)
+ await store.getState().toggleDeafen();assert.equal(mic.gain,.8);assert.equal(screen.gain,1.5);assert.equal(other.gain,1)
+ store.getState().setStreamVolume('peer',999);assert.equal(screen.gain,2)
+ await store.getState().leaveChannel()
 })

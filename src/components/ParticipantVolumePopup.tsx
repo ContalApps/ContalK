@@ -1,10 +1,13 @@
 import { useEffect, useRef } from 'react'
+import { FriendButton } from './FriendButton'
+import { StreamVolumeControl } from './StreamVolumeControl'
 
 interface ParticipantVolumePopupProps {
   participant: {
     identity: string
     name: string
     isLocal?: boolean
+    isScreenShareEnabled?: boolean
   }
   volume: number
   onVolumeChange: (vol: number) => void
@@ -46,7 +49,7 @@ export function ParticipantVolumePopup({
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 select-none">
       <div
         ref={popupRef}
-        className="w-80 bg-[#141022] border border-purple-500/40 rounded-3xl p-5 shadow-2xl shadow-purple-950/60 animate-in fade-in zoom-in-95 duration-150"
+        className="w-80 max-h-[90dvh] overflow-y-auto bg-[#141022] border border-purple-500/40 rounded-3xl p-5 shadow-2xl shadow-purple-950/60 animate-in fade-in zoom-in-95 duration-150"
         style={
           position
             ? {
@@ -57,6 +60,7 @@ export function ParticipantVolumePopup({
             : undefined
         }
       >
+        {!participant.isLocal && <FriendButton username={participant.identity} name={participant.name}/>}
         {/* Header do Card com Avatar do Usuário */}
         <div className="flex items-center justify-between border-b border-purple-900/30 pb-3 mb-4">
           <div className="flex items-center gap-3">
@@ -137,6 +141,7 @@ export function ParticipantVolumePopup({
         </div>
 
         {/* Botão Concluir */}
+        {!participant.isLocal && participant.isScreenShareEnabled && <StreamVolumeControl identity={participant.identity} name={participant.name}/>}
         <button
           onClick={onClose}
           className="mt-5 w-full py-2 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white text-xs font-bold rounded-xl transition shadow-lg shadow-purple-950/40"

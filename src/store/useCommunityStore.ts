@@ -3,11 +3,13 @@ import { Room, RoomEvent } from 'livekit-client'
 import { useAppStore } from './useAppStore'
 import { getLiveKitToken } from './useVoiceStore'
 import type { User } from './useAuthStore'
+import { useFriendStore } from './useFriendStore'
 
 export interface Member { username: string; display_name: string; avatar?: string; bio?: string; online: boolean }
 function cachedMembers(): Member[] { try { return JSON.parse(localStorage.getItem('contalk-members-v1') || '[]').map((m: Member) => ({ ...m, online: false })) } catch { return [] } }
 let room: Room | null = null
 let generation = 0
+let friendRetry: ReturnType<typeof setInterval> | undefined
 const encoder = new TextEncoder()
 function safeMember(identity: string, name: string, metadata?: string): Member {
   let profile: {avatar?: string; bio?: string} = {}
@@ -18,13 +20,17 @@ function safeMember(identity: string, name: string, metadata?: string): Member {
 }
 export const useCommunityStore = create<{ members: Member[]; status: string; profileError: string | null; connect: (user: User) => Promise<void>; disconnect: () => void; updateProfile: (user: User) => Promise<void>; broadcastChannels: () => Promise<void>; sendMessage: (channelId: string, content: string, destination?: string) => Promise<void> }>((set,get) => ({
   members: cachedMembers(), status: 'offline', profileError: null,
-  disconnect: () => { generation++; const previous = room; room = null; void previous?.disconnect(); set({ members: get().members.map(m=>({...m,online:false})), status:'offline' }) },
+  disconnect: () => { generation++; clearInterval(friendRetry); useFriendStore.getState().activate(null); const previous = room; room = null; void previous?.disconnect(); set({ members: get().members.map(m=>({...m,online:false})), status:'offline' }) },
   connect: async user => {
     get().disconnect()
     const version = generation
     set({status:'connecting',profileError:null})
     const connection = new Room({ adaptiveStream: false, dynacast: false })
     room = connection
+    useFriendStore.getState().activate(user.username, async (username, packet) => {
+      if(room !== connection || connection.state !== 'connected' || !connection.remoteParticipants.has(username)) throw new Error('Pessoa offline')
+      await connection.localParticipant.publishData(encoder.encode(JSON.stringify(packet)), { reliable: true, topic: 'contalk-friendship-v1', destinationIdentities: [username] })
+    })
     const refresh = () => {
       if (room !== connection) return
       const known = new Map(get().members.map(m=>[m.username,{...m,online:false}]))
@@ -34,6 +40,13 @@ export const useCommunityStore = create<{ members: Member[]; status: string; pro
       set({members})
     }
     const receive = (payload: Uint8Array, _participant: unknown, _kind: unknown, topic?: string) => {
+      if (room !== connection) return
+      if(topic === 'contalk-friendship-v1') {
+        const participant = _participant as {identity?: string; name?: string}
+        if (!participant?.identity || !connection.remoteParticipants.has(participant.identity) || payload.byteLength > 2000) return
+        try { void useFriendStore.getState().receive(participant.identity, participant.name || participant.identity, JSON.parse(new TextDecoder().decode(payload))).catch(() => {}) } catch { /* Invalid friendship packet. */ }
+        return
+      }
       if(topic==='community-message') {
         const participant=_participant as {identity?:string;name?:string}
         if(!participant?.identity || payload.byteLength>12000)return
@@ -51,13 +64,13 @@ export const useCommunityStore = create<{ members: Member[]; status: string; pro
         for(const c of channels.slice(0,200)) if(typeof c.id==='string'&&c.id.length<=80&&typeof c.name==='string'&&c.name.length<=60&&c.serverId==='srv-1'&&['voice','text'].includes(c.type)) useAppStore.getState().addChannel(c.serverId,c.name,c.type,c.id)
       } catch { /* Ignore malformed peer data. */ }
     }
-    connection.on(RoomEvent.ParticipantConnected,()=>{refresh();void get().broadcastChannels().catch(()=>{})})
+    connection.on(RoomEvent.ParticipantConnected,()=>{refresh();void get().broadcastChannels().catch(()=>{});void useFriendStore.getState().flush()})
     connection.on(RoomEvent.ParticipantDisconnected,refresh)
     connection.on(RoomEvent.ParticipantMetadataChanged,refresh)
     connection.on(RoomEvent.ParticipantNameChanged,refresh)
     connection.on(RoomEvent.DataReceived,receive)
     connection.on(RoomEvent.Reconnecting,()=>{if(room===connection)set({status:'reconnecting',members:get().members.map(m=>({...m,online:false}))})})
-    connection.on(RoomEvent.Reconnected,()=>{if(room===connection){set({status:'online'});refresh()}})
+    connection.on(RoomEvent.Reconnected,()=>{if(room===connection){set({status:'online'});refresh();void useFriendStore.getState().flush()}})
     connection.on(RoomEvent.Disconnected,()=>{if(room===connection)set({status:'offline',members:get().members.map(m=>({...m,online:false}))})})
     try {
       const local = await window.contalkDesktop?.listAccounts().catch(()=>[])
@@ -68,6 +81,8 @@ export const useCommunityStore = create<{ members: Member[]; status: string; pro
       await connection.connect('wss://contalk-vwlfqz0q.livekit.cloud',token,{autoSubscribe:false})
       if(version!==generation){await connection.disconnect();return}
       set({status:'online'});refresh()
+      friendRetry = setInterval(() => { void useFriendStore.getState().flush() }, 10000)
+      void useFriendStore.getState().flush()
       try { await connection.localParticipant.setMetadata(JSON.stringify({avatar:user.avatar || '',bio:user.bio || ''})) }
       catch { if(version===generation)set({profileError:'O perfil não foi sincronizado. A presença continua conectada.'}) }
       if(version!==generation){await connection.disconnect();return}

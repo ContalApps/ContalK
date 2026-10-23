@@ -14,6 +14,8 @@ test('starts without demo messages; creates bounded persistent-ready channel dat
 })
 function fixture({metadataFailure=false}={}) {
  const app=appStore();const instances=[];const storage=new Map()
+ const localStorage={getItem:key=>storage.get(key)||null,setItem:(key,value)=>storage.set(key,value)}
+ const friends=loadTypescript('src/store/useFriendStore.ts',{'zustand':{create:createStore}},{localStorage,crypto:{randomUUID:()=>globalThis.crypto.randomUUID()}}).useFriendStore
  class Room extends EventEmitter {
   state='disconnected';remoteParticipants=new Map()
   localParticipant={identity:'real',name:'Real user',metadata:'',setMetadata:async metadata=>{if(metadataFailure)throw new Error('permission denied');this.localParticipant.metadata=metadata},setName:async name=>{this.localParticipant.name=name},publishData:async(data,options)=>{this.last={data,options}}}
@@ -22,8 +24,8 @@ function fixture({metadataFailure=false}={}) {
   async disconnect(){this.state='disconnected';this.emit('disconnected')}
  }
  const events={ParticipantConnected:'joined',ParticipantDisconnected:'left',ParticipantMetadataChanged:'metadata',ParticipantNameChanged:'name',DataReceived:'data',Reconnecting:'reconnecting',Reconnected:'reconnected',Disconnected:'disconnected'}
- const store=loadTypescript('src/store/useCommunityStore.ts',{'zustand':{create:createStore},'livekit-client':{Room,RoomEvent:events},'./useAppStore':{useAppStore:app},'./useVoiceStore':{getLiveKitToken:async()=> 'test-token'}},{window:{},TextEncoder,TextDecoder,localStorage:{getItem:key=>storage.get(key)||null,setItem:(key,value)=>storage.set(key,value)}}).useCommunityStore
- return {store,app,instances}
+ const store=loadTypescript('src/store/useCommunityStore.ts',{'zustand':{create:createStore},'livekit-client':{Room,RoomEvent:events},'./useFriendStore':{useFriendStore:friends},'./useAppStore':{useAppStore:app},'./useVoiceStore':{getLiveKitToken:async()=> 'test-token'}},{window:{},TextEncoder,TextDecoder,localStorage:{getItem:key=>storage.get(key)||null,setItem:(key,value)=>storage.set(key,value)}}).useCommunityStore
+ return {store,app,instances,friends}
 }
 test('roster only reflects connected peers and clears online flags on connection loss',async()=>{
  const f=fixture();await f.store.getState().connect({username:'real',display_name:'Real user'})

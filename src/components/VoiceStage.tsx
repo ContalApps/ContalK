@@ -5,10 +5,11 @@ import { useCommunityStore } from '../store/useCommunityStore'
 import { Track } from 'livekit-client'
 import { ParticipantVolumePopup } from './ParticipantVolumePopup'
 import { ScreenShareModal } from './ScreenShareModal'
+import { StreamVolumeControl } from './StreamVolumeControl'
+import { FriendButton } from './FriendButton'
 
 function VideoTrackView({
   track,
-  isLocal,
   className = 'w-full h-full object-cover',
 }: {
   track: Track
@@ -32,7 +33,7 @@ function VideoTrackView({
       ref={videoRef}
       autoPlay
       playsInline
-      muted={isLocal}
+      muted
       className={className}
     />
   )
@@ -150,6 +151,7 @@ function ScreenShareViewer({
       </div>
 
       {/* Bottom overlay para o usuário transmissor local */}
+      {!participant.isLocal && <div className="ct-stream-overlay"><StreamVolumeControl identity={participant.identity} name={participant.name}/></div>}
       {participant.isLocal && onStopSharing && (
         <div className="absolute bottom-3 flex items-center gap-3 bg-black/85 backdrop-blur-md px-4 py-1.5 rounded-full border border-purple-500/30 shadow-2xl pointer-events-auto">
           <span className="text-xs text-purple-200 flex items-center gap-2 font-medium">
@@ -191,6 +193,7 @@ function ParticipantTile({
   return (
     <div
       onDoubleClick={onMaximize}
+      onContextMenu={e => { e.preventDefault(); onOpenVolume(participant) }}
       className={`relative rounded-3xl overflow-hidden bg-[#181427] flex flex-col items-center justify-center p-6 transition-all duration-300 shadow-2xl border group select-none ${
         participant.isSpeaking
           ? 'ring-4 ring-green-500 border-green-400 shadow-green-500/25'
@@ -198,6 +201,7 @@ function ParticipantTile({
       } ${isMaximized ? 'w-full h-full flex-1' : 'aspect-video'}`}
     >
       {avatar && !participant.isVideoEnabled && <img src={avatar} alt="" className="ct-voice-avatar-bg"/>}
+      {!participant.isLocal && <div className="ct-tile-friend" onDoubleClick={e=>e.stopPropagation()}><FriendButton username={participant.identity} name={participant.name} compact/></div>}
       {participant.isVideoEnabled && participant.videoTrack ? (
         <VideoTrackView
           track={participant.videoTrack}

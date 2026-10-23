@@ -1,8 +1,10 @@
-# ContalK 0.1.6
+# ContalK 0.1.7
 
-- Atualização em uma etapa: após clicar em atualizar, o download termina, a instalação ocorre em modo silencioso e o aplicativo reabre automaticamente.
-- Janela compacta com a logo e porcentagem real do download. Durante a instalação, uma janela independente permanece aberta mesmo com o ContalK fechado e mostra uma barra animada até a nova versão iniciar.
-- O assistente de instalação é desativado nas atualizações automáticas, inclusive quando iniciadas por clientes antigos. Instalações manuais mantêm o assistente normal.
-- Falhas de download ou de preparação não fecham o aplicativo. A janela de instalação permite fechar e verificar o aplicativo se o processo exceder três minutos.
+- Volume individual da transmissão de tela: ajuste entre 0 e 200% ou silencie só para você, sem alterar a voz da pessoa nem o áudio dos outros espectadores. Disponível na própria transmissão e no menu de áudio do participante.
+- Amizades por solicitação: adicionar pela call, perfil ou aba Amigos; aceitar, recusar, cancelar e remover. Pedidos enviados e recebidos aparecem em Pendentes.
+- O painel pessoal e a aba Amigos mostram apenas amizades aceitas. Membros do servidor permanecem em Sobre o servidor. Mensagens diretas mostram amizades e conversas abertas, sem preencher a lista com todo o servidor.
+- Removidos os atalhos Sua comunidade / Explorar canais da página inicial. Não há ranking.
 
-A instalação não fornece porcentagem detalhada; a barra dessa fase indica atividade, sem exibir progresso fictício. Chamadas em andamento são encerradas ao aplicar a atualização. O Windows ainda pode pedir autorização administrativa quando a instalação exigir elevação.
+Os dois participantes precisam usar a 0.1.7 ou posterior para trocar solicitações. Amizades e pedidos ficam salvos por conta neste computador. Pedidos pendentes são reenviados quando os dois clientes estão conectados; a entrega não acontece enquanto o aplicativo do remetente estiver fechado. Esta versão não adiciona armazenamento de amizades na nuvem.
+
+Validação: testes automatizados de aceitação, recusa/remoção, pedidos simultâneos, isolamento entre contas, persistência e reenvio; testes de independência entre volume da voz e transmissão, novas assinaturas e ensurdecer. Testes de interface e build Windows executados antes da publicação.

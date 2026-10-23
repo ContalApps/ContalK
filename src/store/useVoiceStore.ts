@@ -45,6 +45,7 @@ interface VoiceState {
   screenShareError: string | null
   profileError: string | null
   userVolumes: Record<string, number>
+  streamVolumes: Record<string, number>
   channelOccupants: Record<string, VoiceParticipant[]>
 
   // Actions
@@ -52,6 +53,7 @@ interface VoiceState {
   leaveChannel: () => Promise<void>
   refreshParticipants: () => void
   setUserVolume: (identity: string, volume: number) => void
+  setStreamVolume: (identity: string, volume: number) => void
   fetchChannelOccupants: (channelList: Array<{ id: string; name: string }>) => Promise<void>
   toggleMic: () => Promise<void>
   toggleDeafen: () => Promise<void>
@@ -139,6 +141,10 @@ const initialUserVolumes: Record<string, number> = (() => {
     return {}
   }
 })()
+const initialStreamVolumes: Record<string, number> = (() => {
+  try { return JSON.parse(localStorage.getItem('contalk_stream_volumes') || '{}') } catch { return {} }
+})()
+const clampVolume = (volume: number) => Math.min(200, Math.max(0, Number.isFinite(volume) ? volume : 100))
 
 export const useVoiceStore = create<VoiceState>((set, get) => ({
   currentRoom: null,
@@ -159,6 +165,7 @@ export const useVoiceStore = create<VoiceState>((set, get) => ({
   screenShareError: null,
   profileError: null,
   userVolumes: initialUserVolumes,
+  streamVolumes: initialStreamVolumes,
   channelOccupants: {},
 
   setUserVolume: (identity: string, volume: number) => {
@@ -174,12 +181,22 @@ export const useVoiceStore = create<VoiceState>((set, get) => ({
       const remote = currentRoom.remoteParticipants.get(identity)
       if (remote) {
         remote.audioTrackPublications.forEach((pub) => {
-          if (pub.audioTrack && typeof (pub.audioTrack as any).setVolume === 'function') {
-            (pub.audioTrack as any).setVolume(volume / 100)
+          if (pub.source !== Track.Source.ScreenShareAudio && pub.audioTrack && 'setVolume' in pub.audioTrack) {
+            pub.audioTrack.setVolume(get().isDeafened ? 0 : volume / 100)
           }
         })
       }
     }
+  },
+
+  setStreamVolume: (identity, volume) => {
+    volume = clampVolume(volume)
+    const streamVolumes = { ...get().streamVolumes, [identity]: volume }
+    set({ streamVolumes })
+    try { localStorage.setItem('contalk_stream_volumes', JSON.stringify(streamVolumes)) } catch { /* Still applies for this call. */ }
+    get().currentRoom?.remoteParticipants.get(identity)?.audioTrackPublications.forEach(pub => {
+      if (pub.source === Track.Source.ScreenShareAudio && pub.audioTrack && 'setVolume' in pub.audioTrack) pub.audioTrack.setVolume(get().isDeafened ? 0 : volume / 100)
+    })
   },
 
   fetchChannelOccupants: async (channels: Array<{ id: string; name: string }>) => {
@@ -326,6 +343,7 @@ export const useVoiceStore = create<VoiceState>((set, get) => ({
       const connection = new Room({
         adaptiveStream: true,
         dynacast: true,
+        webAudioMix: true,
         audioCaptureDefaults: microphoneOptions(get().microphoneDeviceId),
       })
 
@@ -375,10 +393,10 @@ export const useVoiceStore = create<VoiceState>((set, get) => ({
         if (track.kind === Track.Kind.Audio) {
           const audioContainer = getAudioContainer()
           const element = track.attach()
-          element.muted = get().isDeafened
           audioContainer.appendChild(element)
 
-          const userVol = Math.min(200, Math.max(0, get().userVolumes[participant.identity] ?? 100))
+          const volumes = _pub.source === Track.Source.ScreenShareAudio ? get().streamVolumes : get().userVolumes
+          const userVol = get().isDeafened ? 0 : clampVolume(volumes[participant.identity] ?? 100)
           if (typeof (track as any).setVolume === 'function') {
             (track as any).setVolume(userVol / 100)
           }
@@ -537,8 +555,11 @@ export const useVoiceStore = create<VoiceState>((set, get) => ({
     const { currentRoom, isDeafened, isMicMuted, microphoneDeviceId, micMutedBeforeDeafen } = get()
     if (!currentRoom) return
     const nextDeafened = !isDeafened
-    getAudioContainer().querySelectorAll('audio').forEach(el => { el.muted = nextDeafened })
     set({ isDeafened: nextDeafened, ...(nextDeafened ? { micMutedBeforeDeafen: isMicMuted } : {}) })
+    currentRoom.remoteParticipants.forEach(participant => participant.audioTrackPublications.forEach(pub => {
+      const volumes = pub.source === Track.Source.ScreenShareAudio ? get().streamVolumes : get().userVolumes
+      if (pub.audioTrack && 'setVolume' in pub.audioTrack) pub.audioTrack.setVolume(nextDeafened ? 0 : clampVolume(volumes[participant.identity] ?? 100) / 100)
+    }))
     try {
       await setSafeMicrophoneEnabled(currentRoom, !nextDeafened && !micMutedBeforeDeafen, microphoneDeviceId)
       set({ microphoneError: null })
