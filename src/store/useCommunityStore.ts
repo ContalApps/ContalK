@@ -1,7 +1,7 @@
 import { create } from 'zustand'
 import { Room, RoomEvent } from 'livekit-client'
 import { useAppStore } from './useAppStore'
-import { getLiveKitToken } from './useVoiceStore'
+import { getLiveKitToken, useVoiceStore } from './useVoiceStore'
 import type { User } from './useAuthStore'
 import { useFriendStore } from './useFriendStore'
 
@@ -18,7 +18,7 @@ function safeMember(identity: string, name: string, metadata?: string): Member {
     avatar: typeof profile.avatar === 'string' && profile.avatar.length < 50000 && /^data:image\/jpeg;base64,[A-Za-z0-9+/=]+$/.test(profile.avatar) ? profile.avatar : undefined,
     bio: typeof profile.bio === 'string' ? profile.bio.slice(0,240) : '', online: true }
 }
-export const useCommunityStore = create<{ members: Member[]; status: string; profileError: string | null; connect: (user: User) => Promise<void>; disconnect: () => void; updateProfile: (user: User) => Promise<void>; broadcastChannels: () => Promise<void>; sendMessage: (channelId: string, content: string, destination?: string) => Promise<void> }>((set,get) => ({
+export const useCommunityStore = create<{ members: Member[]; status: string; profileError: string | null; connect: (user: User) => Promise<void>; disconnect: () => void; updateProfile: (user: User) => Promise<void>; broadcastChannels: () => Promise<void>; deleteChannel: (serverId: string, channelId: string) => Promise<void>; sendMessage: (channelId: string, content: string, destination?: string) => Promise<void> }>((set,get) => ({
   members: cachedMembers(), status: 'offline', profileError: null,
   disconnect: () => { generation++; clearInterval(friendRetry); useFriendStore.getState().activate(null); const previous = room; room = null; void previous?.disconnect(); set({ members: get().members.map(m=>({...m,online:false})), status:'offline' }) },
   connect: async user => {
@@ -59,6 +59,20 @@ export const useCommunityStore = create<{ members: Member[]; status: string; pro
         } catch { /* Ignore invalid messages. */ }
         return
       }
+      if(topic === 'community-channel-deletions-v1') {
+        const participant = _participant as { identity?: string }
+        if (!participant?.identity || !connection.remoteParticipants.has(participant.identity) || payload.byteLength > 16000) return
+        try {
+          const deletions = JSON.parse(new TextDecoder().decode(payload))
+          if (!Array.isArray(deletions)) return
+          for (const item of deletions.slice(0,200)) {
+            if (typeof item.id !== 'string' || !item.id || item.id.length > 80 || item.serverId !== 'srv-1') continue
+            useAppStore.getState().removeChannel(item.serverId, item.id)
+            if (useVoiceStore.getState().activeChannelId === item.id) void useVoiceStore.getState().leaveChannel()
+          }
+        } catch { /* Ignore malformed deletions. */ }
+        return
+      }
       if(topic!=='community-channels' || payload.byteLength>60000) return
       try { const channels=JSON.parse(new TextDecoder().decode(payload)); if(!Array.isArray(channels))return
         for(const c of channels.slice(0,200)) if(typeof c.id==='string'&&c.id.length<=80&&typeof c.name==='string'&&c.name.length<=60&&c.serverId==='srv-1'&&['voice','text'].includes(c.type)) useAppStore.getState().addChannel(c.serverId,c.name,c.type,c.id)
@@ -70,7 +84,7 @@ export const useCommunityStore = create<{ members: Member[]; status: string; pro
     connection.on(RoomEvent.ParticipantNameChanged,refresh)
     connection.on(RoomEvent.DataReceived,receive)
     connection.on(RoomEvent.Reconnecting,()=>{if(room===connection)set({status:'reconnecting',members:get().members.map(m=>({...m,online:false}))})})
-    connection.on(RoomEvent.Reconnected,()=>{if(room===connection){set({status:'online'});refresh();void useFriendStore.getState().flush()}})
+    connection.on(RoomEvent.Reconnected,()=>{if(room===connection){set({status:'online'});refresh();void useFriendStore.getState().flush();void get().broadcastChannels().catch(()=>{})}})
     connection.on(RoomEvent.Disconnected,()=>{if(room===connection)set({status:'offline',members:get().members.map(m=>({...m,online:false}))})})
     try {
       const local = await window.contalkDesktop?.listAccounts().catch(()=>[])
@@ -81,7 +95,7 @@ export const useCommunityStore = create<{ members: Member[]; status: string; pro
       await connection.connect('wss://contalk-vwlfqz0q.livekit.cloud',token,{autoSubscribe:false})
       if(version!==generation){await connection.disconnect();return}
       set({status:'online'});refresh()
-      friendRetry = setInterval(() => { void useFriendStore.getState().flush() }, 10000)
+      friendRetry = setInterval(() => { void useFriendStore.getState().flush(); void get().broadcastChannels().catch(()=>{}) }, 10000)
       void useFriendStore.getState().flush()
       try { await connection.localParticipant.setMetadata(JSON.stringify({avatar:user.avatar || '',bio:user.bio || ''})) }
       catch { if(version===generation)set({profileError:'O perfil não foi sincronizado. A presença continua conectada.'}) }
@@ -100,5 +114,25 @@ export const useCommunityStore = create<{ members: Member[]; status: string; pro
     await room.localParticipant.publishData(encoder.encode(JSON.stringify({channelId,content})),{reliable:true,topic:'community-message',...(destination?{destinationIdentities:[destination]}:{})})
     useAppStore.getState().addMessage(channelId,content,{username:room.localParticipant.identity,display_name:room.localParticipant.name||room.localParticipant.identity})
   },
-  broadcastChannels: async () => {if(room?.state==='connected')await room.localParticipant.publishData(encoder.encode(JSON.stringify(useAppStore.getState().servers.flatMap(s=>s.channels))),{reliable:true,topic:'community-channels'})},
+  deleteChannel: async (serverId, channelId) => {
+    useAppStore.getState().removeChannel(serverId, channelId)
+    if (useVoiceStore.getState().activeChannelId === channelId) await useVoiceStore.getState().leaveChannel()
+    await get().broadcastChannels()
+  },
+  broadcastChannels: async () => {
+    const connection = room
+    if (!connection || connection.state !== 'connected') throw new Error('A sincronização aguarda a conexão.')
+    const sendRecords = async (records: unknown[], topic: string) => {
+      let batch: unknown[] = []
+      for (const record of records) {
+        if (encoder.encode(JSON.stringify([...batch,record])).byteLength > 10000 && batch.length) {
+          await connection.localParticipant.publishData(encoder.encode(JSON.stringify(batch)),{reliable:true,topic}); batch = []
+        }
+        batch.push(record)
+      }
+      if (batch.length) await connection.localParticipant.publishData(encoder.encode(JSON.stringify(batch)),{reliable:true,topic})
+    }
+    await sendRecords(Object.entries(useAppStore.getState().deletedChannels || {}).map(([id,serverId])=>({id,serverId})), 'community-channel-deletions-v1')
+    await sendRecords(useAppStore.getState().servers.flatMap(s=>s.channels), 'community-channels')
+  },
 }))

@@ -38,8 +38,10 @@ interface AppState {
   activeServerId: string
   activeChannelId: string
   messages: Record<string, Message[]>
+  deletedChannels: Record<string, string>
 
   addChannel: (serverId: string, name: string, type: 'text' | 'voice', id?: string) => void
+  removeChannel: (serverId: string, channelId: string) => void
   setCurrentUser: (user: User) => void
   addServer: (server: Server) => void
   setActiveServer: (serverId: string) => void
@@ -77,10 +79,19 @@ export const useAppStore = create<AppState>()(persist((set) => ({
   activeServerId: 'srv-1',
   activeChannelId: 'ch-welcome',
   messages: {},
+  deletedChannels: {},
   addChannel: (serverId, name, type, id = crypto.randomUUID()) => set(state => {
     const clean = name.trim().slice(0, 60)
-    if (!clean) return state
+    if (!clean || state.deletedChannels?.[id]) return state
     return { servers: state.servers.map(server => server.id === serverId && !server.channels.some(c => c.id === id) ? { ...server, channels: [...server.channels, {id, name: clean, type, serverId}] } : server) }
+  }),
+
+  removeChannel: (serverId, channelId) => set(state => {
+    if (!channelId || channelId.length > 80 || !state.servers.some(server => server.id === serverId) || state.servers.some(server => server.id !== serverId && server.channels.some(c => c.id === channelId))) return state
+    const servers = state.servers.map(server => server.id === serverId ? { ...server, channels: server.channels.filter(c => c.id !== channelId) } : server)
+    const messages = { ...state.messages }; delete messages[channelId]
+    const fallback = servers.find(server => server.id === state.activeServerId)?.channels[0]?.id || ''
+    return { servers, messages, deletedChannels: { ...state.deletedChannels, [channelId]: serverId }, activeChannelId: state.activeChannelId === channelId ? fallback : state.activeChannelId }
   }),
 
   setCurrentUser: (user) => set({ currentUser: user }),
@@ -90,7 +101,7 @@ export const useAppStore = create<AppState>()(persist((set) => ({
 
   addMessage: (channelId, content, user) => set((state) => {
     const trimmed = content.trim()
-    if (!trimmed) return state
+    if (!trimmed || state.deletedChannels?.[channelId]) return state
 
     const newMsg: Message = {
       id: `msg-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,

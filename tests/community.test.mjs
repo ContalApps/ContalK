@@ -13,7 +13,7 @@ test('starts without demo messages; creates bounded persistent-ready channel dat
  assert.ok(!store.getState().servers[0].channels.some(c=>c.id==='empty'))
 })
 function fixture({metadataFailure=false}={}) {
- const app=appStore();const instances=[];const storage=new Map()
+ const app=appStore();const instances=[];const storage=new Map();const voice={activeChannelId:null,left:0,async leaveChannel(){this.left++;this.activeChannelId=null}}
  const localStorage={getItem:key=>storage.get(key)||null,setItem:(key,value)=>storage.set(key,value)}
  const friends=loadTypescript('src/store/useFriendStore.ts',{'zustand':{create:createStore}},{localStorage,crypto:{randomUUID:()=>globalThis.crypto.randomUUID()}}).useFriendStore
  class Room extends EventEmitter {
@@ -24,8 +24,8 @@ function fixture({metadataFailure=false}={}) {
   async disconnect(){this.state='disconnected';this.emit('disconnected')}
  }
  const events={ParticipantConnected:'joined',ParticipantDisconnected:'left',ParticipantMetadataChanged:'metadata',ParticipantNameChanged:'name',DataReceived:'data',Reconnecting:'reconnecting',Reconnected:'reconnected',Disconnected:'disconnected'}
- const store=loadTypescript('src/store/useCommunityStore.ts',{'zustand':{create:createStore},'livekit-client':{Room,RoomEvent:events},'./useFriendStore':{useFriendStore:friends},'./useAppStore':{useAppStore:app},'./useVoiceStore':{getLiveKitToken:async()=> 'test-token'}},{window:{},TextEncoder,TextDecoder,localStorage:{getItem:key=>storage.get(key)||null,setItem:(key,value)=>storage.set(key,value)}}).useCommunityStore
- return {store,app,instances,friends}
+ const store=loadTypescript('src/store/useCommunityStore.ts',{'zustand':{create:createStore},'livekit-client':{Room,RoomEvent:events},'./useFriendStore':{useFriendStore:friends},'./useAppStore':{useAppStore:app},'./useVoiceStore':{getLiveKitToken:async()=> 'test-token',useVoiceStore:{getState:()=>voice}}},{window:{},TextEncoder,TextDecoder,localStorage:{getItem:key=>storage.get(key)||null,setItem:(key,value)=>storage.set(key,value)}}).useCommunityStore
+ return {store,app,instances,friends,voice}
 }
 test('roster only reflects connected peers and clears online flags on connection loss',async()=>{
  const f=fixture();await f.store.getState().connect({username:'real',display_name:'Real user'})
@@ -54,4 +54,41 @@ test('sending to offline contacts fails instead of pretending a message was deli
 
 test('presence survives a profile synchronization failure',async()=>{
  const f=fixture({metadataFailure:true});await f.store.getState().connect({username:'real',display_name:'Real user'});assert.equal(f.store.getState().status,'online');assert.ok(f.store.getState().profileError);assert.equal(f.instances[0].state,'connected');f.store.getState().disconnect()
+})
+
+test('channel deletion removes history, picks a fallback and prevents resurrection from old snapshots',()=>{
+ const app=appStore(),state=app.getState
+ state().addMessage('ch-welcome','Hello',{username:'real',display_name:'Real'})
+ state().removeChannel('srv-1','ch-welcome');assert.notEqual(state().activeChannelId,'ch-welcome');assert.equal(state().messages['ch-welcome'],undefined)
+ state().addChannel('srv-1','resurrect','text','ch-welcome');state().addMessage('ch-welcome','late',{username:'real',display_name:'Real'})
+ assert.ok(!state().servers[0].channels.some(c=>c.id==='ch-welcome'));assert.equal(state().messages['ch-welcome'],undefined)
+ for(const c of [...state().servers[0].channels])state().removeChannel('srv-1',c.id)
+ assert.equal(state().servers[0].channels.length,0);assert.equal(state().activeChannelId,'')
+ state().addChannel('srv-1','new','text','fresh');assert.equal(state().servers[0].channels.length,1)
+})
+
+test('received deletions leave the affected voice room and survive a stale channel advertisement',async()=>{
+ const f=fixture();await f.store.getState().connect({username:'real',display_name:'Real'});const room=f.instances[0]
+ room.remoteParticipants.set('peer',{identity:'peer',name:'Peer'})
+ f.voice.activeChannelId='vc-general'
+ const payload=new TextEncoder().encode(JSON.stringify([{id:'vc-general',serverId:'srv-1'}]))
+ room.emit('data',payload,{identity:'unknown'},null,'community-channel-deletions-v1');assert.equal(f.voice.left,0)
+ room.emit('data',payload,{identity:'peer'},null,'community-channel-deletions-v1');assert.equal(f.voice.left,1)
+ room.emit('data',new TextEncoder().encode(JSON.stringify([{id:'vc-general',name:'old room',type:'voice',serverId:'srv-1'}])),{identity:'peer'},null,'community-channels')
+ assert.ok(!f.app.getState().servers[0].channels.some(c=>c.id==='vc-general'));f.store.getState().disconnect()
+})
+
+test('local deletion persists offline and closes the local call before queuing synchronization',async()=>{
+ const f=fixture();f.voice.activeChannelId='vc-general'
+ await assert.rejects(f.store.getState().deleteChannel('srv-1','vc-general'),/sincronização/)
+ assert.equal(f.voice.left,1);assert.equal(f.app.getState().deletedChannels['vc-general'],'srv-1')
+})
+
+test('channel synchronization sends deletion records first and keeps reliable packets within the limit',async()=>{
+ const f=fixture();await f.store.getState().connect({username:'real',display_name:'Real'});const sent=[]
+ f.instances[0].localParticipant.publishData=async(data,options)=>sent.push({data,options})
+ f.app.getState().removeChannel('srv-1','ch-welcome')
+ for(let i=0;i<100;i++)f.app.getState().addChannel('srv-1','🌴'.repeat(30),'text','test-'+i)
+ await f.store.getState().broadcastChannels();assert.equal(sent[0].options.topic,'community-channel-deletions-v1');assert.ok(sent.every(packet=>packet.data.byteLength<=10000));assert.ok(sent.filter(packet=>packet.options.topic==='community-channels').length>1)
+ f.store.getState().disconnect()
 })
