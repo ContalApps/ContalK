@@ -1,12 +1,12 @@
-# ContalK 0.1.9
+# ContalK 0.1.10
 
-- Nova tela de configurações do usuário pela engrenagem: Aparência, Voz e áudio, Minha conta e Sobre o ContalK.
-- Tema Vice City inspirado no GTA VI, com pôr do sol, litoral e palmeiras em cores foscas, sem neon. O tema clássico continua disponível. A escolha é salva por conta neste computador e não altera a aparência dos outros usuários.
-- Preferências pessoais de redução de animações e tamanho de texto. Edição de perfil/foto e seleção de microfone acessíveis pelas configurações.
-- Excluir canais de texto e voz pelo botão ao lado do canal, pelo botão direito ou pelo cabeçalho. A confirmação mostra o que será removido. O histórico salvo do canal é apagado, e participantes em clientes atualizados saem da chamada ao receber a exclusão.
-- Exclusões ficam salvas e sincronizam na presença, na reconexão e periodicamente; anúncios antigos de canais não recriam canais excluídos. Um servidor sem canais mostra opções para criar novos canais.
-- Mantida a correção da 0.1.8: o volume da transmissão começa recolhido e só abre ao clicar no botão de áudio.
+- Chat com escolha de prévias de links, imagens e arquivos; edição/exclusão pelo autor, menções e visualização única por usuário.
+- Preparação do armazenamento central em canal privado do Telegram, com serviço separado, sessão criptografada, anexos selecionados de até 2 GB e downloads temporários. A conta central e o serviço precisam ser configurados pelo administrador antes dos uploads.
+- Sino de atualizações no cabeçalho. Verificações periódicas e ao focar o app; download, instalação silenciosa e reinício automático a partir da notificação.
+- Seleção de entrada pelo botão Microfone e saída pelo botão Áudio, com controles de silenciamento disponíveis no painel.
+- Fechar a janela mantém o ContalK na bandeja, preservando a chamada. O menu do ícone permite Fechar ContalK e o indicador anima durante a fala local.
+- Feed das novas instalações atualizado para o repositório ContalApps/ContalK.
 
-Todos devem atualizar para a 0.1.9 para sincronizar exclusões. A sincronização depende de pelo menos um cliente com a exclusão salva estar conectado. Preferências, histórico e registros de exclusão continuam no armazenamento local; esta versão não adiciona um backend persistente.
+Limitações: visualização única é uma restrição de interface, sem impedir cópia do histórico local ou captura de tela. Edição e exclusão sincronizam entre clientes conectados. A integração real com o Telegram depende da configuração central e ainda requer validação de upload/download com a conta do administrador. Imagens coladas têm limite de 1 MB.
 
-Validação: 46 testes automatizados; teste de interface das configurações, tema e exclusão com cancelamento, histórico, voz ativa e último canal; teste real de criação e exclusão entre dois clientes em sala LiveKit temporária; build Windows.
+Validação: tipos, 55 testes aprovados, incluindo os auxiliares nativos, teste de interface em janela oculta do Electron, build de produção e empacotamento Windows. Os auxiliares nativos de áudio/atualização, cujo código permanece idêntico à v0.1.9, foram recuperados do instalador oficial anterior após verificação SHA-256. Hardware físico e atualização real entre instalações ainda exigem validação manual.

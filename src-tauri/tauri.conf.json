@@ -1,6 +1,6 @@
 {
   "productName": "ContalK",
-  "version": "0.1.9",
+  "version": "0.1.10",
   "identifier": "com.contalk.app",
   "build": {
     "frontendDist": "../dist",
@@ -38,7 +38,7 @@
     "updater": {
       "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IEFFNzc3RTIxQUQ0ODY4RDYKUldUV2FFaXRJWDUzcmxmTTFiWVhSK1lWN1JqcUZuN3h3UDlYMFRCTjhFZmFkVHJUOTQ2b0p5SHcK",
       "endpoints": [
-        "https://github.com/sartervitor/ContalK/releases/latest/download/latest.json"
+        "https://github.com/ContalApps/ContalK/releases/latest/download/latest.json"
       ]
     }
   }
