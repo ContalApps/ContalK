@@ -30,6 +30,8 @@ interface VoiceState {
   activeChannelId: string | null
   activeChannelName: string | null
   connectionStatus: 'disconnected' | 'connecting' | 'connected' | 'reconnecting'
+  outputDeviceId: string
+  selectOutput: (deviceId:string)=>Promise<void>
   microphoneDeviceId: string
   microphoneLabel: string
   microphoneError: string | null
@@ -151,6 +153,12 @@ export const useVoiceStore = create<VoiceState>((set, get) => ({
   activeChannelId: null,
   activeChannelName: null,
   connectionStatus: 'disconnected',
+  outputDeviceId: localStorage.getItem('contalk-output-id') || 'default',
+  selectOutput: async deviceId => {
+    const room=get().currentRoom
+    if(room && !await room.switchActiveDevice('audiooutput',deviceId))throw new Error('Não foi possível trocar a saída de áudio.')
+    localStorage.setItem('contalk-output-id',deviceId);set({outputDeviceId:deviceId})
+  },
   microphoneDeviceId: localStorage.getItem('contalk-microphone-id') || '',
   microphoneLabel: '',
   microphoneError: null,
@@ -389,6 +397,7 @@ export const useVoiceStore = create<VoiceState>((set, get) => ({
         triggerUpdate()
       })
 
+      if(get().outputDeviceId!=='default')await connection.switchActiveDevice('audiooutput',get().outputDeviceId)
       on(RoomEvent.TrackSubscribed, (track: RemoteTrack, _pub, participant) => {
         if (track.kind === Track.Kind.Audio) {
           const audioContainer = getAudioContainer()

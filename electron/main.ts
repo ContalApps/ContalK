@@ -6,6 +6,8 @@ import { randomUUID } from 'node:crypto'
 import { fileURLToPath } from 'node:url'
 import { AccessToken } from 'livekit-server-sdk'
 import bcrypt from 'bcryptjs'
+import { setupStorage } from './storage'
+import { setupTray } from './tray'
 import { setupUpdates } from './updates'
 import { setupCaptureAudio } from './capture-audio'
 
@@ -119,6 +121,8 @@ function createWindow() {
   })
 
   setupUpdates(win)
+  setupTray(win)
+  setupStorage(win,()=>sessionUser)
   setupCaptureAudio(win)
 
   // Test active push message to Renderer_process.

@@ -14,7 +14,9 @@
     "test": "node --test tests/*.test.mjs",
     "typecheck": "tsc --noEmit && tsc -p tsconfig.electron.json",
     "verify": "npm run typecheck && npm test",
-    "publish:electron": "node scripts/publish-electron.mjs"
+    "publish:electron": "node scripts/publish-electron.mjs",
+    "storage:login": "node --env-file=.env.storage scripts/telegram-storage-server.mjs login",
+    "storage:start": "node --env-file=.env.storage scripts/telegram-storage-server.mjs"
   },
   "build": {
     "appId": "com.contalk.app",
@@ -74,6 +76,7 @@
     "react-dom": "^19.3.1",
     "sql.js": "^1.15.1",
     "tailwind-merge": "^3.7.0",
+    "telegram": "^2.26.22",
     "zustand": "^5.0.15"
   },
   "devDependencies": {

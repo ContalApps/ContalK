@@ -22,6 +22,10 @@ export interface Server {
   channels: Channel[]
 }
 
+export interface Attachment { storageId?:string; thumbnail?:string; name: string; type: string; size: number; data: string }
+
+export interface MessageOptions { id?: string; preview?: boolean; once?: boolean }
+
 export interface Message {
   id: string
   channelId: string
@@ -29,6 +33,10 @@ export interface Message {
   userName: string
   content: string
   timestamp: number
+  preview?: boolean
+  once?: boolean
+  editedAt?: number
+  attachment?: Attachment
   userColor?: string
 }
 
@@ -39,6 +47,8 @@ interface AppState {
   activeChannelId: string
   messages: Record<string, Message[]>
   deletedChannels: Record<string, string>
+  messageDeletions: Record<string,boolean>
+  changeMessage: (channelId:string,id:string,actor:string,content?:string)=>void
 
   addChannel: (serverId: string, name: string, type: 'text' | 'voice', id?: string) => void
   removeChannel: (serverId: string, channelId: string) => void
@@ -46,7 +56,7 @@ interface AppState {
   addServer: (server: Server) => void
   setActiveServer: (serverId: string) => void
   setActiveChannel: (channelId: string) => void
-  addMessage: (channelId: string, content: string, user: { username: string; display_name: string }) => void
+  addMessage: (channelId: string, content: string, user: { username: string; display_name: string }, attachment?: Attachment, options?: MessageOptions) => void
 }
 
 const COLORS = ['#5865F2', '#57F287', '#FEE75C', '#EB459E', '#ED4245', '#9B59B6', '#3498DB', '#E67E22']
@@ -80,6 +90,12 @@ export const useAppStore = create<AppState>()(persist((set) => ({
   activeChannelId: 'ch-welcome',
   messages: {},
   deletedChannels: {},
+  messageDeletions: {},
+  changeMessage:(channelId,id,actor,content)=>set(state=>{
+    const message=state.messages[channelId]?.find(m=>m.id===id)
+    if(!message || message.userId!==actor || (content!==undefined&&(!content.trim()||content.length>2000)))return state
+    return {messageDeletions:content===undefined?{...state.messageDeletions,[id]:true}:state.messageDeletions,messages:{...state.messages,[channelId]:state.messages[channelId].flatMap(m=>m.id!==id?[m]:content===undefined?[]:[{...m,content,editedAt:Date.now()}])}}
+  }),
   addChannel: (serverId, name, type, id = crypto.randomUUID()) => set(state => {
     const clean = name.trim().slice(0, 60)
     if (!clean || state.deletedChannels?.[id]) return state
@@ -99,16 +115,19 @@ export const useAppStore = create<AppState>()(persist((set) => ({
   setActiveServer: (serverId) => set({ activeServerId: serverId }),
   setActiveChannel: (channelId) => set({ activeChannelId: channelId }),
 
-  addMessage: (channelId, content, user) => set((state) => {
+  addMessage: (channelId, content, user, attachment, options) => set((state) => {
     const trimmed = content.trim()
-    if (!trimmed || state.deletedChannels?.[channelId]) return state
+    if ((!trimmed && !attachment) || state.deletedChannels?.[channelId]) return state
 
+    if(options?.id && (state.messageDeletions?.[options.id] || state.messages[channelId]?.some(m=>m.id===options.id)))return state
     const newMsg: Message = {
-      id: `msg-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
+      id: options?.id || `msg-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
       channelId,
       userId: user.username,
       userName: user.display_name || user.username,
       content: trimmed,
+      attachment,
+      preview:options?.preview, once:options?.once,
       timestamp: Date.now(),
       userColor: getColorForUser(user.username),
     }

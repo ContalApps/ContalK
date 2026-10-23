@@ -20,6 +20,14 @@ export interface DesktopBridge {
   listAccounts: () => Promise<import('../store/useAuthStore').User[]>
   updateProfile: (profile: {display_name: string; bio: string; avatar: string}) => Promise<import('../store/useAuthStore').User>
   logout: () => Promise<void>
+  uploadInlineAttachment:(attachment:import('../store/useAppStore').Attachment)=>Promise<import('../store/useAppStore').Attachment>
+  claimMessageView:(id:string)=>Promise<boolean>
+  storageStatus:()=>Promise<boolean>
+  configureStorage:(config:{url:string;token:string})=>Promise<void>
+  selectStorageFile:()=>Promise<{id:string;name:string;size:number;type:string;thumbnail?:string}|null>
+  uploadStorageFile:(id:string)=>Promise<import('../store/useAppStore').Attachment>
+  openStorageFile:(id:string)=>Promise<void>
+  setSpeaking: (speaking:boolean)=>void
   isElectron: true
   getDesktopSources: () => Promise<DesktopSource[]>
   getLiveKitToken: (params: { room: string; identity: string; name: string }) => Promise<string>

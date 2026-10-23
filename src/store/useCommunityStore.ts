@@ -2,6 +2,7 @@ import { create } from 'zustand'
 import { Room, RoomEvent } from 'livekit-client'
 import { useAppStore } from './useAppStore'
 import { getLiveKitToken, useVoiceStore } from './useVoiceStore'
+import type { Attachment, MessageOptions } from './useAppStore'
 import type { User } from './useAuthStore'
 import { useFriendStore } from './useFriendStore'
 
@@ -18,7 +19,7 @@ function safeMember(identity: string, name: string, metadata?: string): Member {
     avatar: typeof profile.avatar === 'string' && profile.avatar.length < 50000 && /^data:image\/jpeg;base64,[A-Za-z0-9+/=]+$/.test(profile.avatar) ? profile.avatar : undefined,
     bio: typeof profile.bio === 'string' ? profile.bio.slice(0,240) : '', online: true }
 }
-export const useCommunityStore = create<{ members: Member[]; status: string; profileError: string | null; connect: (user: User) => Promise<void>; disconnect: () => void; updateProfile: (user: User) => Promise<void>; broadcastChannels: () => Promise<void>; deleteChannel: (serverId: string, channelId: string) => Promise<void>; sendMessage: (channelId: string, content: string, destination?: string) => Promise<void> }>((set,get) => ({
+export const useCommunityStore = create<{ members: Member[]; status: string; profileError: string | null; connect: (user: User) => Promise<void>; disconnect: () => void; updateProfile: (user: User) => Promise<void>; broadcastChannels: () => Promise<void>; deleteChannel: (serverId: string, channelId: string) => Promise<void>; sendMessage: (channelId: string, content: string, destination?: string, attachment?: Attachment, options?: MessageOptions) => Promise<void>; changeMessage:(channelId:string,id:string,content?:string)=>Promise<void> }>((set,get) => ({
   members: cachedMembers(), status: 'offline', profileError: null,
   disconnect: () => { generation++; clearInterval(friendRetry); useFriendStore.getState().activate(null); const previous = room; room = null; void previous?.disconnect(); set({ members: get().members.map(m=>({...m,online:false})), status:'offline' }) },
   connect: async user => {
@@ -39,6 +40,7 @@ export const useCommunityStore = create<{ members: Member[]; status: string; pro
       localStorage.setItem('contalk-members-v1',JSON.stringify(members.map(m=>({...m,online:false}))))
       set({members})
     }
+    const transfers = new Map<string, { chunks: string[]; next: number; total: number; expires: number }>()
     const receive = (payload: Uint8Array, _participant: unknown, _kind: unknown, topic?: string) => {
       if (room !== connection) return
       if(topic === 'contalk-friendship-v1') {
@@ -47,15 +49,44 @@ export const useCommunityStore = create<{ members: Member[]; status: string; pro
         try { void useFriendStore.getState().receive(participant.identity, participant.name || participant.identity, JSON.parse(new TextDecoder().decode(payload))).catch(() => {}) } catch { /* Invalid friendship packet. */ }
         return
       }
+      if(topic==='community-message-change-v1') {
+        const participant=_participant as {identity?:string}
+        if(!participant?.identity || !connection.remoteParticipants.has(participant.identity) || payload.byteLength>12000)return
+        try{const change=JSON.parse(new TextDecoder().decode(payload));if(typeof change.channelId==='string'&&typeof change.id==='string'&&(change.content===undefined||typeof change.content==='string'))useAppStore.getState().changeMessage(change.channelId,change.id,participant.identity,change.content)}catch{/* Invalid change. */}
+        return
+      }
+      if(topic==='community-attachment-v1') {
+        const participant = _participant as {identity?: string}
+        if(!participant?.identity || !connection.remoteParticipants.has(participant.identity) || payload.byteLength > 12000)return
+        try {
+          const part = JSON.parse(new TextDecoder().decode(payload))
+          if(typeof part.id !== 'string' || part.id.length > 80 || !Number.isInteger(part.index) || !Number.isInteger(part.total) || part.total < 1 || part.total > 180 || typeof part.chunk !== 'string' || part.chunk.length > 8000)return
+          for(const [key,value] of transfers)if(value.expires < Date.now())transfers.delete(key)
+          const key = participant.identity + ':' + part.id
+          if(part.index === 0 && transfers.size < 8)transfers.set(key,{chunks:[],next:0,total:part.total,expires:Date.now()+60000})
+          const transfer = transfers.get(key)
+          if(!transfer || part.index !== transfer.next || part.total !== transfer.total){transfers.delete(key);return}
+          transfer.chunks.push(part.chunk);transfer.next++
+          if(transfer.next === transfer.total){transfers.delete(key);receive(encoder.encode(transfer.chunks.join('')),_participant,_kind,'community-message')}
+        } catch { /* Invalid transfer. */ }
+        return
+      }
       if(topic==='community-message') {
         const participant=_participant as {identity?:string;name?:string}
-        if(!participant?.identity || payload.byteLength>12000)return
+        if(!participant?.identity || payload.byteLength>1450000)return
         try {
           const message=JSON.parse(new TextDecoder().decode(payload))
           if(typeof message.content!=='string'||message.content.length>2000||typeof message.channelId!=='string')return
+          if(message.attachment?.storageId) {
+            const a=message.attachment
+            if(!/^[0-9a-f-]{36}$/.test(a.storageId)||typeof a.name!=='string'||a.name.length>200||typeof a.type!=='string'||a.type.length>100||!Number.isSafeInteger(a.size)||a.size<0||a.size>2*1024**3||a.data!==''||(a.thumbnail!==undefined&&(typeof a.thumbnail!=='string'||a.thumbnail.length>40000||!/^[A-Za-z0-9+/=]+$/.test(a.thumbnail))))return
+          } else if(message.attachment) {
+            const a=message.attachment
+            if(typeof a.name !== 'string' || a.name.length > 200 || typeof a.type !== 'string' || a.type.length > 100 || !Number.isInteger(a.size) || a.size < 0 || a.size > 1048576 || typeof a.data !== 'string' || a.data.length > 1398200 || !/^data:application\/octet-stream;base64,[A-Za-z0-9+/]*={0,2}$/.test(a.data) || a.data.length - 37 !== 4*Math.ceil(a.size/3))return
+          }
           const direct='dm:'+ [connection.localParticipant.identity,participant.identity].sort().join(':')
           if(message.channelId!==direct&&!useAppStore.getState().servers.some(s=>s.channels.some(c=>c.type==='text'&&c.id===message.channelId)))return
-          useAppStore.getState().addMessage(message.channelId,message.content,{username:participant.identity,display_name:participant.name||participant.identity})
+          useAppStore.getState().addMessage(message.channelId,message.content,{username:participant.identity,display_name:participant.name||participant.identity},message.attachment,{id:typeof message.id==='string'&&message.id.length<=100?message.id:undefined,preview:message.preview!==false,once:message.once===true})
         } catch { /* Ignore invalid messages. */ }
         return
       }
@@ -107,12 +138,27 @@ export const useCommunityStore = create<{ members: Member[]; status: string; pro
     set({members:get().members.map(m=>m.username===user.username?{...m,display_name:user.display_name,avatar:user.avatar,bio:user.bio}:m)})
     if(room?.state==='connected') {await room.localParticipant.setName(user.display_name);await room.localParticipant.setMetadata(JSON.stringify({avatar:user.avatar || '',bio:user.bio || ''}))}
   },
-  sendMessage: async (channelId, content, destination) => {
+  sendMessage: async (channelId, content, destination, attachment, options) => {
     if(!room || room.state!=='connected')throw new Error('Aguarde a conexão para enviar mensagens.')
-    if(!content.trim()||content.length>2000)throw new Error('Escreva uma mensagem de até 2000 caracteres.')
+    if((!content.trim()&&!attachment)||content.length>2000)throw new Error('Escreva uma mensagem de até 2000 caracteres.')
     if(destination&&!room.remoteParticipants.has(destination))throw new Error('Essa pessoa está offline.')
-    await room.localParticipant.publishData(encoder.encode(JSON.stringify({channelId,content})),{reliable:true,topic:'community-message',...(destination?{destinationIdentities:[destination]}:{})})
-    useAppStore.getState().addMessage(channelId,content,{username:room.localParticipant.identity,display_name:room.localParticipant.name||room.localParticipant.identity})
+    const metadata={id:crypto.randomUUID(),preview:options?.preview!==false,once:options?.once===true}
+    const data = JSON.stringify({channelId,content,attachment,...metadata})
+    if(attachment) {
+      if((!attachment.storageId&&attachment.size > 1048576) || attachment.size>2*1024**3 || data.length > 1440000)throw new Error('O arquivo deve ter até 1 MB.')
+      const id=crypto.randomUUID(), total=Math.ceil(data.length/8000)
+      for(let index=0;index<total;index++)await room.localParticipant.publishData(encoder.encode(JSON.stringify({id,index,total,chunk:data.slice(index*8000,(index+1)*8000)})),{reliable:true,topic:'community-attachment-v1',...(destination?{destinationIdentities:[destination]}:{})})
+    } else await room.localParticipant.publishData(encoder.encode(data),{reliable:true,topic:'community-message',...(destination?{destinationIdentities:[destination]}:{})})
+    useAppStore.getState().addMessage(channelId,content,{username:room.localParticipant.identity,display_name:room.localParticipant.name||room.localParticipant.identity},attachment,metadata)
+  },
+  changeMessage:async(channelId,id,content)=>{
+    if(!room||room.state!=='connected')throw new Error('Aguarde a conexão.')
+    const message=useAppStore.getState().messages[channelId]?.find(m=>m.id===id)
+    if(message?.userId!==room.localParticipant.identity)throw new Error('Somente o autor pode alterar a mensagem.')
+    if(content!==undefined&&(!content.trim()||content.length>2000))throw new Error('Escreva até 2000 caracteres.')
+    const destination=channelId.startsWith('dm:')?channelId.split(':').filter(p=>p!=='dm'&&p!==room!.localParticipant.identity):undefined
+    await room.localParticipant.publishData(encoder.encode(JSON.stringify({channelId,id,content})),{reliable:true,topic:'community-message-change-v1',...(destination?{destinationIdentities:destination}:{})})
+    useAppStore.getState().changeMessage(channelId,id,room.localParticipant.identity,content)
   },
   deleteChannel: async (serverId, channelId) => {
     useAppStore.getState().removeChannel(serverId, channelId)
