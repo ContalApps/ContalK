@@ -1,0 +1,46 @@
+@import "tailwindcss";
+
+@theme {
+  --color-contalk-bg: #161224;
+  --color-contalk-surface: #1e1930;
+  --color-contalk-sidebar: #13101f;
+  --color-contalk-server: #0c0a14;
+  --color-contalk-purple: #7c3aed;
+  --color-contalk-purple-hover: #6d28d9;
+  --color-contalk-purple-light: #a78bfa;
+  --color-contalk-text: #e2e1e9;
+  --color-contalk-muted: #8b879e;
+  --color-contalk-border: #282142;
+}
+
+body {
+  margin: 0;
+  padding: 0;
+  background-color: #161224;
+  color: #e2e1e9;
+  font-family: 'gg sans', 'Helvetica Neue', Helvetica, Arial, sans-serif;
+  overflow: hidden;
+}
+
+#root {
+  height: 100vh;
+  width: 100vw;
+}
+
+::-webkit-scrollbar {
+  width: 7px;
+  height: 7px;
+}
+
+::-webkit-scrollbar-track {
+  background-color: #13101f;
+}
+
+::-webkit-scrollbar-thumb {
+  background-color: #282142;
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background-color: #7c3aed;
+}
