@@ -1,4 +1,10 @@
-# Regras de trabalho do ContalK
+# Regras de trabalho do ConTALK
+
+## Branches
+
+- Trabalhar exclusivamente na branch `dev/caliari`. Não criar outras branches.
+- Manter apenas `main` e `dev/caliari`, localmente e no remoto. Integrar as alterações por PR de `dev/caliari` para `main` e sincronizar `dev/caliari` após o merge.
+- Nunca editar diretamente a `main`; ela recebe as alterações pelo PR, respeitando as proteções existentes.
 
 Quando o usuário pedir PR e merge na main, isso também autoriza e exige gerar e publicar uma nova versão estável do aplicativo, salvo se ele excluir explicitamente a publicação.
 

@@ -1,7 +1,7 @@
 {
   "name": "contalk",
   "private": true,
-  "version": "0.1.11",
+  "version": "0.1.12",
   "type": "module",
   "main": "dist-electron/main.js",
   "scripts": {
@@ -20,7 +20,7 @@
   },
   "build": {
     "appId": "com.contalk.app",
-    "productName": "ContalK",
+    "productName": "ConTALK",
     "directories": {
       "output": "release"
     },
@@ -39,7 +39,7 @@
       "allowToChangeInstallationDirectory": true,
       "createDesktopShortcut": true,
       "createStartMenuShortcut": true,
-      "shortcutName": "ContalK",
+      "shortcutName": "ConTALK",
       "include": "build/installer.nsh"
     },
     "publish": [
@@ -60,7 +60,7 @@
         "to": "update/contalk-update.exe"
       }
     ],
-    "artifactName": "ContalK-Setup-${version}.${ext}",
+    "artifactName": "ConTALK-Setup-${version}.${ext}",
     "npmRebuild": false
   },
   "dependencies": {

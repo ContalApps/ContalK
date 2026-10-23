@@ -45,7 +45,7 @@ body {
   background-color: #7c3aed;
 }
 
-/* ContalK — midnight community */
+/* ConTALK — midnight community */
 :root { color-scheme: dark; }
 .ct-app { --ct-border:#252431; --ct-muted:#9795ad; height:calc(100dvh / var(--ct-interface-scale, 1)); background:#0d0e15; color:#eeeef6; font:14px 'Segoe UI',sans-serif; display:flex; flex-direction:column; overflow:hidden; }
 .ct-app * { box-sizing:border-box; }

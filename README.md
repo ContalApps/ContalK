@@ -1,4 +1,6 @@
-# ContalK 🎙️
+# ConTALK 🎙️
+
+Detalhes da [tipografia variável, grade de transmissões e notificações de atualização](docs/interface-and-streams.md).
 
 Um aplicativo desktop de comunicação por voz e vídeo estilo Discord, construído com **Rust + Tauri + React** e usando **LiveKit** como SFU open-source.
 
@@ -137,7 +139,7 @@ O empacotamento requer Windows x64, Visual Studio C++ Build Tools e Windows SDK 
 
 ## Áudio das transmissões
 
-O Electron captura vídeo sem áudio global. O helper `native/audio-capture/main.cpp` usa WASAPI process loopback para capturar somente a árvore do processo selecionado. Para monitores, enumera janelas visíveis no monitor predominante e atualiza a seleção a cada segundo, excluindo o processo do ContalK e seus filhos. Janelas minimizadas não entram nessa seleção. O áudio capturado vai para uma faixa LiveKit separada, sem ser reproduzido localmente.
+O Electron captura vídeo sem áudio global. O helper `native/audio-capture/main.cpp` usa WASAPI process loopback para capturar somente a árvore do processo selecionado. Para monitores, enumera janelas visíveis no monitor predominante e atualiza a seleção a cada segundo, excluindo o processo do ConTALK e seus filhos. Janelas minimizadas não entram nessa seleção. O áudio capturado vai para uma faixa LiveKit separada, sem ser reproduzido localmente.
 
 É necessário Windows 10 build 20348 ou Windows 11. Janelas/abas do mesmo processo não podem ser isoladas umas das outras por esse método. Use compartilhamento de aba no navegador para áudio exclusivo de uma aba. Nunca há fallback para o som geral do computador; uma falha de captura aparece no seletor ou no palco de voz.
 

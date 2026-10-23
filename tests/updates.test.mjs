@@ -48,5 +48,21 @@ test('rejects updater calls from untrusted frames and removes IPC on close', asy
   finally { f.window.emit('closed') }
 })
 
+test('release notes travel with updater state and survive download progress', () => {
+  const f = fixture()
+  try {
+    f.updater.emit('update-available', { version: '0.2.0', releaseNotes: '<p>Novas transmissões</p>' })
+    assert.equal(f.call('update-get-state').releaseNotes, '<p>Novas transmissões</p>')
+    f.updater.emit('download-progress', { percent: 42 })
+    assert.equal(f.call('update-get-state').releaseNotes, '<p>Novas transmissões</p>')
+    f.updater.emit('update-available', { version: '0.3.0', releaseNotes: [{version:'0.3.0',note:'Fonte variável'},{version:'0.2.0',note:'Grade completa'}] })
+    assert.equal(f.call('update-get-state').releaseNotes, 'v0.3.0\nFonte variável\n\nv0.2.0\nGrade completa')
+    f.updater.emit('update-available', { version: '0.4.0' })
+    assert.equal(f.call('update-get-state').releaseNotes, '')
+    f.updater.emit('update-not-available')
+    assert.equal(f.call('update-get-state').version, '')
+  } finally { f.window.emit('closed') }
+})
+
 test('failed downloads do not close the app or launch the installer',async()=>{const f=fixture({downloadFailure:true});try{await f.call('update-check');await assert.rejects(f.call('update-download'),/Download failed/);assert.equal(f.installs,0);assert.equal(f.nativeStarts,0);assert.equal(f.call('update-get-state').status,'error')}finally{f.window.emit('closed')}})
 test('failed installation handoff keeps the application open',async()=>{const f=fixture({installFailure:true});try{await f.call('update-check');await assert.rejects(f.call('update-download'),/Splash failed/);assert.equal(f.installs,0);assert.equal(f.call('update-get-state').status,'error')}finally{f.window.emit('closed')}})

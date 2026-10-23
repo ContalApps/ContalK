@@ -1,0 +1,27 @@
+@font-face {
+  font-family: 'Google Sans';
+  src: url('/fonts/GoogleSans-Variable.ttf') format('truetype');
+  font-style: normal;
+  font-weight: 400 700;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'Google Sans';
+  src: url('/fonts/GoogleSans-Italic-Variable.ttf') format('truetype');
+  font-style: italic;
+  font-weight: 400 700;
+  font-display: swap;
+}
+:root { --font-sans: 'Google Sans', Arial, sans-serif; }
+body { font-family: var(--font-sans); font-optical-sizing: auto; font-weight: 400; font-synthesis: none; }
+button, input, select, textarea { font-family: inherit; }
+button, label, summary { font-weight: 500; }
+strong, b { font-weight: 600; }
+h1, h2, h3, h4 { font-weight: 650; }
+.ct-brand strong { font-weight: 700; }
+.ct-section-label, .ct-dock-status strong { font-variation-settings: 'GRAD' 25; }
+.font-extrabold, .font-black { font-weight: 700; }
+
+/* O eixo óptico da fonte fornecida vai de 17 a 18; auto respeita esses limites.
+   Código e dados técnicos preservam a família monoespaçada. */
+code, pre, kbd { font-family: ui-monospace, Consolas, monospace; }

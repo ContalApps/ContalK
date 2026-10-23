@@ -56,8 +56,8 @@ export function setupUpdates(window: BrowserWindow) {
   autoUpdater.autoInstallOnAppQuit = false
   autoUpdater.allowDowngrade = false
   autoUpdater.allowPrerelease = false
-  autoUpdater.on('update-available', info => send({ status: 'available', version: info.version, progress: 0, error: undefined }))
-  autoUpdater.on('update-not-available', () => send({ status: 'idle', error: undefined }))
+  autoUpdater.on('update-available', info => send({ status: 'available', version: info.version, releaseNotes: typeof info.releaseNotes === 'string' ? info.releaseNotes : info.releaseNotes?.map(note => `v${note.version}\n${note.note || ''}`).join('\n\n') || '', progress: 0, error: undefined }))
+  autoUpdater.on('update-not-available', () => send({ status: 'idle', version: '', releaseNotes: '', error: undefined }))
   autoUpdater.on('download-progress', info => send({ status: 'downloading', progress: Math.round(info.percent) }))
   autoUpdater.on('update-downloaded', info => send({ status: 'ready', version: info.version, progress: 100, error: undefined }))
   autoUpdater.on('error', error => {

@@ -49,6 +49,7 @@ function ScreenShareViewer({
   onMinimize,
   isSpotlight = false,
   hideAudioControl = false,
+  onFullscreen,
 }: {
   participant: VoiceParticipant
   onStopSharing?: () => void
@@ -56,39 +57,13 @@ function ScreenShareViewer({
   onMinimize?: () => void
   isSpotlight?: boolean
   hideAudioControl?:boolean
+  onFullscreen?: () => void
 }) {
-  const containerRef = useRef<HTMLDivElement>(null)
-  const [isFullscreen, setIsFullscreen] = useState(false)
   const [ready,setReady]=useState(false)
   useEffect(()=>setReady(false),[participant.screenTrack])
 
-  useEffect(() => {
-    const handleFullscreenChange = () => {
-      setIsFullscreen(!!document.fullscreenElement)
-    }
-    document.addEventListener('fullscreenchange', handleFullscreenChange)
-    return () => {
-      document.removeEventListener('fullscreenchange', handleFullscreenChange)
-    }
-  }, [])
-
-  const handleToggleFullscreen = (e?: React.MouseEvent) => {
-    e?.stopPropagation()
-    if (!containerRef.current) return
-    if (!document.fullscreenElement) {
-      containerRef.current.requestFullscreen().catch((err) => {
-        console.warn('Falha ao entrar em tela cheia:', err)
-      })
-    } else {
-      document.exitFullscreen().catch((err) => {
-        console.warn('Falha ao sair de tela cheia:', err)
-      })
-    }
-  }
-
   return (
     <div
-      ref={containerRef}
       onDoubleClick={onFocus || onMinimize}
       className="ct-share-view relative flex-1 w-full h-full overflow-hidden flex flex-col items-center justify-center group min-h-0 select-none"
     >
@@ -136,13 +111,14 @@ function ScreenShareViewer({
             </button>
           )}
 
-          <button
-            onClick={handleToggleFullscreen}
+          {onFullscreen && <button
+            onClick={onFullscreen}
             className="bg-black/80 hover:bg-black text-purple-200 p-1.5 rounded-xl border border-purple-500/30 text-xs font-semibold transition shadow-md cursor-pointer"
-            title={isFullscreen ? 'Sair da tela cheia' : 'Tela cheia'}
+            title="Tela cheia · selecionar transmissões"
+            aria-label={`Tela cheia: ${participant.name}`}
           >
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" aria-hidden="true"><path d="M8 3H3v5M16 3h5v5M3 16v5h5M16 21h5v-5"/></svg>
-          </button>
+          </button>}
         </div>
       </div>
 
@@ -316,6 +292,35 @@ export function VoiceStage({
 
   // Popup de Volume e Modal de Transmissão de Tela
   const [volumeTarget, setVolumeTarget] = useState<VoiceParticipant | null>(null)
+  const stageRef = useRef<HTMLDivElement>(null)
+  const [isFullscreen, setIsFullscreen] = useState(false)
+  // null acompanha todas as transmissões, inclusive as que começam depois.
+  const [selectedScreens, setSelectedScreens] = useState<string[] | null>(null)
+  const [fullscreenError, setFullscreenError] = useState('')
+  const visibleScreens = selectedScreens === null
+    ? screenShares
+    : screenShares.filter(p => selectedScreens.includes(p.identity))
+
+  useEffect(() => {
+    const changed = () => setIsFullscreen(document.fullscreenElement === stageRef.current)
+    document.addEventListener('fullscreenchange', changed)
+    return () => document.removeEventListener('fullscreenchange', changed)
+  }, [])
+  const shareIds = screenShares.map(p => p.identity).join('\n')
+  useEffect(() => {
+    // Se todas as telas escolhidas pararem, acompanha as restantes.
+    setSelectedScreens(current => current && !current.some(id => screenShares.some(p => p.identity === id)) ? null : current)
+  }, [shareIds])
+  const openFullscreen = async (identity: string) => {
+    setSelectedScreens([identity])
+    setFullscreenError('')
+    try { await stageRef.current?.requestFullscreen() }
+    catch { setFullscreenError('Não foi possível abrir a tela cheia. Tente novamente.') }
+  }
+  const exitFullscreen = async () => {
+    try { await document.exitFullscreen() }
+    catch { setFullscreenError('Não foi possível sair da tela cheia. Pressione Esc.') }
+  }
 
   // Transmissão de tela selecionada para foco
   const focusedScreen =
@@ -338,7 +343,32 @@ export function VoiceStage({
   }
 
   return (
-    <div data-sharing-count={screenShares.length} className="ct-voice-stage flex-1 flex flex-col h-full relative overflow-hidden select-none min-w-0">
+    <div ref={stageRef} data-sharing-count={screenShares.length} className="ct-voice-stage flex-1 flex flex-col h-full relative overflow-hidden select-none min-w-0">
+      {isFullscreen ? <>
+        <header className="ct-fullscreen-toolbar">
+          <strong>Transmissões · {visibleScreens.length} de {screenShares.length}</strong>
+          <details className="ct-stream-picker">
+            <summary>Selecionar transmissões</summary>
+            <div className="ct-stream-picker-options">
+              <button onClick={() => setSelectedScreens(null)}>Ver todas</button>
+              {screenShares.map(p => <label key={p.identity}>
+                <input type="checkbox" checked={selectedScreens === null || selectedScreens.includes(p.identity)}
+                  disabled={visibleScreens.length === 1 && visibleScreens[0].identity === p.identity}
+                  onChange={e => setSelectedScreens(e.target.checked
+                    ? [...(selectedScreens ?? screenShares.map(s => s.identity)), p.identity]
+                    : (selectedScreens ?? screenShares.map(s => s.identity)).filter(id => id !== p.identity))}/>
+                {p.name}{p.isLocal ? ' (você)' : ''}
+              </label>)}
+            </div>
+          </details>
+          <button onClick={() => void exitFullscreen()}>Sair da tela cheia <kbd>Esc</kbd></button>
+        </header>
+        <div className="ct-fullscreen-content">
+          {visibleScreens.length ? <div className="ct-stream-grid" data-count={visibleScreens.length} style={{gridTemplateRows: `repeat(${Math.ceil(visibleScreens.length / 2)}, minmax(120px, 1fr))`}}>
+            {visibleScreens.map(p => <div key={p.identity} className="ct-stream-cell"><ScreenShareViewer participant={p}/></div>)}
+          </div> : <p className="ct-stream-ended" role="status">As transmissões foram encerradas.</p>}
+        </div>
+      </> : <>
       {/* Header do palco de voz estilo Discord */}
       <header className="ct-voice-toolbar">
         {/* Canto direito do Header: Controles de Grade/Foco, Contador e Membros */}
@@ -433,18 +463,14 @@ export function VoiceStage({
           /* ═══════════════════════════════════════════════════════════════════ */
           <div className="ct-share-layout flex-1 flex flex-col min-h-0 w-full h-full">
             <div
-              className={`flex-1 grid gap-3 min-h-0 ${
-                screenShares.length === 1
-                  ? 'grid-cols-1'
-                  : screenShares.length === 2
-                  ? 'grid-cols-1 md:grid-cols-2'
-                  : 'grid-cols-1 md:grid-cols-2 lg:grid-cols-2'
-              }`}
+              className="ct-stream-grid"
+              data-count={screenShares.length}
             >
               {screenShares.map((p) => (
-                <div key={p.identity} className="relative w-full h-full min-h-0 flex flex-col">
+                <div key={p.identity} className="ct-stream-cell">
                   <ScreenShareViewer
                     participant={p}
+                    onFullscreen={() => void openFullscreen(p.identity)}
                     onStopSharing={p.isLocal ? toggleScreenShare : undefined}
                     onFocus={() => {
                       setSpotlightScreenId(p.identity)
@@ -466,6 +492,7 @@ export function VoiceStage({
           <div className="flex-1 flex flex-col gap-3 min-h-0 w-full max-w-6xl mx-auto h-full">
             <ScreenShareViewer
               participant={focusedScreen}
+              onFullscreen={() => void openFullscreen(focusedScreen.identity)}
               onStopSharing={focusedScreen.isLocal ? toggleScreenShare : undefined}
               onMinimize={() => setStageViewMode('grid')}
               isSpotlight={true}
@@ -598,7 +625,9 @@ export function VoiceStage({
           </div>
         )}
       </div>
+      </>}
 
+      {fullscreenError && <p role="alert">{fullscreenError}</p>}
       {screenShareError && <div role="alert" className="mx-4 mb-2 rounded-xl border border-red-500/40 bg-red-950/30 p-3 text-xs text-red-200">{screenShareError}</div>}
       {/* Popup de Controle de Volume do Participante */}
       {volumeTarget && (

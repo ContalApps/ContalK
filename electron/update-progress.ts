@@ -6,7 +6,7 @@ import path from 'node:path'
 import type { UpdateState } from '../src/types/desktop'
 
 export function createUpdateProgress(parent: BrowserWindow, state: () => UpdateState) {
-  const popup = new BrowserWindow({ width: 400, height: 310, frame: false, resizable: false, maximizable: false, minimizable: false, show: false, parent, modal: true, backgroundColor: '#110e19', title: 'Atualizando ContalK', webPreferences: { preload: path.join(process.env.APP_ROOT!, 'dist-electron/preload.mjs'), contextIsolation: true, nodeIntegration: false } })
+  const popup = new BrowserWindow({ width: 400, height: 310, frame: false, resizable: false, maximizable: false, minimizable: false, show: false, parent, modal: true, backgroundColor: '#110e19', title: 'Atualizando ConTALK', webPreferences: { preload: path.join(process.env.APP_ROOT!, 'dist-electron/preload.mjs'), contextIsolation: true, nodeIntegration: false } })
   let disposed = false
   popup.on('close', event => { if (!disposed && state().status !== 'error') event.preventDefault() })
   popup.webContents.once('did-finish-load', () => { if (!popup.isDestroyed()) { popup.webContents.send('update-state', state()); popup.show() } })

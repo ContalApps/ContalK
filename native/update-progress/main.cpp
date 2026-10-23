@@ -32,7 +32,7 @@ static LRESULT CALLBACK WindowProc(HWND window, UINT message, WPARAM w, LPARAM l
         HBRUSH background=CreateSolidBrush(RGB(17,14,25));FillRect(buffer,&area,background);DeleteObject(background);
         if(logo){Graphics graphics(buffer);graphics.SetInterpolationMode(InterpolationModeHighQualityBicubic);graphics.DrawImage(logo.get(),155,25,90,90);}
         Text(buffer,failed?L"A atualiza\u00e7\u00e3o est\u00e1 demorando":L"Instalando atualiza\u00e7\u00e3o...",{15,133,385,167},titleFont,RGB(240,228,255));
-        Text(buffer,failed?L"Abra o ContalK para verificar. Clique aqui para fechar.":L"O ContalK ser\u00e1 reaberto automaticamente.",{30,176,370,217},detailFont,RGB(170,153,190));
+        Text(buffer,failed?L"Abra o ConTALK para verificar. Clique aqui para fechar.":L"O ConTALK ser\u00e1 reaberto automaticamente.",{30,176,370,217},detailFont,RGB(170,153,190));
         HBRUSH track=CreateSolidBrush(RGB(46,34,64));RECT bar{40,232,360,239};FillRect(buffer,&bar,track);DeleteObject(track);
         if(!failed){int offset=int((GetTickCount64()-started)%1600)*240/1600;RECT segment{40+offset,232,120+offset,239};HBRUSH purple=CreateSolidBrush(RGB(158,91,245));FillRect(buffer,&segment,purple);DeleteObject(purple);}
         BitBlt(dc,0,0,area.right,area.bottom,buffer,0,0,SRCCOPY);SelectObject(buffer,previous);DeleteObject(bitmap);DeleteDC(buffer);EndPaint(window,&ps);return 0;
@@ -54,7 +54,7 @@ int WINAPI wWinMain(HINSTANCE instance,HINSTANCE,PWSTR,int) {
     titleFont=CreateFontW(-18,0,0,0,FW_SEMIBOLD,FALSE,FALSE,FALSE,DEFAULT_CHARSET,0,0,CLEARTYPE_QUALITY,0,L"Segoe UI");
     detailFont=CreateFontW(-13,0,0,0,FW_NORMAL,FALSE,FALSE,FALSE,DEFAULT_CHARSET,0,0,CLEARTYPE_QUALITY,0,L"Segoe UI");
     WNDCLASSW wc{};wc.lpfnWndProc=WindowProc;wc.hInstance=instance;wc.lpszClassName=L"ContalKUpdateProgress";wc.hCursor=LoadCursor(nullptr,IDC_ARROW);RegisterClassW(&wc);
-    HWND window=CreateWindowExW(WS_EX_TOPMOST|WS_EX_TOOLWINDOW,wc.lpszClassName,L"Atualizando ContalK",WS_POPUP|WS_VISIBLE,(GetSystemMetrics(SM_CXSCREEN)-400)/2,(GetSystemMetrics(SM_CYSCREEN)-275)/2,400,275,nullptr,nullptr,instance,nullptr);
+    HWND window=CreateWindowExW(WS_EX_TOPMOST|WS_EX_TOOLWINDOW,wc.lpszClassName,L"Atualizando ConTALK",WS_POPUP|WS_VISIBLE,(GetSystemMetrics(SM_CXSCREEN)-400)/2,(GetSystemMetrics(SM_CYSCREEN)-275)/2,400,275,nullptr,nullptr,instance,nullptr);
     if(!window)return 3;
     SetWindowRgn(window,CreateRoundRectRgn(0,0,401,276,20,20),TRUE);SetTimer(window,1,40,nullptr);
     // Ready is reported only after the event and the branded window exist.

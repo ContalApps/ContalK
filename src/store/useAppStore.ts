@@ -76,7 +76,7 @@ export const useAppStore = create<AppState>()(persist((set) => ({
   servers: [
     {
       id: 'srv-1',
-      name: 'ContalK HQ',
+      name: 'ConTALK HQ',
       channels: [
         { id: 'ch-welcome', name: 'bem-vindo', type: 'text', serverId: 'srv-1' },
         { id: 'ch-general', name: 'geral', type: 'text', serverId: 'srv-1' },
@@ -148,4 +148,8 @@ export const useAppStore = create<AppState>()(persist((set) => ({
       },
     }
   }),
-}), { name: 'contalk-community-v2' }))
+}), { name: 'contalk-community-v2', merge: (persisted, current) => {
+  const saved = persisted as Partial<AppState>
+  return { ...current, ...saved, servers: (saved.servers ?? current.servers).map(server =>
+    server.id === 'srv-1' && /^contalk HQ$/i.test(server.name) ? { ...server, name: 'ConTALK HQ' } : server) }
+} }))

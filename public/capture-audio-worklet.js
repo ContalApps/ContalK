@@ -1,5 +1,5 @@
 /* A bounded PCM queue keeps IPC scheduling jitter out of the published track. */
-class ContalkPcmProcessor extends AudioWorkletProcessor {
+class ConTALKPcmProcessor extends AudioWorkletProcessor {
   constructor() {
     super()
     this.capacity = 24000
@@ -54,4 +54,4 @@ class ContalkPcmProcessor extends AudioWorkletProcessor {
     return true
   }
 }
-registerProcessor('contalk-pcm', ContalkPcmProcessor)
+registerProcessor('contalk-pcm', ConTALKPcmProcessor)

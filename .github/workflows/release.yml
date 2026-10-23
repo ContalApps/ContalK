@@ -1,4 +1,4 @@
-name: Release ContalK Electron
+name: Release ConTALK Electron
 
 on:
   push:

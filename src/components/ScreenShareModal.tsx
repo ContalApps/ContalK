@@ -255,7 +255,7 @@ export function ScreenShareModal({ isOpen, onClose, onStartShare }: ScreenShareM
                 />
                 <div className="min-w-0">
                   <span className="font-semibold text-white block">{selectedSource?.source_type === 'monitor' ? 'Áudio dos programas desta tela' : 'Áudio do aplicativo'}</span>
-                  <span className="text-[10px] text-purple-300/60 block">Captura isolada, sem o áudio do ContalK</span>
+                  <span className="text-[10px] text-purple-300/60 block">Captura isolada, sem o áudio do ConTALK</span>
                 </div>
               </label>
 

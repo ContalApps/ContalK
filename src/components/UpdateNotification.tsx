@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import type { UpdateState } from '../types/desktop'
 import { useVoiceStore } from '../store/useVoiceStore'
 
@@ -9,6 +9,28 @@ export function UpdateNotification() {
   const [updateHandle, setUpdateHandle] = useState<any>(null)
   const [errorMsg, setErrorMsg] = useState<string>('')
   const [dismissed, setDismissed] = useState<boolean>(true)
+  const [releaseNotes, setReleaseNotes] = useState('')
+  const announcedVersions = useRef(new Set<string>())
+  const container = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    if (!version || !['available', 'ready'].includes(status) || announcedVersions.current.has(version)) return
+    announcedVersions.current.add(version)
+    setDismissed(false)
+  }, [version, status])
+
+  useEffect(() => {
+    if (dismissed) return
+    const outside = (event: PointerEvent) => { if (!container.current?.contains(event.target as Node)) setDismissed(true) }
+    const escape = (event: KeyboardEvent) => { if (event.key === 'Escape') setDismissed(true) }
+    document.addEventListener('pointerdown', outside)
+    document.addEventListener('keydown', escape)
+    return () => { document.removeEventListener('pointerdown', outside); document.removeEventListener('keydown', escape) }
+  }, [dismissed])
+
+  // Usa somente texto; notas remotas nunca são inseridas como HTML executável.
+  const notesDocument = new DOMParser().parseFromString(releaseNotes.replace(/<\/(?:p|li|h[1-6]|div)>|<br\s*\/?>/gi, '\n'), 'text/html')
+  const notesText = (notesDocument.body.textContent || '').trim()
 
   // Verifica atualizações automaticamente ao iniciar
   useEffect(() => {
@@ -19,6 +41,7 @@ export function UpdateNotification() {
         setVersion(state.version)
         setProgress(state.progress)
         setErrorMsg(state.error || '')
+        setReleaseNotes(state.releaseNotes || '')
 
       }
       const unsubscribe = desktop.onUpdateState(applyState)
@@ -59,9 +82,9 @@ export function UpdateNotification() {
 
       if (update) {
         setVersion(update.version)
+        setReleaseNotes(update.body || '')
         setUpdateHandle(update)
         setStatus('available')
-        setDismissed(false)
       } else {
         if (manual) {
           setStatus('idle')
@@ -130,7 +153,7 @@ export function UpdateNotification() {
 
 
   return (
-    <div className="ct-update-bell"><button aria-label="Notificações e atualizações" aria-expanded={!dismissed} onClick={()=>setDismissed(!dismissed)}><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9M10 21h4"/></svg>{['available','ready','error'].includes(status)&&<i/>}</button>{!dismissed&&<div role="dialog" aria-label="Atualizações" className="fixed top-16 right-6 z-50 max-w-sm w-full bg-[#130f24] border border-purple-500/40 rounded-2xl p-4 shadow-2xl shadow-purple-900/40 animate-slide-up backdrop-blur-md">
+    <div ref={container} className="ct-update-bell"><button aria-label="Notificações e atualizações" aria-expanded={!dismissed} aria-controls="ct-update-popup" onClick={()=>setDismissed(!dismissed)}><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9M10 21h4"/></svg>{['available','ready','error'].includes(status)&&<i/>}</button>{!dismissed&&<div id="ct-update-popup" role="dialog" aria-label="Atualizações" className="ct-update-popup">
       <div className="flex items-start justify-between gap-3">
         <div className="w-10 h-10 rounded-xl bg-purple-600/20 border border-purple-500/30 flex items-center justify-center shrink-0 text-xl">
           {status === 'ready' ? '🎉' : status === 'downloading' ? '⏳' : status === 'error' ? '⚠️' : '🚀'}
@@ -139,7 +162,7 @@ export function UpdateNotification() {
         <div className="flex-1 min-w-0">
           <div className="flex items-center justify-between">
             <h4 className="text-sm font-bold text-white flex items-center gap-1.5">
-              <span>Atualizações do ContalK</span>
+              <span>Atualizações do ConTALK</span>
               {version && (
                 <span className="text-[11px] px-1.5 py-0.5 rounded-full bg-purple-500/20 text-purple-300 border border-purple-500/30 font-mono">
                   v{version}
@@ -158,9 +181,13 @@ export function UpdateNotification() {
           {(status==='idle'||status==='checking')&&<p>{status==='checking'?'Buscando atualizações…':'Você está em dia.'}<button onClick={()=>void checkForUpdates(true)}>Verificar agora</button></p>}
           {status === 'available' && (
             <p className="text-xs text-gray-300 mt-1">
-              Uma nova versão está disponível. Ao atualizar, as chamadas serão encerradas e o ContalK reiniciará automaticamente.
+              Uma nova versão está disponível. Ao atualizar, as chamadas serão encerradas e o ConTALK reiniciará automaticamente.
             </p>
           )}
+          {version && ['available', 'downloading', 'ready', 'installing'].includes(status) && <section className="ct-update-notes" aria-label="Melhorias da versão">
+            <strong>O que há de novo</strong>
+            <p>{notesText || 'As notas desta versão não foram disponibilizadas.'}</p>
+          </section>}
 
           {status === 'downloading' && (
             <div className="mt-2 space-y-1.5">
@@ -205,7 +232,7 @@ export function UpdateNotification() {
                 onClick={restartApp}
                 className="w-full py-1.5 px-3 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs shadow-md shadow-emerald-900/40 transition active:scale-95 flex items-center justify-center gap-1.5"
               >
-                <span>Reiniciar o ContalK</span>
+                <span>Reiniciar o ConTALK</span>
               </button>
             )}
 

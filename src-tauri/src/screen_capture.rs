@@ -75,7 +75,7 @@ pub async fn get_capture_sources() -> Result<Vec<CaptureSource>, String> {
                 if title.is_empty()
                     || title == "Program Manager"
                     || title == "Windows Input Experience"
-                    || title == "ContalK"
+                    || title == "ConTALK"
                 {
                     continue;
                 }
