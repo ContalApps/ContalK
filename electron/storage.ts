@@ -1,0 +1,82 @@
+import { app, BrowserWindow, dialog, ipcMain, safeStorage, shell, nativeImage } from 'electron'
+import { createReadStream, unlinkSync, statSync, readFileSync, writeFileSync, existsSync } from 'node:fs'
+import path from 'node:path'
+import { createHash, randomUUID } from 'node:crypto'
+
+export function setupStorage(window:BrowserWindow,getUsername:()=>string|null) {
+  const selected=new Map<string,string>()
+  const configPath=()=>{
+    const username=getUsername()
+    if(!username)throw new Error('Entre no ContalK antes de configurar o armazenamento.')
+    return path.join(app.getPath('userData'),'storage-'+createHash('sha256').update(username).digest('hex')+'.enc')
+  }
+  let uploading=false
+  const mime=(file:string)=>({'.png':'image/png','.jpg':'image/jpeg','.jpeg':'image/jpeg','.gif':'image/gif','.webp':'image/webp','.txt':'text/plain','.pdf':'application/pdf'}[path.extname(file).toLowerCase()]||'application/octet-stream')
+  const thumbnail=async(file:string)=>{if(!mime(file).startsWith('image/'))return undefined;try{return (await nativeImage.createThumbnailFromPath(file,{width:240,height:180})).toJPEG(60).toString('base64')}catch{return undefined}}
+  const trusted=(event:Electron.IpcMainInvokeEvent)=>{if(event.sender!==window.webContents||event.senderFrame!==window.webContents.mainFrame)throw new Error('Origem inválida.')}
+  const config=()=>{
+    if(process.env.CONTALK_STORAGE_URL&&process.env.CONTALK_STORAGE_TOKEN)return {url:process.env.CONTALK_STORAGE_URL,token:process.env.CONTALK_STORAGE_TOKEN}
+    if(!existsSync(configPath())||!safeStorage.isEncryptionAvailable())throw new Error('Configure o armazenamento central antes de anexar arquivos.')
+    return JSON.parse(safeStorage.decryptString(readFileSync(configPath()))) as {url:string;token:string}
+  }
+  const handlers:Record<string,(event:Electron.IpcMainInvokeEvent,...args:any[])=>unknown>={
+    'storage-status':()=>{try{config();return true}catch{return false}},
+    'storage-configure':async(_event,value:{url:string;token:string})=>{
+      const url=new URL(value.url)
+      if((url.protocol!=='https:'&&!['localhost','127.0.0.1'].includes(url.hostname))||url.username||url.password||!/^https?:$/.test(url.protocol)||!value.token?.trim())throw new Error('Informe um endereço HTTPS e sua chave de acesso.')
+      if(!safeStorage.isEncryptionAvailable())throw new Error('Proteção de credenciais do sistema indisponível.')
+      const identity=await fetch(new URL('/identity',url),{headers:{Authorization:'Bearer '+value.token.trim()}})
+      if(!identity.ok || String((await identity.json()).username).toLowerCase()!==getUsername()?.toLowerCase())throw new Error('A chave de armazenamento não corresponde ao seu usuário ContalK.')
+      writeFileSync(configPath(),safeStorage.encryptString(JSON.stringify({url:url.origin,token:value.token.trim()})))
+    },
+    'storage-select':async()=>{
+      config()
+      const result=await dialog.showOpenDialog(window,{properties:['openFile']})
+      if(result.canceled)return null
+      const file=result.filePaths[0],stat=statSync(file)
+      if(!stat.isFile()||stat.size>2*1024**3)throw new Error('Escolha um arquivo de até 2 GB.')
+      if(selected.size>=20)selected.clear()
+      const id=randomUUID();selected.set(id,file)
+      return {id,name:path.basename(file),size:stat.size,type:mime(file),thumbnail:await thumbnail(file)}
+    },
+    'storage-upload':async(_event,id:string)=>{
+      if(uploading)throw new Error('Aguarde o upload atual.')
+      const file=selected.get(id)
+      if(!file)throw new Error('Selecione novamente o arquivo.')
+      const {url,token}=config(),size=statSync(file).size
+      if(size>2*1024**3)throw new Error('Limite de 2 GB.')
+      uploading=true
+      try{
+        const response=await fetch(new URL('/files',url),{method:'POST',headers:{Authorization:'Bearer '+token,'Content-Length':String(size),'X-File-Name':encodeURIComponent(path.basename(file)),'X-File-Type':mime(file)},body:createReadStream(file) as unknown as BodyInit,duplex:'half'} as RequestInit)
+        if(!response.ok)throw new Error('Falha no upload ('+response.status+'). Confira o serviço central e a chave de acesso.')
+        const result=await response.json();selected.delete(id)
+        return {name:result.name,size:result.size,type:result.type,data:'',storageId:result.id,thumbnail:await thumbnail(file)}
+      }finally{uploading=false}
+    },
+    'storage-inline':async(event,attachment:{data:string;name:string})=>{
+      if(typeof attachment.data!=='string'||attachment.data.length>1400000||!/^data:application\/octet-stream;base64,[A-Za-z0-9+/]*={0,2}$/.test(attachment.data))throw new Error('Imagem colada inválida ou grande demais.')
+      const file=path.join(app.getPath('temp'),'contalk-'+randomUUID()+path.extname(path.basename(attachment.name)).slice(0,10))
+      writeFileSync(file,Buffer.from(attachment.data.split(',')[1],'base64'),{flag:'wx'})
+      const id=randomUUID();selected.set(id,file)
+      try{const result=await handlers['storage-upload'](event,id) as Record<string,unknown>;return {...result,name:attachment.name.slice(0,200)}}finally{selected.delete(id);unlinkSync(file)}
+    },
+    'storage-view':async(_event,id:string)=>{
+      if(!/^[0-9a-f-]{36}$/.test(id))throw new Error('Mensagem inválida.')
+      const {url,token}=config()
+      const response=await fetch(new URL('/views/'+id,url),{method:'POST',headers:{Authorization:'Bearer '+token}})
+      if(!response.ok)throw new Error('Não foi possível registrar a visualização.')
+      return Boolean((await response.json()).allowed)
+    },
+    'storage-open':async(_event,id:string)=>{
+      if(!/^[0-9a-f-]{36}$/.test(id))throw new Error('Arquivo inválido.')
+      const {url,token}=config()
+      const response=await fetch(new URL('/links/'+id,url),{headers:{Authorization:'Bearer '+token}})
+      if(!response.ok)throw new Error('Não foi possível abrir o arquivo.')
+      const result=await response.json();const target=new URL(result.url)
+      if(target.origin!==new URL(url).origin)throw new Error('Endereço de download inválido.')
+      await shell.openExternal(target.href)
+    },
+  }
+  for(const [name,handler] of Object.entries(handlers))ipcMain.handle(name,(event,...args)=>{trusted(event);if(!getUsername())throw new Error('Entre no ContalK.');return handler(event,...args)})
+  window.once('closed',()=>{for(const name of Object.keys(handlers))ipcMain.removeHandler(name)})
+}

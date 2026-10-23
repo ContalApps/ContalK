@@ -37,3 +37,6 @@ Thumbs.db
 
 # Native audio helper build output
 native/bin/
+
+# Central Telegram session, temporary uploads, manifests and view receipts
+.storage-data/

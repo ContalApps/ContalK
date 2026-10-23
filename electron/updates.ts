@@ -77,15 +77,17 @@ export function setupUpdates(window: BrowserWindow) {
     try {
       popup?.destroy(); popup = createUpdateProgress(window, () => state)
       send({ status: 'downloading', progress: 0, error: undefined })
+      window.hide()
       await autoUpdater.downloadUpdate(); if (state.status === 'ready') await install()
     }
-    catch (error) { send({ status: 'error', error: error instanceof Error ? error.message : 'Falha no download.' }); throw error }
+    catch (error) { window.show(); send({ status: 'error', error: error instanceof Error ? error.message : 'Falha no download.' }); throw error }
     finally { downloading = false }
   })
   ipcMain.handle('update-install', event => { trusted(event); return install() })
   window.on('close', event => { if (downloading && !installing) event.preventDefault() })
   const startup = setTimeout(() => void check(), 5000)
-  const interval = setInterval(() => void check(), 30 * 60 * 1000)
+  window.on('focus',()=>void check())
+  const interval = setInterval(() => void check(), 5 * 60 * 1000)
   window.once('closed', () => {
     clearTimeout(startup); clearInterval(interval)
     popup?.destroy()

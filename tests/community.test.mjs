@@ -24,7 +24,7 @@ function fixture({metadataFailure=false}={}) {
   async disconnect(){this.state='disconnected';this.emit('disconnected')}
  }
  const events={ParticipantConnected:'joined',ParticipantDisconnected:'left',ParticipantMetadataChanged:'metadata',ParticipantNameChanged:'name',DataReceived:'data',Reconnecting:'reconnecting',Reconnected:'reconnected',Disconnected:'disconnected'}
- const store=loadTypescript('src/store/useCommunityStore.ts',{'zustand':{create:createStore},'livekit-client':{Room,RoomEvent:events},'./useFriendStore':{useFriendStore:friends},'./useAppStore':{useAppStore:app},'./useVoiceStore':{getLiveKitToken:async()=> 'test-token',useVoiceStore:{getState:()=>voice}}},{window:{},TextEncoder,TextDecoder,localStorage:{getItem:key=>storage.get(key)||null,setItem:(key,value)=>storage.set(key,value)}}).useCommunityStore
+ const store=loadTypescript('src/store/useCommunityStore.ts',{'zustand':{create:createStore},'livekit-client':{Room,RoomEvent:events},'./useFriendStore':{useFriendStore:friends},'./useAppStore':{useAppStore:app},'./useVoiceStore':{getLiveKitToken:async()=> 'test-token',useVoiceStore:{getState:()=>voice}}},{window:{},crypto:{randomUUID:()=> 'transfer-test'},TextEncoder,TextDecoder,localStorage:{getItem:key=>storage.get(key)||null,setItem:(key,value)=>storage.set(key,value)}}).useCommunityStore
  return {store,app,instances,friends,voice}
 }
 test('roster only reflects connected peers and clears online flags on connection loss',async()=>{
@@ -90,5 +90,56 @@ test('channel synchronization sends deletion records first and keeps reliable pa
  f.app.getState().removeChannel('srv-1','ch-welcome')
  for(let i=0;i<100;i++)f.app.getState().addChannel('srv-1','🌴'.repeat(30),'text','test-'+i)
  await f.store.getState().broadcastChannels();assert.equal(sent[0].options.topic,'community-channel-deletions-v1');assert.ok(sent.every(packet=>packet.data.byteLength<=10000));assert.ok(sent.filter(packet=>packet.options.topic==='community-channels').length>1)
+ f.store.getState().disconnect()
+})
+
+
+test('attachment messages are chunked, reconstructed and retain their sender',async()=>{
+ const f=fixture();await f.store.getState().connect({username:'real',display_name:'Real'})
+ const room=f.instances[0];room.remoteParticipants.set('friend',{identity:'friend',name:'Friend'})
+ const attachment={name:'photo.png',type:'image/png',size:18000,data:'data:application/octet-stream;base64,'+Buffer.alloc(18000,42).toString('base64')}
+ const sent=[];room.localParticipant.publishData=async(data,options)=>sent.push({data,options})
+ await f.store.getState().sendMessage('ch-welcome','Photo',undefined,attachment)
+ const packets=sent.filter(p=>p.options.topic==='community-attachment-v1')
+ assert.ok(packets.length>1)
+ const receiver=fixture();await receiver.store.getState().connect({username:'real',display_name:'Real'});const receiverRoom=receiver.instances[0];receiverRoom.remoteParticipants.set('friend',{identity:'friend',name:'Friend'})
+ for(const packet of packets){assert.ok(packet.data.byteLength<=12000);receiverRoom.emit('data',packet.data,{identity:'friend',name:'Friend'},null,packet.options.topic)}
+ const received=receiver.app.getState().messages['ch-welcome'].at(-1)
+ assert.equal(received.userId,'friend');assert.equal(received.attachment.data,attachment.data);receiver.store.getState().disconnect()
+ f.store.getState().disconnect()
+})
+
+test('rejects malformed attachments and attachment packets addressed to another DM',async()=>{
+ const f=fixture();await f.store.getState().connect({username:'real',display_name:'Real'})
+ const room=f.instances[0];room.remoteParticipants.set('friend',{identity:'friend',name:'Friend'})
+ for(const attachment of [{name:'bad',type:'image/png',size:1,data:'javascript:alert(1)'},{name:'bad',type:'image/png',size:1048577,data:''}]){
+ room.emit('data',new TextEncoder().encode(JSON.stringify({channelId:'ch-welcome',content:'',attachment})),{identity:'friend'},null,'community-message')
+ }
+ const message=JSON.stringify({channelId:'dm:other:person',content:'',attachment:{name:'a.txt',type:'text/plain',size:1,data:'data:application/octet-stream;base64,YQ=='}})
+ room.emit('data',new TextEncoder().encode(JSON.stringify({id:'x',index:0,total:1,chunk:message})),{identity:'friend'},null,'community-attachment-v1')
+ assert.equal(Object.keys(f.app.getState().messages).length,0)
+ f.store.getState().disconnect()
+})
+
+
+test('only the author can edit or delete; deleted messages cannot reappear on replay',()=>{
+ const store=appStore(),get=store.getState,user={username:'author',display_name:'Author'}
+ get().addMessage('ch-welcome','Original',user,undefined,{id:'stable-id',preview:false,once:true})
+ assert.equal(get().messages['ch-welcome'][0].preview,false);assert.equal(get().messages['ch-welcome'][0].once,true)
+ get().changeMessage('ch-welcome','stable-id','other','Forged');assert.equal(get().messages['ch-welcome'][0].content,'Original')
+ get().changeMessage('ch-welcome','stable-id','author','Edited');assert.equal(get().messages['ch-welcome'][0].content,'Edited');assert.ok(get().messages['ch-welcome'][0].editedAt)
+ get().changeMessage('ch-welcome','stable-id','other');assert.equal(get().messages['ch-welcome'].length,1)
+ get().changeMessage('ch-welcome','stable-id','author');assert.equal(get().messages['ch-welcome'].length,0)
+ get().addMessage('ch-welcome','Original',user,undefined,{id:'stable-id'});assert.equal(get().messages['ch-welcome'].length,0)
+})
+
+test('central storage descriptors accept 2 GB without sending the binary to peers',async()=>{
+ const f=fixture();await f.store.getState().connect({username:'real',display_name:'Real'})
+ const room=f.instances[0]
+ const attachment={storageId:'e93684d1-2935-4989-9ea9-f73cc023b743',name:'large.zip',type:'application/zip',size:2147483648,data:''}
+ await f.store.getState().sendMessage('ch-welcome','',undefined,attachment,{preview:false,once:true})
+ assert.equal(f.app.getState().messages['ch-welcome'][0].attachment.size,2147483648)
+ assert.equal(f.app.getState().messages['ch-welcome'][0].preview,false)
+ assert.ok(room.last.data.byteLength<12000)
  f.store.getState().disconnect()
 })

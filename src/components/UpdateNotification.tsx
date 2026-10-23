@@ -8,7 +8,7 @@ export function UpdateNotification() {
   const [progress, setProgress] = useState<number>(0)
   const [updateHandle, setUpdateHandle] = useState<any>(null)
   const [errorMsg, setErrorMsg] = useState<string>('')
-  const [dismissed, setDismissed] = useState<boolean>(false)
+  const [dismissed, setDismissed] = useState<boolean>(true)
 
   // Verifica atualizações automaticamente ao iniciar
   useEffect(() => {
@@ -19,7 +19,7 @@ export function UpdateNotification() {
         setVersion(state.version)
         setProgress(state.progress)
         setErrorMsg(state.error || '')
-        if (state.status === 'available' || state.status === 'ready') setDismissed(false)
+
       }
       const unsubscribe = desktop.onUpdateState(applyState)
       let mounted = true
@@ -127,12 +127,10 @@ export function UpdateNotification() {
     }
   }
 
-  if (dismissed || status === 'idle' || status === 'checking' || status === 'installing') {
-    return null
-  }
+
 
   return (
-    <div className="fixed bottom-16 right-6 z-50 max-w-sm w-full bg-[#130f24] border border-purple-500/40 rounded-2xl p-4 shadow-2xl shadow-purple-900/40 animate-slide-up backdrop-blur-md">
+    <div className="ct-update-bell"><button aria-label="Notificações e atualizações" aria-expanded={!dismissed} onClick={()=>setDismissed(!dismissed)}><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9M10 21h4"/></svg>{['available','ready','error'].includes(status)&&<i/>}</button>{!dismissed&&<div role="dialog" aria-label="Atualizações" className="fixed top-16 right-6 z-50 max-w-sm w-full bg-[#130f24] border border-purple-500/40 rounded-2xl p-4 shadow-2xl shadow-purple-900/40 animate-slide-up backdrop-blur-md">
       <div className="flex items-start justify-between gap-3">
         <div className="w-10 h-10 rounded-xl bg-purple-600/20 border border-purple-500/30 flex items-center justify-center shrink-0 text-xl">
           {status === 'ready' ? '🎉' : status === 'downloading' ? '⏳' : status === 'error' ? '⚠️' : '🚀'}
@@ -141,7 +139,7 @@ export function UpdateNotification() {
         <div className="flex-1 min-w-0">
           <div className="flex items-center justify-between">
             <h4 className="text-sm font-bold text-white flex items-center gap-1.5">
-              <span>ContalK Update</span>
+              <span>Atualizações do ContalK</span>
               {version && (
                 <span className="text-[11px] px-1.5 py-0.5 rounded-full bg-purple-500/20 text-purple-300 border border-purple-500/30 font-mono">
                   v{version}
@@ -157,6 +155,7 @@ export function UpdateNotification() {
             </button>
           </div>
 
+          {(status==='idle'||status==='checking')&&<p>{status==='checking'?'Buscando atualizações…':'Você está em dia.'}<button onClick={()=>void checkForUpdates(true)}>Verificar agora</button></p>}
           {status === 'available' && (
             <p className="text-xs text-gray-300 mt-1">
               Uma nova versão está disponível. Ao atualizar, as chamadas serão encerradas e o ContalK reiniciará automaticamente.
@@ -221,6 +220,6 @@ export function UpdateNotification() {
           </div>
         </div>
       </div>
-    </div>
+    </div>}</div>
   )
 }
