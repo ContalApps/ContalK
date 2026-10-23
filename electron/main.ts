@@ -1,8 +1,11 @@
 import { app, BrowserWindow, ipcMain, desktopCapturer, shell } from 'electron'
 import path from 'node:path'
 import fs from 'node:fs'
+import { fileURLToPath } from 'node:url'
 import { AccessToken } from 'livekit-server-sdk'
 import bcrypt from 'bcryptjs'
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url))
 
 // The built directory structure
 //
