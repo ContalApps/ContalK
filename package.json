@@ -1,7 +1,7 @@
 {
   "name": "contalk",
   "private": true,
-  "version": "0.1.9",
+  "version": "0.1.10",
   "type": "module",
   "main": "dist-electron/main.js",
   "scripts": {
@@ -45,7 +45,7 @@
     "publish": [
       {
         "provider": "github",
-        "owner": "sartervitor",
+        "owner": "ContalApps",
         "repo": "ContalK",
         "releaseType": "release"
       }
@@ -60,7 +60,8 @@
         "to": "update/contalk-update.exe"
       }
     ],
-    "artifactName": "ContalK-Setup-${version}.${ext}"
+    "artifactName": "ContalK-Setup-${version}.${ext}",
+    "npmRebuild": false
   },
   "dependencies": {
     "@livekit/components-react": "^2.9.24",
