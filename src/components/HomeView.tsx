@@ -49,7 +49,7 @@ const INITIAL_FRIENDS: Friend[] = [
 
 export function HomeView() {
   const { user } = useAuthStore()
-  const { joinChannel, activeChannelId, connectionStatus } = useVoiceStore()
+  const { joinChannel } = useVoiceStore()
   const { setActiveServer, setActiveChannel } = useAppStore()
 
   const [activeTab, setActiveTab] = useState<'disponivel' | 'todos' | 'pendente' | 'adicionar'>('disponivel')

@@ -43,7 +43,7 @@ export function AuthScreen() {
           <div className="relative w-24 h-24 mx-auto mb-4 group">
             <div className="absolute inset-0 rounded-full bg-purple-600/40 blur-xl animate-pulse" />
             <img
-              src="/logo.jpg"
+              src="/contalk-avatar.png"
               alt="ContalK Logo"
               className="relative w-24 h-24 rounded-full object-cover border-2 border-purple-400/50 shadow-2xl transition-transform duration-300 group-hover:scale-105"
             />

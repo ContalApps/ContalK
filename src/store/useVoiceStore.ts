@@ -181,7 +181,7 @@ export const useVoiceStore = create<VoiceState>((set, get) => ({
               name: p.name || p.identity,
               isLocal: false,
               isSpeaking: false,
-              isAudioEnabled: !p.isMuted,
+              isAudioEnabled: p.tracks.some((track) => track.type === 0 && !track.muted),
               isVideoEnabled: p.tracks?.some((t: any) => t.source === 1) || false,
               isScreenShareEnabled: p.tracks?.some((t: any) => t.source === 2) || false,
             }))

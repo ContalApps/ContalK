@@ -762,7 +762,7 @@ export function VoiceStage({
         isOpen={isShareModalOpen}
         onClose={() => setIsShareModalOpen(false)}
         onStartShare={async (source, options) => {
-          await startScreenShareWithOptions(source, options)
+          await useVoiceStore.getState().startScreenShareWithOptions(source, options)
         }}
       />
     </div>
