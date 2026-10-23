@@ -2,6 +2,7 @@ import { useEffect } from 'react'
 import { useAuthStore } from './store/useAuthStore'
 import { AuthScreen } from './components/AuthScreen'
 import { ConTALKLayout } from './components/ConTALKLayout'
+import { TitleBar } from './components/TitleBar'
 
 function App() {
   const { isAuthenticated, isLoading, checkSession } = useAuthStore()
@@ -12,7 +13,7 @@ function App() {
 
   if (isLoading && !isAuthenticated) {
     return (
-      <div className="flex items-center justify-center h-screen bg-[#0c0a14] relative overflow-hidden select-none">
+      <div className="ct-session-shell"><TitleBar/><div className="ct-session-content flex items-center justify-center bg-[#0c0a14] relative overflow-hidden select-none">
         {/* Glow ambient background no tom roxo do morcego */}
         <div className="absolute w-[450px] h-[450px] bg-purple-600/20 rounded-full blur-[120px] pointer-events-none animate-pulse" />
 
@@ -26,7 +27,7 @@ function App() {
             />
           </div>
           <h1 className="text-white text-3xl font-black tracking-wider mb-1.5 flex items-center gap-1">
-            Contal<span className="text-purple-400">K</span>
+            Con<span className="text-purple-400">TALK</span>
           </h1>
           <p className="text-purple-300/80 text-xs font-semibold tracking-widest uppercase mb-6">
             Comunicação de Alta Performance
@@ -36,12 +37,12 @@ function App() {
             Iniciando ConTALK...
           </div>
         </div>
-      </div>
+      </div></div>
     )
   }
 
   if (!isAuthenticated) {
-    return <AuthScreen />
+    return <div className="ct-session-shell"><TitleBar/><AuthScreen/></div>
   }
 
   return <ConTALKLayout />

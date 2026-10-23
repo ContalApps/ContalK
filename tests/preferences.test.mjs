@@ -40,3 +40,12 @@ test('invalid interface scales fall back safely and failed saves preserve the cu
  assert.throws(()=>state().update({interfaceScale:200}),/Escala inválida/)
  state().update({interfaceScale:110});f.fail();assert.throws(()=>state().update({interfaceScale:80}),/full/);assert.equal(state().interfaceScale,110)
 })
+
+test('title bar shortcuts default on and are saved separately for each account',()=>{
+ const f=fixture(),state=f.store.getState
+ state().activate('alice');assert.equal(state().titleBarSearch,true);assert.equal(state().titleBarHelp,true)
+ state().update({titleBarSearch:false,titleBarHelp:false})
+ state().activate('bob');assert.equal(state().titleBarSearch,true);assert.equal(state().titleBarHelp,true)
+ state().activate('alice');assert.equal(state().titleBarSearch,false);assert.equal(state().titleBarHelp,false)
+ state().update({theme:'vice-city'});assert.equal(state().titleBarSearch,false)
+})

@@ -12,6 +12,7 @@ const desktop: DesktopBridge = {
   updateProfile: profile => ipcRenderer.invoke('auth-profile', profile),
   logout: () => ipcRenderer.invoke('auth-logout'),
   isElectron: true,
+  setTitleBarAppearance: (theme, scale) => ipcRenderer.send('window-titlebar-appearance', theme, scale),
   setInterfaceScale: percent => {
     if(!Number.isInteger(percent)||percent<80||percent>125||percent%5!==0)throw new Error('Escala inválida.')
     webFrame.setZoomFactor(percent/100)

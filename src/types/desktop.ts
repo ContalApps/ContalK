@@ -30,6 +30,7 @@ export interface DesktopBridge {
   openStorageFile:(id:string)=>Promise<void>
   setSpeaking: (speaking:boolean)=>void
   setInterfaceScale:(percent:number)=>void
+  setTitleBarAppearance: (theme: 'classic' | 'vice-city', scale: number) => void
   isElectron: true
   getDesktopSources: () => Promise<DesktopSource[]>
   getLiveKitToken: (params: { room: string; identity: string; name: string }) => Promise<string>

@@ -1,6 +1,7 @@
 # ConTALK 🎙️
 
 Detalhes da [tipografia variável, grade de transmissões e notificações de atualização](docs/interface-and-streams.md).
+Veja também a [barra de título com navegação e atalhos](docs/title-bar.md).
 
 Um aplicativo desktop de comunicação por voz e vídeo estilo Discord, construído com **Rust + Tauri + React** e usando **LiveKit** como SFU open-source.
 

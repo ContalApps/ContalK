@@ -10,6 +10,7 @@ import { setupSingleInstance, showMainWindow } from './single-instance'
 import { setupStorage } from './storage'
 import { setupTray } from './tray'
 import { setupUpdates } from './updates'
+import { setupTitleBar, titleBarOptions } from './title-bar'
 import { setupCaptureAudio } from './capture-audio'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
@@ -113,7 +114,7 @@ function createWindow() {
     backgroundColor: '#0c0a14',
     icon: fs.existsSync(iconPath) ? iconPath : undefined,
     autoHideMenuBar: true,
-    titleBarStyle: 'default',
+    ...titleBarOptions,
     title: 'ConTALK',
     webPreferences: {
       preload: path.join(__dirname, 'preload.mjs'),
@@ -124,6 +125,7 @@ function createWindow() {
   })
 
   setupUpdates(win)
+  setupTitleBar(win)
   setupTray(win)
   setupStorage(win,()=>sessionUser)
   setupCaptureAudio(win)
