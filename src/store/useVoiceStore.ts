@@ -8,6 +8,7 @@ import {
   Track,
   RemoteTrack,
   Participant,
+  ParticipantEvent,
 } from 'livekit-client'
 
 function readAvatar(metadata?: string) { try { const value = JSON.parse(metadata || '{}').avatar; return typeof value === 'string' && value.length < 50000 && /^data:image\/jpeg;base64,[A-Za-z0-9+/=]+$/.test(value) ? value : undefined } catch { return undefined } }
@@ -53,6 +54,7 @@ interface VoiceState {
   // Actions
   joinChannel: (channelId: string, channelName: string, user: { username: string; display_name: string; avatar?: string }) => Promise<boolean>
   leaveChannel: () => Promise<void>
+  renameActiveChannel:(id:string,name:string)=>void
   refreshParticipants: () => void
   setUserVolume: (identity: string, volume: number) => void
   setStreamVolume: (identity: string, volume: number) => void
@@ -133,6 +135,7 @@ function getAudioContainer(): HTMLElement {
 
 let connectionGeneration = 0
 let pendingRoom: Room | null = null
+const speakingCleanup=new WeakMap<Room,()=>void>()
 let occupantsGeneration = 0
 
 const initialUserVolumes: Record<string, number> = (() => {
@@ -250,6 +253,7 @@ export const useVoiceStore = create<VoiceState>((set, get) => ({
     }
   },
 
+  renameActiveChannel:(id,name)=>{if(get().activeChannelId===id)set({activeChannelName:name})},
   refreshParticipants: () => {
     const { currentRoom } = get()
     if (!currentRoom || currentRoom.state !== 'connected') return
@@ -320,6 +324,7 @@ export const useVoiceStore = create<VoiceState>((set, get) => ({
     const previous = state.currentRoom || pendingRoom
     pendingRoom = null
     if (previous) {
+      speakingCleanup.get(previous)?.()
       previous.removeAllListeners()
       await stopScreenShare(previous).catch(() => {})
       await previous.disconnect().catch(() => {})
@@ -361,6 +366,12 @@ export const useVoiceStore = create<VoiceState>((set, get) => ({
       const triggerUpdate = () => {
         get().refreshParticipants()
       }
+
+      const localSpeakingChanged=()=>{if(attempt===connectionGeneration)triggerUpdate()}
+      connection.localParticipant.on(ParticipantEvent.IsSpeakingChanged,localSpeakingChanged)
+      const cleanupSpeaking=()=>{connection.localParticipant.off(ParticipantEvent.IsSpeakingChanged,localSpeakingChanged);speakingCleanup.delete(connection)}
+      speakingCleanup.set(connection,cleanupSpeaking)
+      connection.once(RoomEvent.Disconnected,cleanupSpeaking)
 
       // 3. Configurar eventos de conexão e mídia
       on(RoomEvent.Connected, () => {
@@ -477,7 +488,7 @@ export const useVoiceStore = create<VoiceState>((set, get) => ({
       triggerUpdate()
       return true
     } catch (err: any) {
-      if (room) { room.removeAllListeners(); await stopScreenShare(room).catch(() => {}); await room.disconnect().catch(() => {}) }
+      if (room) { speakingCleanup.get(room)?.(); room.removeAllListeners(); await stopScreenShare(room).catch(() => {}); await room.disconnect().catch(() => {}) }
       if (pendingRoom === room) pendingRoom = null
       if (attempt !== connectionGeneration) return false
       getAudioContainer().innerHTML = ''
@@ -498,6 +509,7 @@ export const useVoiceStore = create<VoiceState>((set, get) => ({
     const { activeChannelId, participants } = get()
     const currentRoom = get().currentRoom || pendingRoom
     pendingRoom = null
+    if(currentRoom)speakingCleanup.get(currentRoom)?.()
     currentRoom?.removeAllListeners()
     if (activeChannelId) {
       const remotes = participants.filter((p) => !p.isLocal)

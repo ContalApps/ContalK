@@ -6,6 +6,7 @@ import { randomUUID } from 'node:crypto'
 import { fileURLToPath } from 'node:url'
 import { AccessToken } from 'livekit-server-sdk'
 import bcrypt from 'bcryptjs'
+import { setupSingleInstance, showMainWindow } from './single-instance'
 import { setupStorage } from './storage'
 import { setupTray } from './tray'
 import { setupUpdates } from './updates'
@@ -29,6 +30,7 @@ export const RENDERER_DIST = path.join(process.env.APP_ROOT, 'dist')
 process.env.VITE_PUBLIC = app.isPackaged ? RENDERER_DIST : path.join(process.env.APP_ROOT, 'public')
 
 let win: BrowserWindow | null = null
+const isPrimaryInstance=setupSingleInstance(()=>win)
 
 const LIVEKIT_URL = 'wss://contalk-vwlfqz0q.livekit.cloud'
 const LIVEKIT_API_KEY = 'APIoDkLmBTDG5T5'
@@ -117,6 +119,7 @@ function createWindow() {
       preload: path.join(__dirname, 'preload.mjs'),
       nodeIntegration: false,
       contextIsolation: true,
+      backgroundThrottling: false,
     },
   })
 
@@ -259,9 +262,12 @@ app.on('window-all-closed', () => {
 })
 
 app.on('activate', () => {
+  if(!isPrimaryInstance)return
   if (BrowserWindow.getAllWindows().length === 0) {
     createWindow()
+  } else {
+    showMainWindow(win)
   }
 })
 
-app.whenReady().then(createWindow)
+if(isPrimaryInstance)app.whenReady().then(createWindow)

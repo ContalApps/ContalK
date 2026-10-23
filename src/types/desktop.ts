@@ -28,6 +28,7 @@ export interface DesktopBridge {
   uploadStorageFile:(id:string)=>Promise<import('../store/useAppStore').Attachment>
   openStorageFile:(id:string)=>Promise<void>
   setSpeaking: (speaking:boolean)=>void
+  setInterfaceScale:(percent:number)=>void
   isElectron: true
   getDesktopSources: () => Promise<DesktopSource[]>
   getLiveKitToken: (params: { room: string; identity: string; name: string }) => Promise<string>

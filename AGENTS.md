@@ -12,3 +12,9 @@ O trabalho só está concluído depois de:
 Merge de código não equivale a atualização publicada. Nunca dizer que basta reiniciar o app antes de confirmar a release. Não sobrescrever instaladores de versões já publicadas. Se houver bloqueio de publicação, relatar o ponto exato e continuar as etapas possíveis. Preservar a branch de trabalho do usuário.
 
 A regra vale também para PRs de preparação de release: eles integram a mesma publicação, sem gerar outra versão recursivamente.
+## Direção da interface
+
+- Manter a interface leve e minimalista, com espaços moderados, ícones SVG discretos e botões compactos. Usar texto acessível em aria-label/title nos controles por ícone.
+- Concentrar microfone, saída de áudio, câmera, compartilhamento e desconexão no card do usuário no canto inferior esquerdo; não recriar barras grandes de controles no palco de voz.
+- Canais exibem uma engrenagem para abrir configurações, inclusive pelo menu de contexto. Renomeação e exclusão ficam nesse painel; exclusão sempre requer confirmação separada, sem lixeira de acesso direto na lista.
+- Por enquanto qualquer membro pode administrar canais. Não apresentar cargos ou permissões individuais como disponíveis antes de implementá-los de fato.

@@ -1,0 +1,4 @@
+export function ControlIcon({name,slashed=false}:{name:'mic'|'audio'|'camera'|'screen'|'disconnect'|'settings'|'chevron'|'signal';slashed?:boolean}) {
+  const paths={mic:'M9 5a3 3 0 0 1 6 0v7a3 3 0 0 1-6 0ZM5 10v2a7 7 0 0 0 14 0v-2M12 19v3M8 22h8',audio:'M3 14v-3a9 9 0 0 1 18 0v3M3 13h4v8H3zM17 13h4v8h-4z',camera:'M15 8l6-4v16l-6-4M3 6h12v12H3z',screen:'M3 4h18v13H3zM8 21h8M12 17v4',disconnect:'M3 13c5-5 13-5 18 0l-2 4-4-2v-3M9 12v3l-4 2-2-4',settings:'M12 8a4 4 0 1 1 0 8 4 4 0 0 1 0-8M9 3h6l1 3 3 1 2 5-2 5-3 1-1 3H9l-1-3-3-1-2-5 2-5 3-1z',chevron:'m7 10 5 5 5-5',signal:'M4 17v3M9 12v8M14 7v13M19 3v17'}
+  return <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d={paths[name]}/>{slashed&&<path d="m3 3 18 18"/>}</svg>
+}

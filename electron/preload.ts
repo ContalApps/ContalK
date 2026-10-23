@@ -1,4 +1,4 @@
-import { ipcRenderer, contextBridge } from 'electron'
+import { ipcRenderer, contextBridge, webFrame } from 'electron'
 import type { DesktopBridge } from '../src/types/desktop'
 
 function subscribe<T>(channel: string, listener: (event: T) => void) {
@@ -12,6 +12,10 @@ const desktop: DesktopBridge = {
   updateProfile: profile => ipcRenderer.invoke('auth-profile', profile),
   logout: () => ipcRenderer.invoke('auth-logout'),
   isElectron: true,
+  setInterfaceScale: percent => {
+    if(!Number.isInteger(percent)||percent<80||percent>125||percent%5!==0)throw new Error('Escala inválida.')
+    webFrame.setZoomFactor(percent/100)
+  },
   uploadInlineAttachment:attachment=>ipcRenderer.invoke('storage-inline',attachment),
   claimMessageView:id=>ipcRenderer.invoke('storage-view',id),
   storageStatus:()=>ipcRenderer.invoke('storage-status'),
