@@ -4,6 +4,7 @@ import App from './App'
 import './index.css'
 import './fonts.css'
 import './compact.css'
+import './title-bar.css'
 import { useVoiceStore } from './store/useVoiceStore'
 import { setupTraySpeaking } from './media/traySpeaking'
 
