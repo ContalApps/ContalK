@@ -56,7 +56,20 @@ const LIVEKIT_API_KEY = 'APIoDkLmBTDG5T5'
 const LIVEKIT_API_SECRET = 'ahn9v2PgmEIJCxM1QQARYd1j39r76pq4bWrVx7KFcnD'
 
 async function getLiveKitToken(room: string, identity: string, name: string): Promise<string> {
-  // 1. Tentar nativamente via comando Rust do Tauri (zero dependências externas!)
+  // 1. Tentar via Electron Desktop (Arquitetura Discord)
+  const electron = (window as any).contalkDesktop
+  if (electron?.getLiveKitToken) {
+    try {
+      const token = await electron.getLiveKitToken({ room, identity, name })
+      if (token && typeof token === 'string') {
+        return token
+      }
+    } catch (err) {
+      console.warn('Electron getLiveKitToken falhou, tentando fallback:', err)
+    }
+  }
+
+  // 2. Tentar nativamente via comando Rust do Tauri
   const tauri = (window as any).__TAURI__
   if (tauri && tauri.core) {
     try {
@@ -491,19 +504,20 @@ export const useVoiceStore = create<VoiceState>((set, get) => ({
     const { currentRoom, isScreenSharing } = get()
     if (!currentRoom) return
 
-    const nextScreen = !isScreenSharing
     try {
-      if (nextScreen) {
-        await currentRoom.localParticipant.setScreenShareEnabled(true, {
-          audio: true,
-          selfBrowserSurface: 'exclude',
-          surfaceSwitching: 'include',
-          systemAudio: 'exclude',
-        })
-      } else {
+      if (isScreenSharing) {
+        const customStream = (currentRoom.localParticipant as any)._customScreenStream as MediaStream | undefined
+        if (customStream) {
+          customStream.getTracks().forEach((t) => t.stop())
+          delete (currentRoom.localParticipant as any)._customScreenStream
+        }
         await currentRoom.localParticipant.setScreenShareEnabled(false)
+        set({ isScreenSharing: false })
+      } else {
+        // Fallback
+        await currentRoom.localParticipant.setScreenShareEnabled(true)
+        set({ isScreenSharing: currentRoom.localParticipant.isScreenShareEnabled })
       }
-      set({ isScreenSharing: currentRoom.localParticipant.isScreenShareEnabled })
       get().refreshParticipants()
     } catch (err: any) {
       console.warn('Compartilhamento de tela cancelado ou falhou:', err)
@@ -527,6 +541,57 @@ export const useVoiceStore = create<VoiceState>((set, get) => ({
         height = source.height || 1080
       }
 
+      // ARQUITETURA OFICIAL DO DISCORD (ELECTRON):
+      // Usa getUserMedia com chromeMediaSource: 'desktop' e o ID da janela/tela selecionada.
+      // Isso elimina 100% o modal do Chromium e a barra flutuante inferior!
+      if ((window as any).contalkDesktop && source?.id) {
+        const stream = await navigator.mediaDevices.getUserMedia({
+          audio: options.audio
+            ? ({
+                mandatory: {
+                  chromeMediaSource: 'desktop',
+                },
+              } as any)
+            : false,
+          video: {
+            mandatory: {
+              chromeMediaSource: 'desktop',
+              chromeMediaSourceId: source.id,
+              maxWidth: width,
+              maxHeight: height,
+              maxFrameRate: options.fps,
+            },
+          } as any,
+        })
+
+        const videoTrack = stream.getVideoTracks()[0]
+        if (videoTrack) {
+          await currentRoom.localParticipant.publishTrack(videoTrack, {
+            name: 'screen_share',
+            source: Track.Source.ScreenShare,
+          })
+
+          const audioTrack = stream.getAudioTracks()[0]
+          if (audioTrack && options.audio) {
+            await currentRoom.localParticipant.publishTrack(audioTrack, {
+              name: 'screen_share_audio',
+              source: Track.Source.ScreenShareAudio,
+            })
+          }
+
+          ;(currentRoom.localParticipant as any)._customScreenStream = stream
+
+          videoTrack.onended = () => {
+            get().toggleScreenShare()
+          }
+
+          set({ isScreenSharing: true })
+          get().refreshParticipants()
+          return
+        }
+      }
+
+      // Fallback para getDisplayMedia (fora do Electron)
       const streamConstraints: any = {
         video: {
           width: { ideal: width, max: width },
@@ -543,7 +608,7 @@ export const useVoiceStore = create<VoiceState>((set, get) => ({
               channelCount: 2,
             }
           : false,
-        selfBrowserSurface: 'exclude', // Impede que o ContalK capture a si mesmo e gere retorno de áudio das vozes!
+        selfBrowserSurface: 'exclude',
         surfaceSwitching: 'include',
         systemAudio: options.antiEcho ? 'exclude' : 'include',
       }

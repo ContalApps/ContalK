@@ -43,6 +43,31 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   login: async (identifier: string, password: string) => {
     set({ isLoading: true, error: null })
 
+    // Se estiver no Electron Desktop (Arquitetura Discord)
+    const electron = (window as any).contalkDesktop
+    if (electron?.login) {
+      try {
+        const res = await electron.login({ identifier, password })
+        if (res.type === 'Success') {
+          localStorage.setItem('contalspeak_token', res.data.token)
+          localStorage.setItem('contalspeak_current_user', JSON.stringify(res.data.user))
+          set({
+            user: res.data.user,
+            token: res.data.token,
+            isAuthenticated: true,
+            isLoading: false,
+          })
+          return true
+        } else {
+          set({ error: res.data || 'Credenciais inválidas', isLoading: false })
+          return false
+        }
+      } catch (err: any) {
+        set({ error: err.message || 'Falha ao autenticar', isLoading: false })
+        return false
+      }
+    }
+
     // Se estiver rodando dentro do Tauri Desktop
     if (isTauri()) {
       try {
@@ -106,6 +131,31 @@ export const useAuthStore = create<AuthState>((set, get) => ({
 
   register: async (username: string, email: string, password: string) => {
     set({ isLoading: true, error: null })
+
+    // Se estiver no Electron Desktop (Arquitetura Discord)
+    const electron = (window as any).contalkDesktop
+    if (electron?.register) {
+      try {
+        const res = await electron.register({ username, email, password })
+        if (res.type === 'Success') {
+          localStorage.setItem('contalspeak_token', res.data.token)
+          localStorage.setItem('contalspeak_current_user', JSON.stringify(res.data.user))
+          set({
+            user: res.data.user,
+            token: res.data.token,
+            isAuthenticated: true,
+            isLoading: false,
+          })
+          return true
+        } else {
+          set({ error: res.data || 'Erro ao registrar usuário', isLoading: false })
+          return false
+        }
+      } catch (err: any) {
+        set({ error: err.message || 'Erro ao registrar usuário', isLoading: false })
+        return false
+      }
+    }
 
     if (isTauri()) {
       try {
@@ -205,6 +255,23 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     if (!token) return false
 
     set({ isLoading: true })
+
+    const electron = (window as any).contalkDesktop
+    if (electron) {
+      const savedUserStr = localStorage.getItem('contalspeak_current_user')
+      if (savedUserStr) {
+        try {
+          const user = JSON.parse(savedUserStr)
+          set({
+            user,
+            token,
+            isAuthenticated: true,
+            isLoading: false,
+          })
+          return true
+        } catch {}
+      }
+    }
 
     if (isTauri()) {
       try {

@@ -3,22 +3,50 @@
   "private": true,
   "version": "0.1.0",
   "type": "module",
+  "main": "dist-electron/main.js",
   "scripts": {
     "dev": "vite",
     "build": "vite build",
+    "build:electron": "vite build && electron-builder --win",
     "preview": "vite preview",
     "tauri": "tauri"
+  },
+  "build": {
+    "appId": "com.contalk.app",
+    "productName": "ContalK",
+    "directories": {
+      "output": "release"
+    },
+    "files": [
+      "dist",
+      "dist-electron"
+    ],
+    "win": {
+      "target": [
+        "nsis"
+      ],
+      "icon": "src-tauri/icons/icon.ico"
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "ContalK"
+    }
   },
   "dependencies": {
     "@livekit/components-react": "^2.9.24",
     "@tauri-apps/api": "^2.12.4",
     "@tauri-apps/plugin-process": "^2.4.0",
     "@tauri-apps/plugin-updater": "^2.14.0",
+    "bcryptjs": "^3.0.3",
     "clsx": "^2.1.1",
     "livekit-client": "^2.23.0",
     "livekit-server-sdk": "^2.19.1",
     "react": "^19.3.1",
     "react-dom": "^19.3.1",
+    "sql.js": "^1.15.1",
     "tailwind-merge": "^3.7.0",
     "zustand": "^5.0.15"
   },
@@ -29,9 +57,13 @@
     "@types/react-dom": "^19.3.0",
     "@vitejs/plugin-react": "^4.7.0",
     "autoprefixer": "^10.6.1",
+    "electron": "^33.2.0",
+    "electron-builder": "^25.1.8",
     "postcss": "^8.5.31",
     "tailwindcss": "^4.3.3",
     "typescript": "^7.0.2",
-    "vite": "^5.0.0"
+    "vite": "^5.0.0",
+    "vite-plugin-electron": "^0.29.0",
+    "vite-plugin-electron-renderer": "^0.14.6"
   }
 }

@@ -93,7 +93,31 @@ export function ScreenShareModal({ isOpen, onClose, onStartShare }: ScreenShareM
 
     const fetchSources = async () => {
       try {
-        // Tentar obter via Tauri backend nativo (xcap)
+        // 1. Tentar via Electron Desktop (desktopCapturer - Arquitetura Oficial do Discord)
+        const electron = (window as any).contalkDesktop
+        if (electron?.getDesktopSources) {
+          const res = await electron.getDesktopSources()
+          if (isMounted && Array.isArray(res) && res.length > 0) {
+            const mapped: CaptureSource[] = res.map((s: any) => ({
+              id: s.id,
+              source_type: s.isScreen ? 'monitor' : 'window',
+              name: s.name,
+              title: s.name,
+              app_name: s.name,
+              thumbnail: s.thumbnail,
+              width: 1920,
+              height: 1080,
+              is_primary: s.id.includes('screen:0'),
+            }))
+            setSources(mapped)
+            const firstMonitor = mapped.find((s) => s.source_type === 'monitor')
+            setSelectedSource(firstMonitor || mapped[0])
+            setIsLoading(false)
+            return
+          }
+        }
+
+        // 2. Tentar via Tauri backend nativo (xcap)
         const tauri = (window as any).__TAURI__
         if (tauri && tauri.core) {
           const res = await tauri.core.invoke('get_capture_sources')

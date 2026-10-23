@@ -3,6 +3,7 @@ import { useVoiceStore, VoiceParticipant } from '../store/useVoiceStore'
 import { useAuthStore } from '../store/useAuthStore'
 import { Track } from 'livekit-client'
 import { ParticipantVolumePopup } from './ParticipantVolumePopup'
+import { ScreenShareModal } from './ScreenShareModal'
 
 function VideoTrackView({
   track,
@@ -316,8 +317,9 @@ export function VoiceStage({
   const [spotlightScreenId, setSpotlightScreenId] = useState<string | null>(null)
   const [pinnedParticipantId, setPinnedParticipantId] = useState<string | null>(null)
 
-  // Popup de Volume
+  // Popup de Volume e Modal de Transmissão de Tela
   const [volumeTarget, setVolumeTarget] = useState<VoiceParticipant | null>(null)
+  const [isShareModalOpen, setIsShareModalOpen] = useState(false)
 
   // Transmissão de tela selecionada para foco
   const focusedScreen =
@@ -711,16 +713,22 @@ export function VoiceStage({
           <span>{isCameraOn ? 'Câmera Ativa' : 'Vídeo'}</span>
         </button>
 
-        {/* Screen Share (1 Clique Direto, Sem Duplo Modal!) */}
+        {/* Screen Share (Abre o seletor nativo do ContalK estilo Discord) */}
         <button
-          onClick={toggleScreenShare}
+          onClick={() => {
+            if (isScreenSharing) {
+              toggleScreenShare()
+            } else {
+              setIsShareModalOpen(true)
+            }
+          }}
           disabled={connectionStatus !== 'connected'}
           className={`flex items-center gap-2 px-5 py-2.5 rounded-full font-bold text-sm transition shadow-lg disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer ${
             isScreenSharing
               ? 'bg-gradient-to-r from-purple-600 to-indigo-600 text-white ring-2 ring-purple-400/60 shadow-purple-600/50'
               : 'bg-[#251f38] hover:bg-[#322a4d] text-purple-200 border border-purple-800/40'
           }`}
-          title={isScreenSharing ? 'Parar Compartilhamento' : 'Compartilhar Tela (Escolha direta)'}
+          title={isScreenSharing ? 'Parar Compartilhamento' : 'Compartilhar Tela (Estilo Discord)'}
         >
           <span>🖥️</span>
           <span>{isScreenSharing ? 'Compartilhando' : 'Compartilhar Tela'}</span>
@@ -748,6 +756,15 @@ export function VoiceStage({
           onClose={() => setVolumeTarget(null)}
         />
       )}
+
+      {/* Modal de Transmissão de Tela Estilo Discord (Nativo, Sem Prompts do Navegador) */}
+      <ScreenShareModal
+        isOpen={isShareModalOpen}
+        onClose={() => setIsShareModalOpen(false)}
+        onStartShare={async (source, options) => {
+          await startScreenShareWithOptions(source, options)
+        }}
+      />
     </div>
   )
 }
