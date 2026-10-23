@@ -20,3 +20,23 @@ test('invalid saved settings fall back safely; failed saves do not pretend to pe
   state().activate('alice');assert.equal(state().theme,'classic');assert.equal(state().textSize,100);assert.equal(state().reducedMotion,false)
   f.fail();assert.throws(()=>state().update({theme:'vice-city'}),/full/);assert.equal(state().theme,'classic')
 })
+
+test('interface scale is isolated per user, persists, and resets on logout',()=>{
+ const f=fixture(),state=f.store.getState
+ state().activate('alice');state().update({interfaceScale:80})
+ state().activate('bob');assert.equal(state().interfaceScale,100);state().update({interfaceScale:125})
+ state().activate('alice');assert.equal(state().interfaceScale,80)
+ state().update({theme:'vice-city'});assert.equal(state().interfaceScale,80)
+ state().activate('bob');assert.equal(state().interfaceScale,125)
+ state().activate(null);assert.equal(state().interfaceScale,100)
+})
+
+test('invalid interface scales fall back safely and failed saves preserve the current scale',()=>{
+ const f=fixture(),state=f.store.getState
+ for(const value of [null,0,79,126,105.5,NaN,'110']){
+  f.storage.set('contalk-preferences-v1:alice',JSON.stringify({interfaceScale:value}))
+  state().activate('alice');assert.equal(state().interfaceScale,100)
+ }
+ assert.throws(()=>state().update({interfaceScale:200}),/Escala inválida/)
+ state().update({interfaceScale:110});f.fail();assert.throws(()=>state().update({interfaceScale:80}),/full/);assert.equal(state().interfaceScale,110)
+})

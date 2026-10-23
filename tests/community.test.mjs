@@ -143,3 +143,27 @@ test('central storage descriptors accept 2 GB without sending the binary to peer
  assert.ok(room.last.data.byteLength<12000)
  f.store.getState().disconnect()
 })
+
+test('channel renames keep IDs and history, ignore stale names, and cannot restore deleted channels',()=>{
+ const app=appStore(),get=app.getState
+ get().addMessage('ch-general','History',{username:'real',display_name:'Real'})
+ get().renameChannel('srv-1','ch-general','New name',100)
+ assert.equal(get().servers[0].channels.find(c=>c.id==='ch-general').name,'New name')
+ assert.equal(get().messages['ch-general'].length,1)
+ get().renameChannel('srv-1','ch-general','Old name',99)
+ assert.equal(get().servers[0].channels.find(c=>c.id==='ch-general').name,'New name')
+ get().renameChannel('srv-1','ch-general','Z name',100)
+ assert.equal(get().servers[0].channels.find(c=>c.id==='ch-general').name,'Z name')
+ get().renameChannel('srv-1','ch-general','A name',100)
+ assert.equal(get().servers[0].channels.find(c=>c.id==='ch-general').name,'Z name')
+ get().removeChannel('srv-1','ch-general');get().renameChannel('srv-1','ch-general','Restore',101)
+ assert.ok(!get().servers[0].channels.some(c=>c.id==='ch-general'))
+})
+
+test('channel sync receives revised names and ignores older snapshots',async()=>{
+ const f=fixture();await f.store.getState().connect({username:'real',display_name:'Real'});const room=f.instances[0]
+ const receive=(name,nameUpdatedAt)=>room.emit('data',new TextEncoder().encode(JSON.stringify([{id:'ch-general',serverId:'srv-1',type:'text',name,nameUpdatedAt}])),{identity:'friend'},null,'community-channels')
+ receive('Renamed',100);assert.equal(f.app.getState().servers[0].channels.find(c=>c.id==='ch-general').name,'Renamed')
+ receive('Older',90);assert.equal(f.app.getState().servers[0].channels.find(c=>c.id==='ch-general').name,'Renamed')
+ f.store.getState().disconnect()
+})

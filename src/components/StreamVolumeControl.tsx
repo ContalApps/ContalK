@@ -30,6 +30,6 @@ export function StreamAudioPopover({ identity, name }: { identity: string; name:
   }, [open])
   return <div className="ct-stream-audio" ref={ref} data-open={open} onDoubleClick={e=>e.stopPropagation()}>
     {open && <div id={id} role="group" aria-label={`Áudio da transmissão de ${name}`}><StreamVolumeControl identity={identity} name={name}/></div>}
-    <button className="ct-stream-audio-toggle" ref={button} type="button" aria-label={`Áudio da transmissão de ${name}`} aria-expanded={open} aria-controls={open?id:undefined} onClick={()=>setOpen(value=>!value)}><svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true"><path d="M4 9h4l5-4v14l-5-4H4z"/>{volume===0?<path d="m17 9 5 6m-5 0 5-6"/>:<path d="M16 9a5 5 0 0 1 0 6m3-9a9 9 0 0 1 0 12"/>}</svg><span>{volume===0?'Sem som':`${volume}%`}</span></button>
+    <button className="ct-stream-audio-toggle" ref={button} type="button" aria-label={`Áudio da transmissão de ${name}`} aria-expanded={open} aria-controls={open?id:undefined} onClick={()=>setOpen(value=>!value)}><svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true"><path d="M4 9h4l5-4v14l-5-4H4z"/>{volume===0?<path d="m17 9 5 6m-5 0 5-6"/>:<path d="M16 9a5 5 0 0 1 0 6m3-9a9 9 0 0 1 0 12"/>}</svg><span className="ct-stream-mini-level" aria-hidden="true"><i style={{width:Math.min(volume/2,100)+'%'}}/></span><span>{volume===0?'Sem som':`${volume}%`}</span></button>
   </div>
 }

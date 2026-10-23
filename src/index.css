@@ -23,8 +23,8 @@ body {
 }
 
 #root {
-  height: 100vh;
-  width: 100vw;
+  height: calc(100vh / var(--ct-interface-scale, 1));
+  width: 100%;
 }
 
 ::-webkit-scrollbar {
@@ -47,7 +47,7 @@ body {
 
 /* ContalK — midnight community */
 :root { color-scheme: dark; }
-.ct-app { --ct-border:#252431; --ct-muted:#9795ad; height:100dvh; background:#0d0e15; color:#eeeef6; font:14px 'Segoe UI',sans-serif; display:flex; flex-direction:column; overflow:hidden; }
+.ct-app { --ct-border:#252431; --ct-muted:#9795ad; height:calc(100dvh / var(--ct-interface-scale, 1)); background:#0d0e15; color:#eeeef6; font:14px 'Segoe UI',sans-serif; display:flex; flex-direction:column; overflow:hidden; }
 .ct-app * { box-sizing:border-box; }
 .ct-app button { cursor:pointer; color:inherit; font:inherit; transition:background .18s,border-color .18s,transform .18s; }
 .ct-app button:disabled { opacity:.4; cursor:not-allowed; }

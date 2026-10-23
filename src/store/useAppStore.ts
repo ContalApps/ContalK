@@ -13,6 +13,7 @@ export interface Channel {
   name: string
   type: 'text' | 'voice'
   serverId: string
+  nameUpdatedAt?:number
 }
 
 export interface Server {
@@ -50,7 +51,8 @@ interface AppState {
   messageDeletions: Record<string,boolean>
   changeMessage: (channelId:string,id:string,actor:string,content?:string)=>void
 
-  addChannel: (serverId: string, name: string, type: 'text' | 'voice', id?: string) => void
+  addChannel: (serverId: string, name: string, type: 'text' | 'voice', id?: string, nameUpdatedAt?:number) => void
+  renameChannel:(serverId:string,channelId:string,name:string,nameUpdatedAt?:number)=>void
   removeChannel: (serverId: string, channelId: string) => void
   setCurrentUser: (user: User) => void
   addServer: (server: Server) => void
@@ -96,12 +98,19 @@ export const useAppStore = create<AppState>()(persist((set) => ({
     if(!message || message.userId!==actor || (content!==undefined&&(!content.trim()||content.length>2000)))return state
     return {messageDeletions:content===undefined?{...state.messageDeletions,[id]:true}:state.messageDeletions,messages:{...state.messages,[channelId]:state.messages[channelId].flatMap(m=>m.id!==id?[m]:content===undefined?[]:[{...m,content,editedAt:Date.now()}])}}
   }),
-  addChannel: (serverId, name, type, id = crypto.randomUUID()) => set(state => {
+  addChannel: (serverId, name, type, id = crypto.randomUUID(), nameUpdatedAt=0) => set(state => {
     const clean = name.trim().slice(0, 60)
     if (!clean || state.deletedChannels?.[id]) return state
-    return { servers: state.servers.map(server => server.id === serverId && !server.channels.some(c => c.id === id) ? { ...server, channels: [...server.channels, {id, name: clean, type, serverId}] } : server) }
+    return { servers: state.servers.map(server => server.id === serverId && !server.channels.some(c => c.id === id) ? { ...server, channels: [...server.channels, {id, name: clean, type, serverId, nameUpdatedAt:Number.isSafeInteger(nameUpdatedAt)&&nameUpdatedAt>=0&&nameUpdatedAt<=Date.now()+60000?nameUpdatedAt:0}] } : server) }
   }),
 
+  renameChannel:(serverId,channelId,name,nameUpdatedAt)=>set(state=>{
+    const existing=state.servers.find(s=>s.id===serverId)?.channels.find(c=>c.id===channelId)
+    const clean=typeof name==='string'?name.trim().slice(0,60):''
+    const revision=nameUpdatedAt??Math.max(Date.now(),(existing?.nameUpdatedAt||0)+1)
+    if(!existing||!clean||state.deletedChannels?.[channelId]||!Number.isSafeInteger(revision)||(revision<(existing.nameUpdatedAt||0)||(revision===(existing.nameUpdatedAt||0)&&clean<=existing.name))||revision>Date.now()+60000)return state
+    return {servers:state.servers.map(server=>server.id!==serverId?server:{...server,channels:server.channels.map(c=>c.id!==channelId?c:{...c,name:clean,nameUpdatedAt:revision})})}
+  }),
   removeChannel: (serverId, channelId) => set(state => {
     if (!channelId || channelId.length > 80 || !state.servers.some(server => server.id === serverId) || state.servers.some(server => server.id !== serverId && server.channels.some(c => c.id === channelId))) return state
     const servers = state.servers.map(server => server.id === serverId ? { ...server, channels: server.channels.filter(c => c.id !== channelId) } : server)

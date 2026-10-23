@@ -19,7 +19,7 @@ function safeMember(identity: string, name: string, metadata?: string): Member {
     avatar: typeof profile.avatar === 'string' && profile.avatar.length < 50000 && /^data:image\/jpeg;base64,[A-Za-z0-9+/=]+$/.test(profile.avatar) ? profile.avatar : undefined,
     bio: typeof profile.bio === 'string' ? profile.bio.slice(0,240) : '', online: true }
 }
-export const useCommunityStore = create<{ members: Member[]; status: string; profileError: string | null; connect: (user: User) => Promise<void>; disconnect: () => void; updateProfile: (user: User) => Promise<void>; broadcastChannels: () => Promise<void>; deleteChannel: (serverId: string, channelId: string) => Promise<void>; sendMessage: (channelId: string, content: string, destination?: string, attachment?: Attachment, options?: MessageOptions) => Promise<void>; changeMessage:(channelId:string,id:string,content?:string)=>Promise<void> }>((set,get) => ({
+export const useCommunityStore = create<{ members: Member[]; status: string; profileError: string | null; connect: (user: User) => Promise<void>; disconnect: () => void; updateProfile: (user: User) => Promise<void>; broadcastChannels: () => Promise<void>; renameChannel:(serverId:string,channelId:string,name:string)=>Promise<void>; deleteChannel: (serverId: string, channelId: string) => Promise<void>; sendMessage: (channelId: string, content: string, destination?: string, attachment?: Attachment, options?: MessageOptions) => Promise<void>; changeMessage:(channelId:string,id:string,content?:string)=>Promise<void> }>((set,get) => ({
   members: cachedMembers(), status: 'offline', profileError: null,
   disconnect: () => { generation++; clearInterval(friendRetry); useFriendStore.getState().activate(null); const previous = room; room = null; void previous?.disconnect(); set({ members: get().members.map(m=>({...m,online:false})), status:'offline' }) },
   connect: async user => {
@@ -106,7 +106,12 @@ export const useCommunityStore = create<{ members: Member[]; status: string; pro
       }
       if(topic!=='community-channels' || payload.byteLength>60000) return
       try { const channels=JSON.parse(new TextDecoder().decode(payload)); if(!Array.isArray(channels))return
-        for(const c of channels.slice(0,200)) if(typeof c.id==='string'&&c.id.length<=80&&typeof c.name==='string'&&c.name.length<=60&&c.serverId==='srv-1'&&['voice','text'].includes(c.type)) useAppStore.getState().addChannel(c.serverId,c.name,c.type,c.id)
+        for(const c of channels.slice(0,200)) if(typeof c.id==='string'&&c.id.length<=80&&typeof c.name==='string'&&c.name.length<=60&&c.serverId==='srv-1'&&['voice','text'].includes(c.type)) {
+          useAppStore.getState().addChannel(c.serverId,c.name,c.type,c.id,c.nameUpdatedAt)
+          if(typeof c.nameUpdatedAt==='number')useAppStore.getState().renameChannel(c.serverId,c.id,c.name,c.nameUpdatedAt)
+          const current=useAppStore.getState().servers.find(s=>s.id===c.serverId)?.channels.find(ch=>ch.id===c.id)
+          if(current)useVoiceStore.getState().renameActiveChannel?.(current.id,current.name)
+        }
       } catch { /* Ignore malformed peer data. */ }
     }
     connection.on(RoomEvent.ParticipantConnected,()=>{refresh();void get().broadcastChannels().catch(()=>{});void useFriendStore.getState().flush()})
@@ -159,6 +164,14 @@ export const useCommunityStore = create<{ members: Member[]; status: string; pro
     const destination=channelId.startsWith('dm:')?channelId.split(':').filter(p=>p!=='dm'&&p!==room!.localParticipant.identity):undefined
     await room.localParticipant.publishData(encoder.encode(JSON.stringify({channelId,id,content})),{reliable:true,topic:'community-message-change-v1',...(destination?{destinationIdentities:destination}:{})})
     useAppStore.getState().changeMessage(channelId,id,room.localParticipant.identity,content)
+  },
+  renameChannel:async(serverId,channelId,name)=>{
+    if(!name.trim()||name.trim().length>60)throw new Error('Informe um nome de até 60 caracteres.')
+    useAppStore.getState().renameChannel(serverId,channelId,name)
+    const current=useAppStore.getState().servers.find(s=>s.id===serverId)?.channels.find(c=>c.id===channelId)
+    if(!current)throw new Error('Canal não encontrado.')
+    useVoiceStore.getState().renameActiveChannel?.(channelId,current.name)
+    await get().broadcastChannels()
   },
   deleteChannel: async (serverId, channelId) => {
     useAppStore.getState().removeChannel(serverId, channelId)

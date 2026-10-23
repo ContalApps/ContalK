@@ -10,13 +10,13 @@ function fixture({metadataFailure=false,connectFailure=false,firstConnectGate}={
  const events=new Proxy({},{get:(_,key)=>key})
  class Room extends EventEmitter {
   state='disconnected';remoteParticipants=new Map();disconnects=0
-  localParticipant={identity:user.username,name:user.display_name,isSpeaking:false,isMicrophoneEnabled:false,isCameraEnabled:false,isScreenShareEnabled:false,getTrackPublication:()=>undefined,setMetadata:async()=>{if(metadataFailure)throw new Error('does not have permission to update own metadata')}}
+  localParticipant=Object.assign(new EventEmitter(),{identity:user.username,name:user.display_name,isSpeaking:false,isMicrophoneEnabled:false,isCameraEnabled:false,isScreenShareEnabled:false,getTrackPublication:()=>undefined,setMetadata:async()=>{if(metadataFailure)throw new Error('does not have permission to update own metadata')}})
   constructor(){super();rooms.push(this)}
   async connect(){if(connectFailure)throw new Error('connection refused');if(rooms[0]===this&&firstConnectGate)await firstConnectGate.promise;this.state='connected';this.emit('Connected')}
   async disconnect(){this.disconnects++;this.state='disconnected';this.emit('Disconnected')}
  }
  const store=loadTypescript('src/store/useVoiceStore.ts',{
-  zustand:{create},'livekit-client':{Room,RoomEvent:events,Track:{Source:{Camera:'camera',ScreenShare:'screen',ScreenShareAudio:'screen-audio',Microphone:'microphone'},Kind:{Audio:'audio'}}},
+  zustand:{create},'livekit-client':{Room,RoomEvent:events,ParticipantEvent:{IsSpeakingChanged:'IsSpeakingChanged'},Track:{Source:{Camera:'camera',ScreenShare:'screen',ScreenShareAudio:'screen-audio',Microphone:'microphone'},Kind:{Audio:'audio'}}},
   '../../shared/livekit-grant.mjs':{roomGrant:()=>({})},
   '../media/microphone':{microphoneOptions:()=>({}),setSafeMicrophoneEnabled:async(room,enabled)=>{room.localParticipant.isMicrophoneEnabled=enabled;return 'test microphone'},publishSafeMicrophone:async room=>{room.localParticipant.isMicrophoneEnabled=true;return 'test microphone'}},
   '../media/screenShare':{stopScreenShare:async()=>{},startScreenShare:async()=>{}},
@@ -75,4 +75,18 @@ test('voice and stream gains are independent, persist on new subscriptions and b
  await store.getState().toggleDeafen();assert.equal(mic.gain,.8);assert.equal(screen.gain,1.5);assert.equal(other.gain,1)
  store.getState().setStreamVolume('peer',999);assert.equal(screen.gain,2)
  await store.getState().leaveChannel()
+})
+
+
+test('local speech updates without waiting for a room active-speakers event',async()=>{
+ const {store,rooms}=fixture();await store.getState().joinChannel('one','One',user)
+ const local=rooms[0].localParticipant
+ local.isSpeaking=true;local.emit('IsSpeakingChanged',true)
+ assert.equal(store.getState().participants.find(p=>p.isLocal).isSpeaking,true)
+ local.isSpeaking=false;local.emit('IsSpeakingChanged',false)
+ assert.equal(store.getState().participants.find(p=>p.isLocal).isSpeaking,false)
+ await store.getState().leaveChannel()
+ assert.equal(local.listenerCount('IsSpeakingChanged'),0)
+ local.isSpeaking=true;local.emit('IsSpeakingChanged',true)
+ assert.equal(store.getState().participants.length,0)
 })

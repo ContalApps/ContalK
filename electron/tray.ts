@@ -1,15 +1,16 @@
 import { app, BrowserWindow, Tray, Menu, nativeImage, ipcMain } from 'electron'
 import path from 'node:path'
+import { showMainWindow } from './single-instance'
 
 export function setupTray(window:BrowserWindow) {
   let quitting=false, speaking=false, phase=0
   const idle=nativeImage.createFromPath(path.join(process.env.VITE_PUBLIC!, 'app-icon.png')).resize({width:24,height:24})
   const tray=new Tray(idle)
   tray.setToolTip('ContalK')
-  const menu=()=>Menu.buildFromTemplate([{label:'Abrir ContalK',click:()=>{window.show();window.focus()}},{type:'separator'},{label:'Fechar ContalK',click:()=>{quitting=true;app.quit()}}])
+  const menu=()=>Menu.buildFromTemplate([{label:'Abrir ContalK',click:()=>{showMainWindow(window)}},{type:'separator'},{label:'Fechar ContalK',click:()=>{quitting=true;app.quit()}}])
   tray.on('click',()=>tray.popUpContextMenu(menu()))
   tray.on('right-click',()=>tray.popUpContextMenu(menu()))
-  tray.on('double-click',()=>{window.show();window.focus()})
+  tray.on('double-click',()=>{showMainWindow(window)})
   const allowQuit=()=>{quitting=true}
   app.on('before-quit',allowQuit)
   window.on('close',event=>{if(!quitting){event.preventDefault();window.hide()}})
@@ -17,6 +18,9 @@ export function setupTray(window:BrowserWindow) {
     if(event.sender===window.webContents && event.senderFrame===window.webContents.mainFrame)speaking=value===true
   }
   ipcMain.on('voice-speaking',handler)
+  const reset=()=>{speaking=false;phase=0;tray.setImage(idle)}
+  window.webContents.on('render-process-gone',reset)
+  window.webContents.on('did-start-loading',reset)
   const timer=setInterval(()=>{
     if(!speaking){if(phase){tray.setImage(idle);phase=0}return}
     phase=phase%5+1
@@ -29,5 +33,5 @@ export function setupTray(window:BrowserWindow) {
     }
     tray.setImage(nativeImage.createFromBitmap(pixels,{width:size,height:size}))
   },150)
-  window.once('closed',()=>{clearInterval(timer);tray.destroy();ipcMain.removeListener('voice-speaking',handler);app.removeListener('before-quit',allowQuit)})
+  window.once('closed',()=>{clearInterval(timer);window.webContents.removeListener('render-process-gone',reset);window.webContents.removeListener('did-start-loading',reset);tray.destroy();ipcMain.removeListener('voice-speaking',handler);app.removeListener('before-quit',allowQuit)})
 }

@@ -56,3 +56,19 @@ Fechar a janela mantém o processo na bandeja e preserva a conexão. Clique esqu
 ## Validação
 
 Os testes automatizados cobrem autoria, deduplicação, anexos centrais de 2 GB por metadados, integridade do cofre, assinatura/expiração dos links e comportamento da bandeja. Tipos e build são verificados separadamente. O login real do Telegram, envio/baixa de um arquivo de 2 GB, dispositivos físicos e troca real de release exigem validação manual com a infraestrutura e uma instalação Windows.
+
+## Controles compactos e configurações de canais
+
+O card inferior esquerdo concentra microfone, áudio recebido, câmera, compartilhamento e desconexão. As pequenas setas ao lado do microfone e fone abrem os seletores de dispositivos. O card permanece ancorado enquanto a lista de canais rola. O palco não repete a barra grande de controles.
+
+A engrenagem de cada canal e o clique direito abrem `ChannelSettings`. O painel permite renomear preservando ID e histórico, consultar o acesso atual e solicitar exclusão com confirmação separada. Conforme a política atual, todos os membros podem administrar canais; ainda não existem cargos/permissões individuais.
+
+Nomes são compartilhados em `community-channels` com `nameUpdatedAt`. Revisões antigas são ignoradas; empates são resolvidos pela ordem do nome, para convergir. O nome da chamada ativa também é atualizado. Clientes antigos precisam atualizar para receber renomeações. Alterações locais aguardam a conexão e usam as retransmissões periódicas existentes.
+
+## Visual de referência compacto
+
+O tema clássico usa uma paleta neutra, com roxo concentrado nos estados ativos. `compact.css`, importado depois dos estilos base em `src/main.tsx`, define cabeçalho de 56 px, trilho de 64 px, lateral de canais de 240 px e painel de membros de 256 px em telas largas. As laterais se adaptam em telas menores e continuam respeitando a escala pessoal da interface.
+
+O cabeçalho e os cartões do servidor usam `BrandMark` em SVG. As estatísticas mostram apenas dados disponíveis (membros online e canais), sem inventar região ou latência. A sala de voz agrupa seus participantes e identifica transmissões ativas.
+
+A transmissão mantém o vídeo real e apresenta um estado de espera até receber `loadeddata`. Os participantes e o volume ficam no rodapé; o volume completo continua recolhido até o clique. O teste de interface em Electron valida as dimensões principais, agrupamento, ausência de transbordamento e remoção do estado de espera quando o vídeo fica pronto.
