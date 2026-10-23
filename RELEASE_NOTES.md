@@ -1,11 +1,13 @@
-# ContalK 0.1.2
+# ContalK 0.1.3
 
-- Atualizações pelo próprio aplicativo: aviso de nova versão, download com progresso e instalação ao reiniciar.
-- Áudio de transmissão isolado por aplicativo no Windows. Ao transmitir um monitor, o ContalK acompanha as janelas desse monitor e exclui o áudio da própria chamada.
-- Removida a captura do áudio geral do computador ao selecionar uma janela.
-- Correções de encerramento de faixas, limpeza de capturas, tratamento de falhas e áudio recebido com o modo ensurdecido ativo.
-- Buffer de áudio limitado e estéreo a 48 kHz para reduzir cortes e acúmulo de atraso.
+- Removidas pessoas, mensagens, atalhos e contas de demonstração das telas.
+- Presença conectada da comunidade: pessoas online, contatos conhecidos offline e estado de conexão distintos.
+- Editor de perfil: nome, descrição e foto. A foto aparece na lista e na grade de voz com fundo desfocado.
+- Criação de canais de texto e voz, persistência local e sincronização entre clientes online.
+- Menu com botão direito nos participantes da lista de voz: perfil, volume e silenciar apenas para você.
+- Mensagens de canal e diretas em tempo real entre clientes conectados; histórico salvo no dispositivo.
+- Animações discretas, com respeito à preferência de movimento reduzido.
 
-Instale esta versão manualmente uma vez. Ela receberá as próximas versões pelo próprio ContalK.
+Todos os participantes precisam atualizar para usar presença, canais e perfis sincronizados. Pode ser necessário entrar novamente na conta após a instalação.
 
-A captura isolada exige Windows 10 build 20348 ou Windows 11. O isolamento é por processo: abas e janelas do mesmo aplicativo podem compartilhar áudio entre si. Falhas de captura são exibidas sem recorrer ao áudio geral do computador.
+O cadastro continua local a cada computador. A presença mostra quem está conectado; o diretório offline contém contas locais e pessoas já vistas. Um cadastro central durável de todas as contas ainda não está implementado. Canais são sincronizados com clientes online e recuperados de seus dados locais; o histórico de mensagens não é um banco central.

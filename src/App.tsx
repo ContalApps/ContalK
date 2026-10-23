@@ -20,7 +20,7 @@ function App() {
           <div className="relative w-28 h-28 mb-5 group">
             <div className="absolute inset-0 rounded-full bg-purple-600/40 blur-xl animate-pulse" />
             <img
-              src="/contalk-avatar.png"
+              src="./contalk-avatar.png"
               alt="ContalK Logo"
               className="relative w-28 h-28 rounded-full shadow-2xl border-2 border-purple-400/60 object-cover"
             />

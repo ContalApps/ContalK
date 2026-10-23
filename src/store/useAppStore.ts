@@ -1,4 +1,5 @@
 import { create } from 'zustand'
+import { persist } from 'zustand/middleware'
 
 export interface User {
   id: string
@@ -38,6 +39,7 @@ interface AppState {
   activeChannelId: string
   messages: Record<string, Message[]>
 
+  addChannel: (serverId: string, name: string, type: 'text' | 'voice', id?: string) => void
   setCurrentUser: (user: User) => void
   addServer: (server: Server) => void
   setActiveServer: (serverId: string) => void
@@ -55,7 +57,7 @@ function getColorForUser(name: string): string {
   return COLORS[Math.abs(hash) % COLORS.length]
 }
 
-export const useAppStore = create<AppState>((set) => ({
+export const useAppStore = create<AppState>()(persist((set) => ({
   currentUser: null,
   servers: [
     {
@@ -74,61 +76,12 @@ export const useAppStore = create<AppState>((set) => ({
   ],
   activeServerId: 'srv-1',
   activeChannelId: 'ch-welcome',
-  messages: {
-    'ch-welcome': [
-      {
-        id: 'msg-welcome-1',
-        channelId: 'ch-welcome',
-        userId: 'system',
-        userName: 'ContalBot 🤖',
-        content: 'Bem-vindo ao ContalK! 🎉 Este é um cliente de voz e texto ultra-rápido desenvolvido com Rust + Tauri + LiveKit.',
-        timestamp: Date.now() - 3600000 * 2,
-        userColor: '#5865F2',
-      },
-      {
-        id: 'msg-welcome-2',
-        channelId: 'ch-welcome',
-        userId: 'alice',
-        userName: 'Alice Silva',
-        content: 'Olá a todos! Para entrar em um canal de voz com WebRTC em tempo real, clique em qualquer canal de voz abaixo! 🎙️',
-        timestamp: Date.now() - 3600000,
-        userColor: '#57F287',
-      },
-    ],
-    'ch-general': [
-      {
-        id: 'msg-gen-1',
-        channelId: 'ch-general',
-        userId: 'bob',
-        userName: 'Bob Santos',
-        content: 'LiveKit SFU rodando localmente com latência de menos de 20ms! ⚡',
-        timestamp: Date.now() - 1800000,
-        userColor: '#EB459E',
-      },
-    ],
-    'ch-announcements': [
-      {
-        id: 'msg-ann-1',
-        channelId: 'ch-announcements',
-        userId: 'system',
-        userName: 'Novidades 📢',
-        content: 'Autenticação SQLite ativa, suporte a canais de voz com SFU LiveKit, mute/ensurdecer e compartilhamento de tela!',
-        timestamp: Date.now() - 7200000,
-        userColor: '#FEE75C',
-      },
-    ],
-    'ch-offtopic': [
-      {
-        id: 'msg-off-1',
-        channelId: 'ch-offtopic',
-        userId: 'carol',
-        userName: 'Carol Oliveira',
-        content: 'Quem topa testar a sala de Streaming hoje mais tarde? 🎮',
-        timestamp: Date.now() - 900000,
-        userColor: '#3498DB',
-      },
-    ],
-  },
+  messages: {},
+  addChannel: (serverId, name, type, id = crypto.randomUUID()) => set(state => {
+    const clean = name.trim().slice(0, 60)
+    if (!clean) return state
+    return { servers: state.servers.map(server => server.id === serverId && !server.channels.some(c => c.id === id) ? { ...server, channels: [...server.channels, {id, name: clean, type, serverId}] } : server) }
+  }),
 
   setCurrentUser: (user) => set({ currentUser: user }),
   addServer: (server) => set((state) => ({ servers: [...state.servers, server] })),
@@ -156,4 +109,4 @@ export const useAppStore = create<AppState>((set) => ({
       },
     }
   }),
-}))
+}), { name: 'contalk-community-v2' }))

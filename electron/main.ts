@@ -1,6 +1,7 @@
 import { app, BrowserWindow, ipcMain, desktopCapturer, shell, screen } from 'electron'
 import path from 'node:path'
 import fs from 'node:fs'
+import { randomUUID } from 'node:crypto'
 import { fileURLToPath } from 'node:url'
 import { AccessToken } from 'livekit-server-sdk'
 import bcrypt from 'bcryptjs'
@@ -43,6 +44,8 @@ interface StoredUser {
   display_name: string
   email: string
   password_hash: string
+  avatar?: string
+  bio?: string
   created_at: string
 }
 
@@ -53,50 +56,46 @@ function loadUsers(): Record<string, StoredUser> {
       return JSON.parse(fs.readFileSync(file, 'utf-8'))
     } catch {}
   }
-  // Usuários padrão pré-cadastrados (Alice, Bob, Carol, Dave)
-  const defaultHash = bcrypt.hashSync('123456', 10)
-  const defaults: Record<string, StoredUser> = {
-    alice: {
-      id: 'usr_alice',
-      username: 'alice',
-      display_name: 'Alice Silva',
-      email: 'alice@contalk.app',
-      password_hash: defaultHash,
-      created_at: new Date().toISOString(),
-    },
-    bob: {
-      id: 'usr_bob',
-      username: 'bob',
-      display_name: 'Bob Santos',
-      email: 'bob@contalk.app',
-      password_hash: defaultHash,
-      created_at: new Date().toISOString(),
-    },
-    carol: {
-      id: 'usr_carol',
-      username: 'carol',
-      display_name: 'Carol Oliveira',
-      email: 'carol@contalk.app',
-      password_hash: defaultHash,
-      created_at: new Date().toISOString(),
-    },
-    dave: {
-      id: 'usr_dave',
-      username: 'dave',
-      display_name: 'Dave Lima',
-      email: 'dave@contalk.app',
-      password_hash: defaultHash,
-      created_at: new Date().toISOString(),
-    },
-  }
-  saveUsers(defaults)
-  return defaults
+  return {}
 }
 
 function saveUsers(users: Record<string, StoredUser>) {
   const file = getUsersFilePath()
   fs.writeFileSync(file, JSON.stringify(users, null, 2), 'utf-8')
 }
+
+function publicUser(u: StoredUser) { const { password_hash, ...safe } = u; return safe }
+function isLegacyDemo(u: StoredUser) { return ['alice','bob','carol','dave'].includes(u.username) && u.id === 'usr_' + u.username && u.email === u.username + '@contalk.app' }
+let sessionUser: string | null = null
+function issueSession(username: string) {
+  username = username.toLowerCase()
+  sessionUser = username
+  const token = randomUUID()
+  fs.writeFileSync(path.join(app.getPath('userData'), 'session.json'), JSON.stringify({ username, token }))
+  return token
+}
+ipcMain.handle('auth-session', (_event, token) => {
+  try {
+    const saved = JSON.parse(fs.readFileSync(path.join(app.getPath('userData'), 'session.json'), 'utf8'))
+    const user = loadUsers()[saved.username]
+    if (saved.token !== token || !user || isLegacyDemo(user)) return null
+    sessionUser = saved.username
+    return publicUser(user)
+  } catch { return null }
+})
+ipcMain.handle('auth-logout', () => { sessionUser = null; fs.writeFileSync(path.join(app.getPath('userData'), 'session.json'), '{}') })
+ipcMain.handle('auth-accounts', () => Object.values(loadUsers()).filter(u => !isLegacyDemo(u)).map(publicUser))
+ipcMain.handle('auth-profile', (_event, profile) => {
+  if (!sessionUser) throw new Error('Entre na sua conta.')
+  const users = loadUsers(); const current = users[sessionUser]
+  if (!current) throw new Error('Conta não encontrada.')
+  if (typeof profile.display_name !== 'string' || !profile.display_name.trim() || profile.display_name.length > 40) throw new Error('Nome inválido.')
+  if (typeof profile.bio !== 'string' || profile.bio.length > 240) throw new Error('Descrição inválida.')
+  if (typeof profile.avatar !== 'string' || profile.avatar.length > 50000 || (profile.avatar && !/^data:image\/jpeg;base64,[A-Za-z0-9+/=]+$/.test(profile.avatar))) throw new Error('Foto inválida.')
+  Object.assign(current, { display_name: profile.display_name.trim(), bio: profile.bio, avatar: profile.avatar })
+  saveUsers(users)
+  return publicUser(current)
+})
 
 function createWindow() {
   const iconPath = path.join(process.env.VITE_PUBLIC!, 'app-icon.png')
@@ -197,7 +196,7 @@ ipcMain.handle('auth-login', async (_event, { identifier, password }) => {
     (u) => u.username.toLowerCase() === lower || u.email.toLowerCase() === lower
   )
 
-  if (!found) {
+  if (!found || isLegacyDemo(found)) {
     return { type: 'Error', data: 'Usuário ou e-mail não encontrado' }
   }
 
@@ -206,17 +205,12 @@ ipcMain.handle('auth-login', async (_event, { identifier, password }) => {
     return { type: 'Error', data: 'Senha incorreta' }
   }
 
-  const userSafe = {
-    id: found.id,
-    username: found.username,
-    display_name: found.display_name,
-    email: found.email,
-  }
+  const userSafe = publicUser(found)
 
   return {
     type: 'Success',
     data: {
-      token: `token_${found.username}_${Date.now()}`,
+      token: issueSession(found.username),
       user: userSafe,
     },
   }
@@ -226,7 +220,7 @@ ipcMain.handle('auth-register', async (_event, { username, email, password }) =>
   const users = loadUsers()
   const lower = username.toLowerCase()
 
-  if (users[lower]) {
+  if (users[lower] && !isLegacyDemo(users[lower])) {
     return { type: 'Error', data: 'Nome de usuário já está em uso' }
   }
 
@@ -246,7 +240,7 @@ ipcMain.handle('auth-register', async (_event, { username, email, password }) =>
   return {
     type: 'Success',
     data: {
-      token: `token_${newUser.username}_${Date.now()}`,
+      token: issueSession(newUser.username),
       user: {
         id: newUser.id,
         username: newUser.username,

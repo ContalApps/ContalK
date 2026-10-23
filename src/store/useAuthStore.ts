@@ -6,6 +6,8 @@ export interface User {
   username: string
   email: string
   display_name: string
+  avatar?: string
+  bio?: string
   created_at: string
 }
 
@@ -19,18 +21,10 @@ interface AuthState {
   // Actions
   login: (identifier: string, password: string) => Promise<boolean>
   register: (username: string, email: string, password: string) => Promise<boolean>
-  loginAsDemo: () => void
+  updateProfile: (profile: { display_name: string; bio: string; avatar: string }) => Promise<void>
   logout: () => Promise<void>
   checkSession: () => Promise<boolean>
   clearError: () => void
-}
-
-// Contas pré-configuradas para modo Web / Preview
-const MOCK_ACCOUNTS: Record<string, { email: string; pass: string; name: string }> = {
-  alice: { email: 'alice@contalk.local', pass: 'alice123', name: 'Alice Silva' },
-  bob: { email: 'bob@contalk.local', pass: 'bob12345', name: 'Bob Santos' },
-  carol: { email: 'carol@contalk.local', pass: 'carol123', name: 'Carol Oliveira' },
-  dave: { email: 'dave@contalk.local', pass: 'dave1234', name: 'Dave Lima' },
 }
 
 export const useAuthStore = create<AuthState>((set, get) => ({
@@ -94,7 +88,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     // Modo Web / Preview (Fallback navegador)
     const idNorm = identifier.trim().toLowerCase()
     const storedUsers = JSON.parse(localStorage.getItem('contalspeak_web_users') || '{}')
-    const allUsers = { ...MOCK_ACCOUNTS, ...storedUsers }
+    const allUsers = storedUsers
 
     const foundKey = Object.keys(allUsers).find(
       (u) => u.toLowerCase() === idNorm || allUsers[u].email.toLowerCase() === idNorm
@@ -107,6 +101,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         username: foundKey,
         email: uData.email,
         display_name: uData.name || foundKey,
+        avatar: uData.avatar, bio: uData.bio,
         created_at: new Date().toISOString(),
       }
       const token = `web-token-${foundKey}`
@@ -123,7 +118,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     }
 
     set({
-      error: 'Credenciais inválidas. Dica: use alice / alice123 ou crie uma conta!',
+      error: 'Credenciais inválidas. Verifique seus dados ou crie uma conta.',
       isLoading: false,
     })
     return false
@@ -181,7 +176,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
 
     // Modo Web / Preview
     const storedUsers = JSON.parse(localStorage.getItem('contalspeak_web_users') || '{}')
-    const allUsers = { ...MOCK_ACCOUNTS, ...storedUsers }
+    const allUsers = storedUsers
 
     if (allUsers[username.toLowerCase()]) {
       set({ error: 'Username já está em uso', isLoading: false })
@@ -215,24 +210,21 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     return true
   },
 
-  loginAsDemo: () => {
-    const user: User = {
-      id: 'demo-user-001',
-      username: 'visitante',
-      email: 'visitante@contalspeak.local',
-      display_name: 'Visitante Convidado',
-      created_at: new Date().toISOString(),
+  updateProfile: async profile => {
+    const current = get().user
+    if (!current) throw new Error('Entre na sua conta.')
+    const user = window.contalkDesktop?.updateProfile ? await window.contalkDesktop.updateProfile(profile) : { ...current, ...profile }
+    if (!window.contalkDesktop) {
+      const accounts = JSON.parse(localStorage.getItem('contalspeak_web_users') || '{}')
+      if (accounts[current.username]) Object.assign(accounts[current.username], { name: user.display_name, avatar: user.avatar, bio: user.bio })
+      localStorage.setItem('contalspeak_web_users', JSON.stringify(accounts))
     }
-    set({
-      user,
-      token: 'demo-token',
-      isAuthenticated: true,
-      isLoading: false,
-      error: null,
-    })
+    localStorage.setItem('contalspeak_current_user', JSON.stringify(user))
+    set({ user })
   },
 
   logout: async () => {
+    await window.contalkDesktop?.logout()
     if (isTauri()) {
       try {
         await invoke('logout')
@@ -257,20 +249,12 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     set({ isLoading: true })
 
     const electron = (window as any).contalkDesktop
-    if (electron) {
-      const savedUserStr = localStorage.getItem('contalspeak_current_user')
-      if (savedUserStr) {
-        try {
-          const user = JSON.parse(savedUserStr)
-          set({
-            user,
-            token,
-            isAuthenticated: true,
-            isLoading: false,
-          })
-          return true
-        } catch {}
-      }
+    if (electron?.getSession) {
+      const user = await electron.getSession(token)
+      if (user) { set({ user, token, isAuthenticated: true, isLoading: false }); return true }
+      localStorage.removeItem('contalspeak_token')
+      set({ user: null, token: null, isAuthenticated: false, isLoading: false })
+      return false
     }
 
     if (isTauri()) {

@@ -7,6 +7,10 @@ function subscribe<T>(channel: string, listener: (event: T) => void) {
   return () => ipcRenderer.removeListener(channel, handler)
 }
 const desktop: DesktopBridge = {
+  getSession: token => ipcRenderer.invoke('auth-session', token),
+  listAccounts: () => ipcRenderer.invoke('auth-accounts'),
+  updateProfile: profile => ipcRenderer.invoke('auth-profile', profile),
+  logout: () => ipcRenderer.invoke('auth-logout'),
   isElectron: true,
   getDesktopSources: () => ipcRenderer.invoke('get-desktop-sources'),
   getLiveKitToken: params => ipcRenderer.invoke('get-livekit-token', params),

@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { useVoiceStore, VoiceParticipant } from '../store/useVoiceStore'
 import { useAuthStore } from '../store/useAuthStore'
+import { useCommunityStore } from '../store/useCommunityStore'
 import { Track } from 'livekit-client'
 import { ParticipantVolumePopup } from './ParticipantVolumePopup'
 import { ScreenShareModal } from './ScreenShareModal'
@@ -185,6 +186,8 @@ function ParticipantTile({
   onMaximize?: () => void
   onViewScreen?: () => void
 }) {
+  const member=useCommunityStore(s=>s.members.find(m=>m.username===participant.identity))
+  const avatar=participant.avatar || member?.avatar
   return (
     <div
       onDoubleClick={onMaximize}
@@ -194,6 +197,7 @@ function ParticipantTile({
           : 'border-purple-900/40 hover:border-purple-500/50'
       } ${isMaximized ? 'w-full h-full flex-1' : 'aspect-video'}`}
     >
+      {avatar && !participant.isVideoEnabled && <img src={avatar} alt="" className="ct-voice-avatar-bg"/>}
       {participant.isVideoEnabled && participant.videoTrack ? (
         <VideoTrackView
           track={participant.videoTrack}
@@ -201,7 +205,7 @@ function ParticipantTile({
           className="w-full h-full object-cover rounded-2xl"
         />
       ) : (
-        <div className="flex flex-col items-center justify-center gap-4">
+        <div className="relative z-10 flex flex-col items-center justify-center gap-4">
           <div className="relative">
             {participant.isSpeaking && (
               <div className="absolute -inset-2 rounded-full bg-green-500/30 blur-md animate-ping" />
@@ -215,7 +219,7 @@ function ParticipantTile({
               }`}
               title="Clique para ajustar volume"
             >
-              {participant.name.charAt(0).toUpperCase()}
+              {avatar?<img src={avatar} alt={participant.name} className="ct-voice-avatar"/>:participant.name.charAt(0).toUpperCase()}
             </div>
           </div>
         </div>

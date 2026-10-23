@@ -56,16 +56,9 @@ npm run tauri build
 
 O instalador `.exe` será gerado em `src-tauri/target/release/bundle/`.
 
-## Contas de Teste Pré-Configuradas
+## Contas
 
-O banco SQLite local (`auth.db`) e o modo Web já possuem contas de teste prontas:
-
-| Usuário | Senha | Nome de Exibição |
-|---------|-------|------------------|
-| `alice` | `alice123` | Alice Silva |
-| `bob` | `bob12345` | Bob Santos |
-| `carol` | `carol123` | Carol Oliveira |
-| `dave` | `dave1234` | Dave Lima |
+Crie sua conta na tela de cadastro. Não são criadas contas de demonstração.
 
 ## Estrutura do Projeto
 
@@ -149,3 +142,11 @@ O Electron captura vídeo sem áudio global. O helper `native/audio-capture/main
 É necessário Windows 10 build 20348 ou Windows 11. Janelas/abas do mesmo processo não podem ser isoladas umas das outras por esse método. Use compartilhamento de aba no navegador para áudio exclusivo de uma aba. Nunca há fallback para o som geral do computador; uma falha de captura aparece no seletor ou no palco de voz.
 
 `npm run verify` verifica tipos do frontend e do Electron, o buffer de áudio e a inicialização nativa. O teste nativo usa apenas o próprio processo do teste. Para validação em chamada real, teste dois participantes e duas telas: voz da chamada, som de um aplicativo na tela compartilhada e som de outro aplicativo na outra tela; verifique também mover/fechar janelas, iniciar/parar/reiniciar a transmissão e ensurdecer durante uma nova assinatura de áudio.
+
+## Perfis, presença e canais (0.1.3)
+
+A sala LiveKit `contalk-community-presence-v1` mantém a presença dos clientes autenticados sem abrir o microfone. Nome, avatar e descrição são compartilhados por metadados; canais e mensagens usam mensagens confiáveis de dados. Avatares são recortados no navegador para 160 × 160 e compactados em JPEG antes de serem salvos. O menu de botão direito nos ocupantes da barra esquerda controla o volume recebido e o silenciamento local.
+
+Não existe cadastro central de contas. Contas são armazenadas no computador; o diretório combina contas locais e pessoas conhecidas na presença. Clientes offline não recebem mensagens novas nem alterações imediatamente. Canais e histórico são persistidos no armazenamento local, e canais conhecidos são compartilhados ao conectar. Todos devem atualizar para a 0.1.3 para participar dessa sincronização. Um backend persistente ainda é necessário para cadastro global, histórico central, autenticação entre dispositivos e permissões de administração.
+
+Validação manual recomendada: conectar três contas em computadores diferentes; alterar foto e nome durante uma chamada; verificar entrada/saída e reconexão; criar um canal, abrir no outro computador e entrar em voz; usar o botão direito para ajustar o volume; reiniciar e confirmar que foto e canais continuam salvos.

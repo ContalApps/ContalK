@@ -16,6 +16,10 @@ export interface DesktopSource {
   isPrimary: boolean
 }
 export interface DesktopBridge {
+  getSession: (token: string) => Promise<import('../store/useAuthStore').User | null>
+  listAccounts: () => Promise<import('../store/useAuthStore').User[]>
+  updateProfile: (profile: {display_name: string; bio: string; avatar: string}) => Promise<import('../store/useAuthStore').User>
+  logout: () => Promise<void>
   isElectron: true
   getDesktopSources: () => Promise<DesktopSource[]>
   getLiveKitToken: (params: { room: string; identity: string; name: string }) => Promise<string>

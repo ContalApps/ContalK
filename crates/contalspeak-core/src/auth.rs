@@ -89,28 +89,6 @@ impl AuthStore {
             CREATE INDEX IF NOT EXISTS idx_users_email ON users(email);"
         )?;
 
-        // Seed de contas de teste se o banco estiver vazio
-        let count: i64 = conn.query_row("SELECT COUNT(*) FROM users", [], |row| row.get(0))?;
-        if count == 0 {
-            tracing::info!("Banco vazio, criando contas de teste...");
-            let test_users = [
-                ("alice", "alice@contalspeak.local", "alice123", "Alice Silva"),
-                ("bob", "bob@contalspeak.local", "bob12345", "Bob Santos"),
-                ("carol", "carol@contalspeak.local", "carol123", "Carol Oliveira"),
-                ("dave", "dave@contalspeak.local", "dave1234", "Dave Lima"),
-            ];
-            for (username, email, password, display_name) in test_users {
-                let pw_hash = hash(password, DEFAULT_COST)?;
-                let id = Uuid::new_v4().to_string();
-                let now = Utc::now().to_rfc3339();
-                conn.execute(
-                    "INSERT INTO users (id, username, email, password_hash, display_name, created_at) VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
-                    params![id, username, email, pw_hash, display_name, now],
-                )?;
-                tracing::info!("Conta de teste criada: {}", username);
-            }
-        }
-
         Ok(Self { conn: Mutex::new(conn) })
     }
 
@@ -266,24 +244,19 @@ mod tests {
     use std::fs;
 
     #[test]
-    fn test_auth_store_seed_and_login() {
+    fn test_auth_store_registration_and_login() {
         let temp_dir = std::env::temp_dir().join(format!("contalspeak_test_{}", Uuid::new_v4()));
         fs::create_dir_all(&temp_dir).unwrap();
         let db_path = temp_dir.join("test_auth.db");
 
         let store = AuthStore::new(&db_path).expect("Failed to create store");
 
-        // Test login com seeded user alice
-        let res = store.login("alice", "alice123").expect("Login alice failed");
-        assert_eq!(res.user.username, "alice");
-        assert_eq!(res.user.display_name, "Alice Silva");
-
-        // Test login com senha errada
-        assert!(store.login("alice", "wrongpassword").is_err());
-
-        // Test validação de token
+        assert!(store.login("testuser", "senha123").is_err());
+        store.register("testuser", "test@example.com", "senha123").expect("Registration failed");
+        let res = store.login("testuser", "senha123").expect("Login failed");
+        assert!(store.login("testuser", "wrongpassword").is_err());
         let validated = store.validate_token(&res.token).expect("Token validation failed");
-        assert_eq!(validated.username, "alice");
+        assert_eq!(validated.username, "testuser");
 
         // Test registro de novo usuário
         let reg_res = store.register("novousuario", "novo@teste.com", "senha123").expect("Register failed");

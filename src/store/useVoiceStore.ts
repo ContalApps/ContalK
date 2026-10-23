@@ -8,9 +8,12 @@ import {
   Participant,
 } from 'livekit-client'
 
+function readAvatar(metadata?: string) { try { const value = JSON.parse(metadata || '{}').avatar; return typeof value === 'string' && value.length < 50000 && /^data:image\/jpeg;base64,[A-Za-z0-9+/=]+$/.test(value) ? value : undefined } catch { return undefined } }
+
 export interface VoiceParticipant {
   identity: string
   name: string
+  avatar?: string
   isLocal: boolean
   isSpeaking: boolean
   isAudioEnabled: boolean
@@ -37,7 +40,7 @@ interface VoiceState {
   channelOccupants: Record<string, VoiceParticipant[]>
 
   // Actions
-  joinChannel: (channelId: string, channelName: string, user: { username: string; display_name: string }) => Promise<boolean>
+  joinChannel: (channelId: string, channelName: string, user: { username: string; display_name: string; avatar?: string }) => Promise<boolean>
   leaveChannel: () => Promise<void>
   refreshParticipants: () => void
   setUserVolume: (identity: string, volume: number) => void
@@ -57,7 +60,7 @@ const LIVEKIT_URL = 'wss://contalk-vwlfqz0q.livekit.cloud'
 const LIVEKIT_API_KEY = 'APIoDkLmBTDG5T5'
 const LIVEKIT_API_SECRET = 'ahn9v2PgmEIJCxM1QQARYd1j39r76pq4bWrVx7KFcnD'
 
-async function getLiveKitToken(room: string, identity: string, name: string): Promise<string> {
+export async function getLiveKitToken(room: string, identity: string, name: string): Promise<string> {
   // 1. Tentar via Electron Desktop (Arquitetura Discord)
   const electron = (window as any).contalkDesktop
   if (electron?.getLiveKitToken) {
@@ -176,18 +179,19 @@ export const useVoiceStore = create<VoiceState>((set, get) => ({
       const newOccupants: Record<string, VoiceParticipant[]> = {}
 
       for (const ch of channels) {
-        const roomFound = activeRooms.find((r) => r.name.toLowerCase() === ch.name.toLowerCase())
+        const roomFound = activeRooms.find((r) => r.name === ch.id)
         if (roomFound && roomFound.numParticipants > 0) {
           try {
             const parts = await client.listParticipants(roomFound.name)
             newOccupants[ch.id] = parts.map((p) => ({
               identity: p.identity,
               name: p.name || p.identity,
+              avatar: readAvatar(p.metadata),
               isLocal: false,
               isSpeaking: false,
               isAudioEnabled: p.tracks.some((track) => track.type === 0 && !track.muted),
               isVideoEnabled: p.tracks?.some((t: any) => t.source === 1) || false,
-              isScreenShareEnabled: p.tracks?.some((t: any) => t.source === 2) || false,
+              isScreenShareEnabled: p.tracks?.some((t: any) => t.source === 3) || false,
             }))
           } catch {}
         } else {
@@ -221,6 +225,7 @@ export const useVoiceStore = create<VoiceState>((set, get) => ({
     list.push({
       identity: local.identity,
       name: local.name || local.identity,
+      avatar: readAvatar(local.metadata),
       isLocal: true,
       isSpeaking: local.isSpeaking,
       isAudioEnabled: local.isMicrophoneEnabled,
@@ -237,6 +242,7 @@ export const useVoiceStore = create<VoiceState>((set, get) => ({
       list.push({
         identity: p.identity,
         name: p.name || p.identity,
+        avatar: readAvatar(p.metadata),
         isLocal: false,
         isSpeaking: p.isSpeaking,
         isAudioEnabled: p.isMicrophoneEnabled,
@@ -361,6 +367,7 @@ export const useVoiceStore = create<VoiceState>((set, get) => ({
         triggerUpdate()
       })
 
+      room.on(RoomEvent.ParticipantMetadataChanged, () => triggerUpdate())
       room.on(RoomEvent.TrackMuted, () => triggerUpdate())
       room.on(RoomEvent.TrackUnmuted, () => triggerUpdate())
 
@@ -392,6 +399,7 @@ export const useVoiceStore = create<VoiceState>((set, get) => ({
 
       // 4. Conectar ao SFU LiveKit
       await room.connect(LIVEKIT_URL, token)
+      await room.localParticipant.setMetadata(JSON.stringify({ avatar: user.avatar || '' }))
 
       // 5. Ativar microfone local se permitido
       try {
