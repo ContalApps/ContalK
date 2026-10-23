@@ -34,3 +34,6 @@ Thumbs.db
 .env.*
 *.key
 *.pem
+
+# Native audio helper build output
+native/bin/

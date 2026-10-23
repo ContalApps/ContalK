@@ -1,13 +1,25 @@
 import { ipcRenderer, contextBridge } from 'electron'
+import type { DesktopBridge } from '../src/types/desktop'
 
-// Expondo a API nativa do ContalK para o frontend React
-contextBridge.exposeInMainWorld('contalkDesktop', {
+function subscribe<T>(channel: string, listener: (event: T) => void) {
+  const handler = (_event: Electron.IpcRendererEvent, value: T) => listener(value)
+  ipcRenderer.on(channel, handler)
+  return () => ipcRenderer.removeListener(channel, handler)
+}
+const desktop: DesktopBridge = {
   isElectron: true,
   getDesktopSources: () => ipcRenderer.invoke('get-desktop-sources'),
-  getLiveKitToken: (params: { room: string; identity: string; name: string }) =>
-    ipcRenderer.invoke('get-livekit-token', params),
-  login: (params: { identifier: string; password: string }) =>
-    ipcRenderer.invoke('auth-login', params),
-  register: (params: { username: string; email: string; password: string }) =>
-    ipcRenderer.invoke('auth-register', params),
-})
+  getLiveKitToken: params => ipcRenderer.invoke('get-livekit-token', params),
+  login: params => ipcRenderer.invoke('auth-login', params),
+  register: params => ipcRenderer.invoke('auth-register', params),
+  getUpdateState: () => ipcRenderer.invoke('update-get-state'),
+  checkForUpdates: () => ipcRenderer.invoke('update-check'),
+  downloadUpdate: () => ipcRenderer.invoke('update-download'),
+  installUpdate: () => ipcRenderer.invoke('update-install'),
+  onUpdateState: listener => subscribe('update-state', listener),
+  startCaptureAudio: sourceId => ipcRenderer.invoke('capture-audio-start', sourceId),
+  stopCaptureAudio: sessionId => ipcRenderer.invoke('capture-audio-stop', sessionId),
+  onCaptureAudioData: listener => subscribe('capture-audio-data', listener),
+  onCaptureAudioError: listener => subscribe('capture-audio-error', listener),
+}
+contextBridge.exposeInMainWorld('contalkDesktop', desktop)

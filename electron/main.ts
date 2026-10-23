@@ -1,9 +1,11 @@
-import { app, BrowserWindow, ipcMain, desktopCapturer, shell } from 'electron'
+import { app, BrowserWindow, ipcMain, desktopCapturer, shell, screen } from 'electron'
 import path from 'node:path'
 import fs from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import { AccessToken } from 'livekit-server-sdk'
 import bcrypt from 'bcryptjs'
+import { setupUpdates } from './updates'
+import { setupCaptureAudio } from './capture-audio'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 
@@ -97,7 +99,7 @@ function saveUsers(users: Record<string, StoredUser>) {
 }
 
 function createWindow() {
-  const iconPath = path.join(process.env.VITE_PUBLIC, 'app-icon.png')
+  const iconPath = path.join(process.env.VITE_PUBLIC!, 'app-icon.png')
 
   win = new BrowserWindow({
     width: 1280,
@@ -115,6 +117,9 @@ function createWindow() {
       contextIsolation: true,
     },
   })
+
+  setupUpdates(win)
+  setupCaptureAudio(win)
 
   // Test active push message to Renderer_process.
   win.webContents.on('did-finish-load', () => {
@@ -152,6 +157,9 @@ ipcMain.handle('get-desktop-sources', async () => {
       appIcon: s.appIcon ? s.appIcon.toDataURL() : null,
       display_id: s.display_id,
       isScreen: s.id.startsWith('screen:'),
+      width: Math.round((screen.getAllDisplays().find(d => String(d.id) === s.display_id)?.bounds.width || 1920) * (screen.getAllDisplays().find(d => String(d.id) === s.display_id)?.scaleFactor || 1)),
+      height: Math.round((screen.getAllDisplays().find(d => String(d.id) === s.display_id)?.bounds.height || 1080) * (screen.getAllDisplays().find(d => String(d.id) === s.display_id)?.scaleFactor || 1)),
+      isPrimary: s.display_id === String(screen.getPrimaryDisplay().id),
     }))
   } catch (err: any) {
     console.error('Falha ao obter desktop sources:', err)

@@ -128,3 +128,24 @@ As credenciais padrão estão no `livekit.yaml` e `token-server.mjs`:
 ## Licença
 
 MIT
+## Atualizações do Electron (Windows)
+
+O instalador Electron usa `electron-updater` com GitHub Releases. Não é preciso manter servidor de atualização. Instale manualmente a versão 0.1.2 uma vez; ela consulta novas versões ao iniciar e a cada 30 minutos. O usuário escolhe baixar e reiniciar. Reiniciar encerra chamadas e transmissões.
+
+Para publicar usando o próprio computador, sem GitHub Actions:
+
+1. Atualize a versão em `package.json`, `package-lock.json`, `Cargo.toml`, `Cargo.lock` (pacotes do workspace) e `src-tauri/tauri.conf.json`.
+2. Escreva `RELEASE_NOTES.md`.
+3. Execute `npm ci`, `npm run build:audio`, `npm run verify` e `npm run build:electron`.
+4. Faça commit, crie a tag `v<VERSÃO>` nesse commit e envie o commit e a tag ao GitHub.
+5. Execute `npm run publish:electron` com o GitHub CLI autenticado. O script verifica os hashes, publica o instalador, o blockmap e `latest.yml` em um rascunho e só então torna a versão pública.
+
+O empacotamento requer Windows x64, Visual Studio C++ Build Tools e Windows SDK 10.0.20348 ou posterior. O fluxo em `.github/workflows/release.yml` executa os mesmos passos se o GitHub Actions estiver disponível. Os pacotes Electron e Tauri possuem atualizadores distintos; `latest.yml` é exclusivo do Electron.
+
+## Áudio das transmissões
+
+O Electron captura vídeo sem áudio global. O helper `native/audio-capture/main.cpp` usa WASAPI process loopback para capturar somente a árvore do processo selecionado. Para monitores, enumera janelas visíveis no monitor predominante e atualiza a seleção a cada segundo, excluindo o processo do ContalK e seus filhos. Janelas minimizadas não entram nessa seleção. O áudio capturado vai para uma faixa LiveKit separada, sem ser reproduzido localmente.
+
+É necessário Windows 10 build 20348 ou Windows 11. Janelas/abas do mesmo processo não podem ser isoladas umas das outras por esse método. Use compartilhamento de aba no navegador para áudio exclusivo de uma aba. Nunca há fallback para o som geral do computador; uma falha de captura aparece no seletor ou no palco de voz.
+
+`npm run verify` verifica tipos do frontend e do Electron, o buffer de áudio e a inicialização nativa. O teste nativo usa apenas o próprio processo do teste. Para validação em chamada real, teste dois participantes e duas telas: voz da chamada, som de um aplicativo na tela compartilhada e som de outro aplicativo na outra tela; verifique também mover/fechar janelas, iniciar/parar/reiniciar a transmissão e ensurdecer durante uma nova assinatura de áudio.

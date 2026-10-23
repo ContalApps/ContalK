@@ -1,4 +1,6 @@
 import { useState, useEffect } from 'react'
+import type { UpdateState } from '../types/desktop'
+import { useVoiceStore } from '../store/useVoiceStore'
 
 export function UpdateNotification() {
   const [status, setStatus] = useState<'idle' | 'checking' | 'available' | 'downloading' | 'ready' | 'error'>('idle')
@@ -10,6 +12,20 @@ export function UpdateNotification() {
 
   // Verifica atualizações automaticamente ao iniciar
   useEffect(() => {
+    const desktop = window.contalkDesktop
+    if (desktop?.onUpdateState) {
+      const applyState = (state: UpdateState) => {
+        setStatus(state.status)
+        setVersion(state.version)
+        setProgress(state.progress)
+        setErrorMsg(state.error || '')
+        if (state.status === 'available' || state.status === 'ready') setDismissed(false)
+      }
+      const unsubscribe = desktop.onUpdateState(applyState)
+      let mounted = true
+      desktop.getUpdateState().then(state => { if (mounted) applyState(state) }).catch(console.warn)
+      return () => { mounted = false; unsubscribe() }
+    }
     // Dá 3 segundos após o app abrir para checar silenciosamente
     const timer = setTimeout(() => {
       checkForUpdates(false)
@@ -27,6 +43,10 @@ export function UpdateNotification() {
   }, [])
 
   const checkForUpdates = async (manual = false) => {
+    if (window.contalkDesktop?.checkForUpdates) {
+      await window.contalkDesktop.checkForUpdates()
+      return
+    }
     // Se não estiver no ambiente Tauri, ignora silenciosamente
     if (!(window as any).__TAURI_INTERNALS__) {
       return
@@ -57,6 +77,11 @@ export function UpdateNotification() {
   }
 
   const startDownloadAndInstall = async () => {
+    if (window.contalkDesktop?.downloadUpdate) {
+      try { await window.contalkDesktop.downloadUpdate() }
+      catch (error) { setStatus('error'); setErrorMsg(error instanceof Error ? error.message : 'Falha ao baixar atualização.') }
+      return
+    }
     if (!updateHandle) return
 
     try {
@@ -89,10 +114,16 @@ export function UpdateNotification() {
 
   const restartApp = async () => {
     try {
+      if (window.contalkDesktop?.installUpdate) {
+        await useVoiceStore.getState().leaveChannel()
+        await window.contalkDesktop.installUpdate()
+        return
+      }
       const { relaunch } = await import('@tauri-apps/plugin-process')
       await relaunch()
     } catch (err) {
-      console.error('Falha ao reiniciar:', err)
+      setStatus('error')
+      setErrorMsg(err instanceof Error ? err.message : 'Falha ao reiniciar o aplicativo.')
     }
   }
 
@@ -149,7 +180,7 @@ export function UpdateNotification() {
 
           {status === 'ready' && (
             <p className="text-xs text-emerald-400 mt-1">
-              ✓ Download concluído! Reinicie o aplicativo para aplicar.
+              ✓ Download concluído! Reiniciar aplica a atualização e encerra chamadas em andamento.
             </p>
           )}
 

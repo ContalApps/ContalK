@@ -1,4 +1,5 @@
 import { create } from 'zustand'
+import { startScreenShare, stopScreenShare } from '../media/screenShare'
 import {
   Room,
   RoomEvent,
@@ -31,6 +32,7 @@ interface VoiceState {
   participants: VoiceParticipant[]
   activeSpeakers: string[]
   error: string | null
+  screenShareError: string | null
   userVolumes: Record<string, number>
   channelOccupants: Record<string, VoiceParticipant[]>
 
@@ -46,7 +48,7 @@ interface VoiceState {
   toggleScreenShare: () => Promise<void>
   startScreenShareWithOptions: (
     source: any,
-    options: { audio: boolean; antiEcho: boolean; fps: number; resolution: string }
+    options: { audio: boolean; fps: number; resolution: string }
   ) => Promise<void>
 }
 
@@ -141,11 +143,13 @@ export const useVoiceStore = create<VoiceState>((set, get) => ({
   participants: [],
   activeSpeakers: [],
   error: null,
+  screenShareError: null,
   userVolumes: initialUserVolumes,
   channelOccupants: {},
 
   setUserVolume: (identity: string, volume: number) => {
     const { currentRoom, userVolumes } = get()
+    volume = Math.min(200, Math.max(0, Number.isFinite(volume) ? volume : 100))
     const nextVolumes = { ...userVolumes, [identity]: volume }
     set({ userVolumes: nextVolumes })
     try {
@@ -276,6 +280,7 @@ export const useVoiceStore = create<VoiceState>((set, get) => ({
       activeChannelId: channelId,
       activeChannelName: channelName,
       error: null,
+      screenShareError: null,
       participants: [],
     })
 
@@ -340,9 +345,10 @@ export const useVoiceStore = create<VoiceState>((set, get) => ({
         if (track.kind === Track.Kind.Audio) {
           const audioContainer = getAudioContainer()
           const element = track.attach()
+          element.muted = get().isDeafened
           audioContainer.appendChild(element)
 
-          const userVol = get().userVolumes[participant.identity] ?? 100
+          const userVol = Math.min(200, Math.max(0, get().userVolumes[participant.identity] ?? 100))
           if (typeof (track as any).setVolume === 'function') {
             (track as any).setVolume(userVol / 100)
           }
@@ -365,6 +371,7 @@ export const useVoiceStore = create<VoiceState>((set, get) => ({
       })
 
       room.on(RoomEvent.Disconnected, () => {
+        void stopScreenShare(room)
         const audioContainer = getAudioContainer()
         audioContainer.innerHTML = ''
         const prevId = get().activeChannelId
@@ -425,6 +432,7 @@ export const useVoiceStore = create<VoiceState>((set, get) => ({
     }
     if (currentRoom) {
       try {
+        await stopScreenShare(currentRoom)
         await currentRoom.disconnect()
       } catch {
         // Disconnect silencioso
@@ -501,125 +509,27 @@ export const useVoiceStore = create<VoiceState>((set, get) => ({
   },
 
   toggleScreenShare: async () => {
-    const { currentRoom, isScreenSharing } = get()
+    const { currentRoom } = get()
     if (!currentRoom) return
-
-    try {
-      if (isScreenSharing) {
-        const customStream = (currentRoom.localParticipant as any)._customScreenStream as MediaStream | undefined
-        if (customStream) {
-          customStream.getTracks().forEach((t) => t.stop())
-          delete (currentRoom.localParticipant as any)._customScreenStream
-        }
-        await currentRoom.localParticipant.setScreenShareEnabled(false)
-        set({ isScreenSharing: false })
-      } else {
-        // Fallback
-        await currentRoom.localParticipant.setScreenShareEnabled(true)
-        set({ isScreenSharing: currentRoom.localParticipant.isScreenShareEnabled })
-      }
-      get().refreshParticipants()
-    } catch (err: any) {
-      console.warn('Compartilhamento de tela cancelado ou falhou:', err)
-      set({ isScreenSharing: currentRoom.localParticipant.isScreenShareEnabled })
-      get().refreshParticipants()
-    }
+    await stopScreenShare(currentRoom)
+    set({ isScreenSharing: false, screenShareError: null })
+    get().refreshParticipants()
   },
 
   startScreenShareWithOptions: async (source, options) => {
     const { currentRoom } = get()
-    if (!currentRoom) return
-
+    if (!currentRoom) throw new Error('Entre em um canal de voz antes de transmitir.')
+    set({ screenShareError: null })
     try {
-      let width = 1920
-      let height = 1080
-      if (options.resolution === '720') {
-        width = 1280
-        height = 720
-      } else if (options.resolution === 'source' && source) {
-        width = source.width || 1920
-        height = source.height || 1080
-      }
-
-      // ARQUITETURA OFICIAL DO DISCORD (ELECTRON):
-      // Usa getUserMedia com chromeMediaSource: 'desktop' e o ID da janela/tela selecionada.
-      // Isso elimina 100% o modal do Chromium e a barra flutuante inferior!
-      if ((window as any).contalkDesktop && source?.id) {
-        const stream = await navigator.mediaDevices.getUserMedia({
-          audio: options.audio
-            ? ({
-                mandatory: {
-                  chromeMediaSource: 'desktop',
-                },
-              } as any)
-            : false,
-          video: {
-            mandatory: {
-              chromeMediaSource: 'desktop',
-              chromeMediaSourceId: source.id,
-              maxWidth: width,
-              maxHeight: height,
-              maxFrameRate: options.fps,
-            },
-          } as any,
-        })
-
-        const videoTrack = stream.getVideoTracks()[0]
-        if (videoTrack) {
-          await currentRoom.localParticipant.publishTrack(videoTrack, {
-            name: 'screen_share',
-            source: Track.Source.ScreenShare,
-          })
-
-          const audioTrack = stream.getAudioTracks()[0]
-          if (audioTrack && options.audio) {
-            await currentRoom.localParticipant.publishTrack(audioTrack, {
-              name: 'screen_share_audio',
-              source: Track.Source.ScreenShareAudio,
-            })
-          }
-
-          ;(currentRoom.localParticipant as any)._customScreenStream = stream
-
-          videoTrack.onended = () => {
-            get().toggleScreenShare()
-          }
-
-          set({ isScreenSharing: true })
-          get().refreshParticipants()
-          return
-        }
-      }
-
-      // Fallback para getDisplayMedia (fora do Electron)
-      const streamConstraints: any = {
-        video: {
-          width: { ideal: width, max: width },
-          height: { ideal: height, max: height },
-          frameRate: { ideal: options.fps, max: options.fps },
-          displaySurface: source?.source_type === 'window' ? 'window' : 'monitor',
-        },
-        audio: options.audio
-          ? {
-              autoGainControl: false,
-              echoCancellation: options.antiEcho,
-              noiseSuppression: false,
-              sampleRate: 48000,
-              channelCount: 2,
-            }
-          : false,
-        selfBrowserSurface: 'exclude',
-        surfaceSwitching: 'include',
-        systemAudio: options.antiEcho ? 'exclude' : 'include',
-      }
-
-      await currentRoom.localParticipant.setScreenShareEnabled(true, streamConstraints)
-      set({ isScreenSharing: currentRoom.localParticipant.isScreenShareEnabled })
+      await startScreenShare(currentRoom, source, options,
+        () => { set({ isScreenSharing: false }); get().refreshParticipants() },
+        message => set({ screenShareError: message }),
+      )
       get().refreshParticipants()
-    } catch (err: any) {
-      console.warn('Falha ao iniciar transmissão com opções:', err)
-      set({ isScreenSharing: currentRoom.localParticipant.isScreenShareEnabled })
+    } catch (error) {
+      set({ screenShareError: error instanceof Error ? error.message : 'Falha ao iniciar transmissão.' })
       get().refreshParticipants()
+      throw error
     }
   },
 }))

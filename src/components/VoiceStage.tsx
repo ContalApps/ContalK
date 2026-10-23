@@ -295,6 +295,7 @@ export function VoiceStage({
     participants,
     connectionStatus,
     error,
+    screenShareError,
     isMicMuted,
     isDeafened,
     isCameraOn,
@@ -666,6 +667,7 @@ export function VoiceStage({
         )}
       </div>
 
+      {screenShareError && <div role="alert" className="mx-4 mb-2 rounded-xl border border-red-500/40 bg-red-950/30 p-3 text-xs text-red-200">{screenShareError}</div>}
       {/* Barra de Controles de Voz Centralizada */}
       <div className="p-4 bg-[#120f1e] border-t border-purple-900/40 flex items-center justify-center gap-3 flex-shrink-0 shadow-2xl">
         {/* Mute Mic */}

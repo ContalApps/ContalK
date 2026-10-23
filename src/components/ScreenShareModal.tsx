@@ -15,62 +15,8 @@ export interface CaptureSource {
 interface ScreenShareModalProps {
   isOpen: boolean
   onClose: () => void
-  onStartShare: (source: CaptureSource | null, options: { audio: boolean; antiEcho: boolean; fps: number; resolution: string }) => Promise<void>
+  onStartShare: (source: CaptureSource | null, options: { audio: boolean; fps: number; resolution: string }) => Promise<void>
 }
-
-// Fallback sources para visualização em modo Web
-const MOCK_SOURCES: CaptureSource[] = [
-  {
-    id: 'monitor:0',
-    source_type: 'monitor',
-    name: 'Tela 1',
-    title: 'Tela 1 (Principal - 1920x1080)',
-    app_name: 'Monitor',
-    width: 1920,
-    height: 1080,
-    is_primary: true,
-  },
-  {
-    id: 'monitor:1',
-    source_type: 'monitor',
-    name: 'Tela 2',
-    title: 'Tela 2 (Secundária - 1920x1080)',
-    app_name: 'Monitor',
-    width: 1920,
-    height: 1080,
-    is_primary: false,
-  },
-  {
-    id: 'window:vscode',
-    source_type: 'window',
-    name: 'Visual Studio Code',
-    title: 'ContalK - Visual Studio Code',
-    app_name: 'Code',
-    width: 1600,
-    height: 900,
-    is_primary: false,
-  },
-  {
-    id: 'window:game',
-    source_type: 'window',
-    name: 'Rocket League',
-    title: 'Rocket League (64-bit, DX11)',
-    app_name: 'RocketLeague',
-    width: 1920,
-    height: 1080,
-    is_primary: false,
-  },
-  {
-    id: 'window:spotify',
-    source_type: 'window',
-    name: 'Spotify',
-    title: 'Spotify Free',
-    app_name: 'Spotify',
-    width: 1280,
-    height: 720,
-    is_primary: false,
-  },
-]
 
 export function ScreenShareModal({ isOpen, onClose, onStartShare }: ScreenShareModalProps) {
   const [activeTab, setActiveTab] = useState<'screens' | 'windows'>('screens')
@@ -80,16 +26,20 @@ export function ScreenShareModal({ isOpen, onClose, onStartShare }: ScreenShareM
 
   // Opções de áudio e qualidade
   const [shareAudio, setShareAudio] = useState(true)
-  const [antiEcho, setAntiEcho] = useState(true)
-  const [fps, setFps] = useState<number>(60)
+  const [fps, setFps] = useState<number>(30)
   const [resolution, setResolution] = useState<'720' | '1080' | 'source'>('1080')
   const [isStarting, setIsStarting] = useState(false)
+  const [startError, setStartError] = useState<string | null>(null)
+  const useBrowserPicker = !window.contalkDesktop
 
   useEffect(() => {
     if (!isOpen) return
 
     let isMounted = true
     setIsLoading(true)
+    setStartError(null)
+    setActiveTab('screens')
+    setSelectedSource(null)
 
     const fetchSources = async () => {
       try {
@@ -105,9 +55,9 @@ export function ScreenShareModal({ isOpen, onClose, onStartShare }: ScreenShareM
               title: s.name,
               app_name: s.name,
               thumbnail: s.thumbnail,
-              width: 1920,
-              height: 1080,
-              is_primary: s.id.includes('screen:0'),
+              width: s.width || 1920,
+              height: s.height || 1080,
+              is_primary: s.isPrimary === true,
             }))
             setSources(mapped)
             const firstMonitor = mapped.find((s) => s.source_type === 'monitor')
@@ -131,12 +81,12 @@ export function ScreenShareModal({ isOpen, onClose, onStartShare }: ScreenShareM
           }
         }
       } catch (err) {
-        console.warn('Backend nativo não retornou fontes, usando fallback:', err)
+        if (isMounted) setStartError(err instanceof Error ? err.message : 'Não foi possível listar as fontes de captura.')
       }
 
       if (isMounted) {
-        setSources(MOCK_SOURCES)
-        setSelectedSource(MOCK_SOURCES[0])
+        setSources([])
+        setSelectedSource(null)
         setIsLoading(false)
       }
     }
@@ -156,16 +106,16 @@ export function ScreenShareModal({ isOpen, onClose, onStartShare }: ScreenShareM
 
   const handleStart = async () => {
     setIsStarting(true)
+    setStartError(null)
     try {
       await onStartShare(selectedSource, {
         audio: shareAudio,
-        antiEcho,
         fps,
         resolution,
       })
       onClose()
     } catch (err) {
-      console.error('Falha ao iniciar transmissão:', err)
+      setStartError(err instanceof Error ? err.message : 'Falha ao iniciar transmissão.')
     } finally {
       setIsStarting(false)
     }
@@ -186,6 +136,8 @@ export function ScreenShareModal({ isOpen, onClose, onStartShare }: ScreenShareM
             </div>
           </div>
           <button
+            disabled={isStarting}
+            aria-label="Fechar seletor de transmissão"
             onClick={onClose}
             className="w-8 h-8 rounded-full bg-purple-950/50 hover:bg-purple-900/50 text-purple-300 hover:text-white flex items-center justify-center transition-colors text-xs font-bold"
           >
@@ -198,7 +150,7 @@ export function ScreenShareModal({ isOpen, onClose, onStartShare }: ScreenShareM
           <button
             onClick={() => {
               setActiveTab('screens')
-              if (screens.length > 0) setSelectedSource(screens[0])
+              setSelectedSource(screens[0] || null)
             }}
             className={`pb-3 text-xs font-bold transition-all relative ${
               activeTab === 'screens' ? 'text-white' : 'text-[#9c97ad] hover:text-white'
@@ -213,7 +165,7 @@ export function ScreenShareModal({ isOpen, onClose, onStartShare }: ScreenShareM
           <button
             onClick={() => {
               setActiveTab('windows')
-              if (windows.length > 0) setSelectedSource(windows[0])
+              setSelectedSource(windows[0] || null)
             }}
             className={`pb-3 text-xs font-bold transition-all relative ${
               activeTab === 'windows' ? 'text-white' : 'text-[#9c97ad] hover:text-white'
@@ -231,11 +183,11 @@ export function ScreenShareModal({ isOpen, onClose, onStartShare }: ScreenShareM
           {isLoading ? (
             <div className="py-16 text-center space-y-3">
               <div className="text-4xl animate-bounce">🦇</div>
-              <p className="text-xs text-purple-300/70 font-medium">Detectando janelas e monitores com DirectX...</p>
+              <p className="text-xs text-purple-300/70 font-medium">Buscando janelas e monitores...</p>
             </div>
           ) : displayedSources.length === 0 ? (
             <div className="py-12 text-center text-purple-300/60 text-xs">
-              Nenhuma fonte encontrada nesta categoria.
+              {useBrowserPicker ? 'O navegador abrirá o seletor de tela, janela ou aba ao continuar.' : 'Nenhuma fonte encontrada nesta categoria.'}
             </div>
           ) : (
             <div className="grid grid-cols-2 gap-3.5">
@@ -285,6 +237,7 @@ export function ScreenShareModal({ isOpen, onClose, onStartShare }: ScreenShareM
             </div>
           )}
 
+          {startError && <p role="alert" className="rounded-xl border border-red-500/40 bg-red-950/30 p-3 text-xs text-red-200">{startError}</p>}
           {/* Configurações de Transmissão (Áudio & Qualidade) */}
           <div className="p-4 rounded-2xl bg-[#0e0b17] border border-purple-900/40 space-y-3.5">
             <div className="text-xs font-bold text-white flex items-center gap-2">
@@ -301,23 +254,14 @@ export function ScreenShareModal({ isOpen, onClose, onStartShare }: ScreenShareM
                   className="rounded accent-purple-500 w-4 h-4 cursor-pointer"
                 />
                 <div className="min-w-0">
-                  <span className="font-semibold text-white block">Áudio do Aplicativo</span>
-                  <span className="text-[10px] text-purple-300/60 block">Transmite o som do jogo/janela</span>
+                  <span className="font-semibold text-white block">{selectedSource?.source_type === 'monitor' ? 'Áudio dos programas desta tela' : 'Áudio do aplicativo'}</span>
+                  <span className="text-[10px] text-purple-300/60 block">Captura isolada, sem o áudio do ContalK</span>
                 </div>
               </label>
 
-              <label className="flex items-center gap-2.5 p-2 rounded-xl bg-[#161224] border border-purple-900/30 cursor-pointer hover:border-purple-500/40 transition-colors">
-                <input
-                  type="checkbox"
-                  checked={antiEcho}
-                  onChange={(e) => setAntiEcho(e.target.checked)}
-                  className="rounded accent-purple-500 w-4 h-4 cursor-pointer"
-                />
-                <div className="min-w-0">
-                  <span className="font-semibold text-white block">🛡️ Anti-Eco ContalK</span>
-                  <span className="text-[10px] text-purple-300/60 block">Não transmite as vozes da chamada</span>
-                </div>
-              </label>
+              <div className="p-2 rounded-xl bg-[#161224] border border-purple-900/30 text-[10px] text-purple-200/80 leading-relaxed">
+                O áudio é separado por aplicativo. Janelas e abas que usam o mesmo processo podem compartilhar áudio entre si, mesmo em monitores diferentes. Para isolar o YouTube, compartilhe a aba pelo navegador.
+              </div>
             </div>
 
             {/* Resolução e Taxa de Quadros */}
@@ -379,7 +323,7 @@ export function ScreenShareModal({ isOpen, onClose, onStartShare }: ScreenShareM
             </button>
             <button
               onClick={handleStart}
-              disabled={!selectedSource || isStarting}
+              disabled={(!selectedSource && !useBrowserPicker) || isStarting || isLoading}
               className="px-6 py-2.5 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white font-bold text-xs rounded-xl transition-all shadow-lg shadow-purple-600/30 disabled:opacity-40 disabled:cursor-not-allowed flex items-center gap-2"
             >
               {isStarting ? (
