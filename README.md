@@ -156,3 +156,9 @@ Validação manual recomendada: conectar três contas em computadores diferentes
 Use a engrenagem na barra inferior esquerda para selecionar o microfone físico. O botão de teste usa apenas uma captura local e um medidor; não conecta o áudio aos alto-falantes nem publica a captura no LiveKit. A captura de voz é independente da captura de tela, com mono, supressão de ruído, cancelamento de eco e ganho automático desativado. As entradas de loopback conhecidas são rejeitadas pelo nome antes da publicação. Essa detecção não substitui a escolha correta do dispositivo e não garante rejeição de todo mixer virtual existente.
 
 Para investigar vazamento do Discord sem transmissão: com fones, fique em silêncio enquanto outra pessoa fala no Discord e observe o medidor. Se ele reagir na entrada física correta, verifique o mixer/driver e o cabo/adaptador do headset. Não é possível separar com garantia vozes já misturadas pelo hardware na mesma entrada. O teste no equipamento afetado permanece necessário.
+
+## Regressões de conexão (0.1.5)
+
+Tokens de sala concedem `canUpdateOwnMetadata` por meio de `shared/livekit-grant.mjs` (Electron, navegador e servidor local); o Tauri usa o mesmo campo no JWT Rust. Não são concedidas permissões de administração. Atualizações de perfil não fazem parte do caminho crítico da conexão de voz/presença. Tentativas canceladas são descartadas por geração e conexões com falha são encerradas explicitamente.
+
+`node tests/run-live-smoke.mjs` executa um diagnóstico opt-in no LiveKit configurado, em sala temporária isolada: confirma conexão, nome/metadados, envio de dados, publicação/remoção de uma faixa de áudio silenciosa gerada e desconexão. Não abre microfone nem câmera, não entra na sala de presença e remove a sala temporária ao terminar. Requer acesso de rede e o runtime Electron instalado. Os testes sem rede estão em `npm run verify`.

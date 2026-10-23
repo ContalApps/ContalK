@@ -16,13 +16,13 @@ function safeMember(identity: string, name: string, metadata?: string): Member {
     avatar: typeof profile.avatar === 'string' && profile.avatar.length < 50000 && /^data:image\/jpeg;base64,[A-Za-z0-9+/=]+$/.test(profile.avatar) ? profile.avatar : undefined,
     bio: typeof profile.bio === 'string' ? profile.bio.slice(0,240) : '', online: true }
 }
-export const useCommunityStore = create<{ members: Member[]; status: string; connect: (user: User) => Promise<void>; disconnect: () => void; updateProfile: (user: User) => Promise<void>; broadcastChannels: () => Promise<void>; sendMessage: (channelId: string, content: string, destination?: string) => Promise<void> }>((set,get) => ({
-  members: cachedMembers(), status: 'offline',
+export const useCommunityStore = create<{ members: Member[]; status: string; profileError: string | null; connect: (user: User) => Promise<void>; disconnect: () => void; updateProfile: (user: User) => Promise<void>; broadcastChannels: () => Promise<void>; sendMessage: (channelId: string, content: string, destination?: string) => Promise<void> }>((set,get) => ({
+  members: cachedMembers(), status: 'offline', profileError: null,
   disconnect: () => { generation++; const previous = room; room = null; void previous?.disconnect(); set({ members: get().members.map(m=>({...m,online:false})), status:'offline' }) },
   connect: async user => {
     get().disconnect()
     const version = generation
-    set({status:'connecting'})
+    set({status:'connecting',profileError:null})
     const connection = new Room({ adaptiveStream: false, dynacast: false })
     room = connection
     const refresh = () => {
@@ -57,18 +57,21 @@ export const useCommunityStore = create<{ members: Member[]; status: string; con
     connection.on(RoomEvent.ParticipantNameChanged,refresh)
     connection.on(RoomEvent.DataReceived,receive)
     connection.on(RoomEvent.Reconnecting,()=>{if(room===connection)set({status:'reconnecting',members:get().members.map(m=>({...m,online:false}))})})
-    connection.on(RoomEvent.Reconnected,()=>{set({status:'online'});refresh()})
+    connection.on(RoomEvent.Reconnected,()=>{if(room===connection){set({status:'online'});refresh()}})
     connection.on(RoomEvent.Disconnected,()=>{if(room===connection)set({status:'offline',members:get().members.map(m=>({...m,online:false}))})})
     try {
-      const local = await window.contalkDesktop?.listAccounts()
+      const local = await window.contalkDesktop?.listAccounts().catch(()=>[])
       if(version!==generation)return
       if(local) set({members:[...new Map([...get().members,...local.map(m=>({...m,online:false}))].map(m=>[m.username,m])).values()]})
       const token=await getLiveKitToken('contalk-community-presence-v1',user.username,user.display_name)
       if(version!==generation)return
       await connection.connect('wss://contalk-vwlfqz0q.livekit.cloud',token,{autoSubscribe:false})
       if(version!==generation){await connection.disconnect();return}
-      await connection.localParticipant.setMetadata(JSON.stringify({avatar:user.avatar || '',bio:user.bio || ''}))
-      set({status:'online'});refresh();await get().broadcastChannels()
+      set({status:'online'});refresh()
+      try { await connection.localParticipant.setMetadata(JSON.stringify({avatar:user.avatar || '',bio:user.bio || ''})) }
+      catch { if(version===generation)set({profileError:'O perfil não foi sincronizado. A presença continua conectada.'}) }
+      if(version!==generation){await connection.disconnect();return}
+      refresh();await get().broadcastChannels().catch(()=>{})
     } catch { if(version===generation){set({status:'offline',members:get().members.map(m=>({...m,online:false}))});await connection.disconnect()} }
   },
   updateProfile: async user => {

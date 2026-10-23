@@ -1,11 +1,12 @@
-# ContalK 0.1.4
+# ContalK 0.1.5
 
-- Navegação separada: o balão abre mensagens diretas; Amigos abre a lista de pessoas. O botão de início permanece independente.
-- Tela de amigos reformulada com cartões, fotos, filtros Online/Todos os conhecidos e busca por nome/usuário. Mensagens diretas usam o mesmo layout e mantêm a barra de canais e os controles de áudio.
-- Configurações de áudio no botão de engrenagem: seleção explícita da entrada, teste local de nível, indicação do microfone em uso e detecção de entradas conhecidas de mistura/loopback.
-- Captura de voz em mono, ganho automático desativado e cancelamento de eco/redução de ruído ativados.
-- Entradas reconhecidas como Stereo Mix, Mixagem estéreo, CABLE Output e similares são interrompidas antes de serem publicadas como microfone. Não há fallback silencioso para outra entrada quando um dispositivo explicitamente selecionado está indisponível.
-- O modo ensurdecido preserva o estado de mute anterior.
-- Versão visível na barra superior para identificar instalações antigas.
+Correção da conexão de voz e da presença.
 
-O vazamento de áudio do Discord em um headset físico ainda precisa ser validado no equipamento afetado. Drivers, mixers virtuais e cabos podem entregar áudio já misturado na entrada; o aplicativo não consegue separar com garantia duas vozes que chegam na mesma faixa de microfone.
+- Corrigida a permissão canUpdateOwnMetadata nos tokens do Electron, navegador, servidor local e Tauri. Essa permissão permite atualizar o próprio nome/perfil, sem conceder administração da sala.
+- Falhas ao sincronizar a foto/perfil não interrompem a chamada nem a presença; são mostradas como avisos separados.
+- Tentativas de conexão que falham são encerradas explicitamente. Trocas rápidas de canal e cliques repetidos não deixam conexões anteriores alterarem a sala atual.
+- Falhas de consulta não mantêm listas antigas de ocupantes indefinidamente. O canal permanece selecionado para permitir tentar novamente.
+
+Feche as instâncias antigas do ContalK e reabra a versão atualizada para encerrar conexões deixadas abertas pelas versões anteriores.
+
+Validado com testes de regressão e conexão real ao LiveKit em sala temporária, com confirmação de atualização de nome/metadados, envio de dados, publicação de uma faixa silenciosa gerada para teste e encerramento da conexão. O teste não captura microfone nem câmera.

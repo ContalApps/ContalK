@@ -1,3 +1,4 @@
+import { roomGrant } from '../../shared/livekit-grant.mjs'
 import { create } from 'zustand'
 import { microphoneOptions, publishSafeMicrophone, setSafeMicrophoneEnabled } from '../media/microphone'
 import { startScreenShare, stopScreenShare } from '../media/screenShare'
@@ -42,6 +43,7 @@ interface VoiceState {
   activeSpeakers: string[]
   error: string | null
   screenShareError: string | null
+  profileError: string | null
   userVolumes: Record<string, number>
   channelOccupants: Record<string, VoiceParticipant[]>
 
@@ -101,13 +103,7 @@ export async function getLiveKitToken(room: string, identity: string, name: stri
       name,
       ttl: 3600 * 24,
     })
-    tokenObj.addGrant({
-      roomJoin: true,
-      room,
-      canPublish: true,
-      canSubscribe: true,
-      canPublishData: true,
-    })
+    tokenObj.addGrant(roomGrant(room))
     return await tokenObj.toJwt()
   } catch (err) {
     console.warn('Fallback token client falhou:', err)
@@ -130,6 +126,10 @@ function getAudioContainer(): HTMLElement {
   }
   return el
 }
+
+let connectionGeneration = 0
+let pendingRoom: Room | null = null
+let occupantsGeneration = 0
 
 const initialUserVolumes: Record<string, number> = (() => {
   try {
@@ -157,6 +157,7 @@ export const useVoiceStore = create<VoiceState>((set, get) => ({
   activeSpeakers: [],
   error: null,
   screenShareError: null,
+  profileError: null,
   userVolumes: initialUserVolumes,
   channelOccupants: {},
 
@@ -182,6 +183,7 @@ export const useVoiceStore = create<VoiceState>((set, get) => ({
   },
 
   fetchChannelOccupants: async (channels: Array<{ id: string; name: string }>) => {
+    const request = ++occupantsGeneration
     try {
       const { RoomServiceClient } = await import('livekit-server-sdk')
       const client = new RoomServiceClient('https://contalk-vwlfqz0q.livekit.cloud', LIVEKIT_API_KEY, LIVEKIT_API_SECRET)
@@ -203,12 +205,13 @@ export const useVoiceStore = create<VoiceState>((set, get) => ({
               isVideoEnabled: p.tracks?.some((t: any) => t.source === 1) || false,
               isScreenShareEnabled: p.tracks?.some((t: any) => t.source === 3) || false,
             }))
-          } catch {}
+          } catch { newOccupants[ch.id] = [] }
         } else {
           newOccupants[ch.id] = []
         }
       }
 
+      if (request !== occupantsGeneration) return
       set((state) => {
         const currentActive = state.activeChannelId
         const merged = { ...state.channelOccupants, ...newOccupants }
@@ -218,13 +221,13 @@ export const useVoiceStore = create<VoiceState>((set, get) => ({
         return { channelOccupants: merged }
       })
     } catch {
-      // Falha silenciosa em checagem de fundo
+      if (request === occupantsGeneration) set({channelOccupants: get().activeChannelId ? {[get().activeChannelId!]: get().participants} : {}})
     }
   },
 
   refreshParticipants: () => {
     const { currentRoom } = get()
-    if (!currentRoom) return
+    if (!currentRoom || currentRoom.state !== 'connected') return
 
     const list: VoiceParticipant[] = []
     const local = currentRoom.localParticipant
@@ -283,13 +286,22 @@ export const useVoiceStore = create<VoiceState>((set, get) => ({
 
   joinChannel: async (channelId, channelName, user) => {
     const state = get()
-    if (state.activeChannelId === channelId && state.connectionStatus === 'connected') {
+    if (state.activeChannelId === channelId && ['connected','connecting','reconnecting'].includes(state.connectionStatus)) {
       return true
     }
 
-    if (state.currentRoom) {
-      await state.leaveChannel()
+    const attempt = ++connectionGeneration
+    occupantsGeneration++
+    const previous = state.currentRoom || pendingRoom
+    pendingRoom = null
+    if (previous) {
+      previous.removeAllListeners()
+      await stopScreenShare(previous).catch(() => {})
+      await previous.disconnect().catch(() => {})
     }
+    if (attempt !== connectionGeneration) return false
+    getAudioContainer().innerHTML = ''
+    set({ currentRoom: null, channelOccupants: Object.fromEntries(Object.entries(get().channelOccupants).map(([id, users]) => [id, users.filter(p => p.identity !== user.username)])) })
 
     set({
       connectionStatus: 'connecting',
@@ -297,9 +309,11 @@ export const useVoiceStore = create<VoiceState>((set, get) => ({
       activeChannelName: channelName,
       error: null,
       screenShareError: null,
+      profileError: null,
       participants: [],
     })
 
+    let room: Room | undefined
     try {
       // 1. Obter token JWT do LiveKit
       const token = await getLiveKitToken(channelId, user.username, user.display_name)
@@ -307,53 +321,57 @@ export const useVoiceStore = create<VoiceState>((set, get) => ({
         throw new Error('Não foi possível gerar um token de acesso para a sala.')
       }
 
+      if (attempt !== connectionGeneration) return false
       // 2. Instanciar LiveKit Room com opções otimizadas para localhost WebRTC
-      const room = new Room({
+      const connection = new Room({
         adaptiveStream: true,
         dynacast: true,
         audioCaptureDefaults: microphoneOptions(get().microphoneDeviceId),
       })
 
+      room = connection
+      pendingRoom = connection
+      const on = (event: RoomEvent, handler: (...args: any[]) => void) => connection.on(event, (...args: any[]) => { if (attempt === connectionGeneration) handler(...args) })
       const triggerUpdate = () => {
         get().refreshParticipants()
       }
 
       // 3. Configurar eventos de conexão e mídia
-      room.on(RoomEvent.Connected, () => {
-        set({ connectionStatus: 'connected', currentRoom: room, error: null })
+      on(RoomEvent.Connected, () => {
+        set({ connectionStatus: 'connected', currentRoom: connection, error: null })
         triggerUpdate()
       })
 
-      room.on(RoomEvent.Reconnecting, () => {
+      on(RoomEvent.Reconnecting, () => {
         set({ connectionStatus: 'reconnecting' })
       })
 
-      room.on(RoomEvent.Reconnected, () => {
+      on(RoomEvent.Reconnected, () => {
         set({ connectionStatus: 'connected' })
         triggerUpdate()
       })
 
-      room.on(RoomEvent.ParticipantConnected, () => triggerUpdate())
-      room.on(RoomEvent.ParticipantDisconnected, () => triggerUpdate())
+      on(RoomEvent.ParticipantConnected, () => triggerUpdate())
+      on(RoomEvent.ParticipantDisconnected, () => triggerUpdate())
 
-      room.on(RoomEvent.TrackPublished, () => triggerUpdate())
-      room.on(RoomEvent.TrackUnpublished, () => triggerUpdate())
+      on(RoomEvent.TrackPublished, () => triggerUpdate())
+      on(RoomEvent.TrackUnpublished, () => triggerUpdate())
 
-      room.on(RoomEvent.LocalTrackPublished, (pub) => {
+      on(RoomEvent.LocalTrackPublished, (pub) => {
         if (pub.source === Track.Source.ScreenShare) {
           set({ isScreenSharing: true })
         }
         triggerUpdate()
       })
 
-      room.on(RoomEvent.LocalTrackUnpublished, (pub) => {
+      on(RoomEvent.LocalTrackUnpublished, (pub) => {
         if (pub.source === Track.Source.ScreenShare) {
           set({ isScreenSharing: false })
         }
         triggerUpdate()
       })
 
-      room.on(RoomEvent.TrackSubscribed, (track: RemoteTrack, _pub, participant) => {
+      on(RoomEvent.TrackSubscribed, (track: RemoteTrack, _pub, participant) => {
         if (track.kind === Track.Kind.Audio) {
           const audioContainer = getAudioContainer()
           const element = track.attach()
@@ -368,32 +386,33 @@ export const useVoiceStore = create<VoiceState>((set, get) => ({
         triggerUpdate()
       })
 
-      room.on(RoomEvent.TrackUnsubscribed, (track: RemoteTrack) => {
+      on(RoomEvent.TrackUnsubscribed, (track: RemoteTrack) => {
         track.detach().forEach((el) => el.remove())
         triggerUpdate()
       })
 
-      room.on(RoomEvent.ParticipantMetadataChanged, () => triggerUpdate())
-      room.on(RoomEvent.TrackMuted, () => triggerUpdate())
-      room.on(RoomEvent.TrackUnmuted, () => triggerUpdate())
+      on(RoomEvent.ParticipantMetadataChanged, () => triggerUpdate())
+      on(RoomEvent.TrackMuted, () => triggerUpdate())
+      on(RoomEvent.TrackUnmuted, () => triggerUpdate())
 
-      room.on(RoomEvent.ActiveSpeakersChanged, (speakers: Participant[]) => {
+      on(RoomEvent.ActiveSpeakersChanged, (speakers: Participant[]) => {
         const identities = speakers.map((s) => s.identity)
         set({ activeSpeakers: identities })
         triggerUpdate()
       })
 
-      room.on(RoomEvent.Disconnected, () => {
-        void stopScreenShare(room)
+      on(RoomEvent.Disconnected, () => {
+        if (pendingRoom === connection) pendingRoom = null
+        void stopScreenShare(connection)
         const audioContainer = getAudioContainer()
         audioContainer.innerHTML = ''
         const prevId = get().activeChannelId
         const remotes = get().participants.filter((p) => !p.isLocal)
         set((s) => ({
           currentRoom: null,
-          activeChannelId: null,
-          activeChannelName: null,
+
           connectionStatus: 'disconnected',
+          error: 'A conexão de voz foi encerrada. Tente novamente.',
           participants: [],
           activeSpeakers: [],
           isMicMuted: false,
@@ -404,30 +423,43 @@ export const useVoiceStore = create<VoiceState>((set, get) => ({
       })
 
       // 4. Conectar ao SFU LiveKit
-      await room.connect(LIVEKIT_URL, token)
-      await room.localParticipant.setMetadata(JSON.stringify({ avatar: user.avatar || '' }))
+      await connection.connect(LIVEKIT_URL, token)
+      if (attempt !== connectionGeneration) { await connection.disconnect(); return false }
+      if (connection.state !== 'connected') throw new Error('A conexão de voz foi encerrada. Tente novamente.')
+      try { await connection.localParticipant.setMetadata(JSON.stringify({ avatar: user.avatar || '' })) }
+      catch { if (attempt === connectionGeneration) set({profileError: 'Não foi possível sincronizar a foto. A chamada continua conectada.'}) }
+      if (attempt !== connectionGeneration) { await connection.disconnect(); return false }
 
       // 5. Ativar microfone local se permitido
       try {
-        const label = await publishSafeMicrophone(room, get().microphoneDeviceId)
-        set({ microphoneLabel: label, microphoneError: null })
+        const label = await publishSafeMicrophone(connection, get().microphoneDeviceId)
+        if (attempt === connectionGeneration) set({ microphoneLabel: label, microphoneError: null })
       } catch (micErr) {
-        set({ isMicMuted: true, microphoneError: micErr instanceof Error ? micErr.message : 'Não foi possível abrir o microfone. Escolha uma entrada em Configurações de áudio.' })
+        if (attempt === connectionGeneration) set({ isMicMuted: true, microphoneError: micErr instanceof Error ? micErr.message : 'Não foi possível abrir o microfone. Escolha uma entrada em Configurações de áudio.' })
       }
 
+      if (attempt !== connectionGeneration) { await connection.disconnect(); return false }
+      if (connection.state !== 'connected') throw new Error('A conexão de voz foi encerrada. Tente novamente.')
+      pendingRoom = null
       set({
-        currentRoom: room,
+        currentRoom: connection,
         connectionStatus: 'connected',
-        isMicMuted: !room.localParticipant.isMicrophoneEnabled,
+        isMicMuted: !connection.localParticipant.isMicrophoneEnabled,
       })
 
       triggerUpdate()
       return true
     } catch (err: any) {
+      if (room) { room.removeAllListeners(); await stopScreenShare(room).catch(() => {}); await room.disconnect().catch(() => {}) }
+      if (pendingRoom === room) pendingRoom = null
+      if (attempt !== connectionGeneration) return false
+      getAudioContainer().innerHTML = ''
       console.error('Erro ao conectar na sala de voz:', err)
       set({
         currentRoom: null,
         connectionStatus: 'disconnected',
+        participants: [], isScreenSharing: false, isCameraOn: false, isMicMuted: true,
+        channelOccupants: Object.fromEntries(Object.entries(get().channelOccupants).map(([id, users]) => [id, users.filter(p => p.identity !== user.username)])),
         error: err.message || 'Falha ao conectar no LiveKit SFU',
       })
       return false
@@ -435,7 +467,11 @@ export const useVoiceStore = create<VoiceState>((set, get) => ({
   },
 
   leaveChannel: async () => {
-    const { currentRoom, activeChannelId, participants } = get()
+    const attempt = ++connectionGeneration; occupantsGeneration++
+    const { activeChannelId, participants } = get()
+    const currentRoom = get().currentRoom || pendingRoom
+    pendingRoom = null
+    currentRoom?.removeAllListeners()
     if (activeChannelId) {
       const remotes = participants.filter((p) => !p.isLocal)
       set((s) => ({
@@ -453,6 +489,7 @@ export const useVoiceStore = create<VoiceState>((set, get) => ({
         // Disconnect silencioso
       }
     }
+    if (attempt !== connectionGeneration) return
     const audioContainer = getAudioContainer()
     audioContainer.innerHTML = ''
     set({

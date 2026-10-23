@@ -59,6 +59,8 @@ pub struct LiveKitVideoGrant {
     pub can_subscribe: bool,
     #[serde(rename = "canPublishData")]
     pub can_publish_data: bool,
+    #[serde(rename = "canUpdateOwnMetadata")]
+    pub can_update_own_metadata: bool,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -86,6 +88,7 @@ fn get_livekit_token(room: String, identity: String, name: String) -> Result<Str
             can_publish: true,
             can_subscribe: true,
             can_publish_data: true,
+            can_update_own_metadata: true,
         },
     };
     jsonwebtoken::encode(

@@ -12,11 +12,11 @@ test('starts without demo messages; creates bounded persistent-ready channel dat
  const created=store.getState().servers[0].channels.filter(c=>c.id==='new-1');assert.equal(created.length,1);assert.equal(created[0].name,'cinema');assert.equal(created[0].type,'voice')
  assert.ok(!store.getState().servers[0].channels.some(c=>c.id==='empty'))
 })
-function fixture() {
+function fixture({metadataFailure=false}={}) {
  const app=appStore();const instances=[];const storage=new Map()
  class Room extends EventEmitter {
   state='disconnected';remoteParticipants=new Map()
-  localParticipant={identity:'real',name:'Real user',metadata:'',setMetadata:async metadata=>{this.localParticipant.metadata=metadata},setName:async name=>{this.localParticipant.name=name},publishData:async(data,options)=>{this.last={data,options}}}
+  localParticipant={identity:'real',name:'Real user',metadata:'',setMetadata:async metadata=>{if(metadataFailure)throw new Error('permission denied');this.localParticipant.metadata=metadata},setName:async name=>{this.localParticipant.name=name},publishData:async(data,options)=>{this.last={data,options}}}
   constructor(){super();instances.push(this)}
   async connect(){this.state='connected'}
   async disconnect(){this.state='disconnected';this.emit('disconnected')}
@@ -49,3 +49,7 @@ test('sending to offline contacts fails instead of pretending a message was deli
  assert.equal(Object.keys(f.app.getState().messages).length,0);f.store.getState().disconnect()
 })
 
+
+test('presence survives a profile synchronization failure',async()=>{
+ const f=fixture({metadataFailure:true});await f.store.getState().connect({username:'real',display_name:'Real user'});assert.equal(f.store.getState().status,'online');assert.ok(f.store.getState().profileError);assert.equal(f.instances[0].state,'connected');f.store.getState().disconnect()
+})

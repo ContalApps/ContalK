@@ -1,3 +1,4 @@
+import { roomGrant } from '../shared/livekit-grant.mjs'
 import { app, BrowserWindow, ipcMain, desktopCapturer, shell, screen } from 'electron'
 import path from 'node:path'
 import fs from 'node:fs'
@@ -174,13 +175,7 @@ ipcMain.handle('get-livekit-token', async (_event, { room, identity, name }) => 
       name,
       ttl: 3600 * 24,
     })
-    at.addGrant({
-      roomJoin: true,
-      room,
-      canPublish: true,
-      canSubscribe: true,
-      canPublishData: true,
-    })
+    at.addGrant(roomGrant(room))
     return await at.toJwt()
   } catch (err: any) {
     console.error('Erro ao gerar token LiveKit:', err)

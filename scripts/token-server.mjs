@@ -1,3 +1,4 @@
+import { roomGrant } from '../shared/livekit-grant.mjs'
 // Token Server para desenvolvimento do ContalSpeak
 // Gera tokens JWT do LiveKit para testes locais
 import http from 'node:http';
@@ -31,13 +32,7 @@ const server = http.createServer(async (req, res) => {
         name,
         ttl: 3600,
       });
-      token.addGrant({
-        roomJoin: true,
-        room: room,
-        canPublish: true,
-        canSubscribe: true,
-        canPublishData: true,
-      });
+      token.addGrant(roomGrant(room));
 
       const jwt = await token.toJwt();
       res.writeHead(200, { 'Content-Type': 'application/json' });

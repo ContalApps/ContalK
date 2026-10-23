@@ -341,6 +341,7 @@ export function VoiceStage({
       joinChannel(activeChannelId, activeChannelName || 'Canal de Voz', {
         username: user.username,
         display_name: user.display_name,
+        avatar: user.avatar,
       })
     }
   }
