@@ -1,4 +1,5 @@
 import { app, BrowserWindow, ipcMain } from 'electron'
+import { createUpdateProgress, startInstallProgress, finishInstallProgress } from './update-progress'
 import { createRequire } from 'node:module'
 import type { UpdateState } from '../src/types/desktop'
 
@@ -11,12 +12,17 @@ export function setupUpdates(window: BrowserWindow) {
   let checking = false
   let downloading = false
   let manualCheck = false
+  let installing = false
+  let popup: ReturnType<typeof createUpdateProgress> | null = null
+  let cancelInstallProgress: (() => void) | undefined
+  window.webContents.once('did-finish-load', finishInstallProgress)
   const send = (next: Partial<UpdateState>) => {
     state = { ...state, ...next }
-    if (!window.isDestroyed()) window.webContents.send('update-state', state)
+    if (!window.isDestroyed()) { window.webContents.send('update-state', state); window.setProgressBar(state.status === 'downloading' ? state.progress / 100 : -1) }
+    popup?.send(state)
   }
   const check = async (manual = false) => {
-    if (!app.isPackaged || checking || downloading || state.status === 'ready') return state
+    if (!app.isPackaged || checking || downloading || installing || state.status === 'ready') return state
     checking = true
     manualCheck = manual
     if (manual) send({ status: 'checking', error: undefined })
@@ -25,6 +31,26 @@ export function setupUpdates(window: BrowserWindow) {
       if (manual) send({ status: 'error', error: error instanceof Error ? error.message : 'Não foi possível buscar atualizações.' })
     } finally { checking = false; manualCheck = false }
     return state
+  }
+  const install = async () => {
+    if (installing) return
+    if (state.status !== 'ready') throw new Error('A atualização ainda não está pronta.')
+    installing = true
+    send({ status: 'installing', error: undefined })
+    try {
+      cancelInstallProgress = await startInstallProgress(state.version)
+      popup?.destroy(); popup = null
+      window.hide()
+      setImmediate(() => {
+        try { autoUpdater.quitAndInstall(true, true) }
+        catch (error) { installing = false; cancelInstallProgress?.(); cancelInstallProgress = undefined; window.show(); send({status:'error',error:error instanceof Error ? error.message : 'Falha ao iniciar o instalador.'}) }
+      })
+    } catch (error) {
+      installing = false; cancelInstallProgress?.(); cancelInstallProgress = undefined
+      send({status:'error',error:error instanceof Error ? error.message : 'Não foi possível iniciar a instalação.'})
+      window.show()
+      throw error
+    }
   }
   autoUpdater.autoDownload = false
   autoUpdater.autoInstallOnAppQuit = false
@@ -35,7 +61,8 @@ export function setupUpdates(window: BrowserWindow) {
   autoUpdater.on('download-progress', info => send({ status: 'downloading', progress: Math.round(info.percent) }))
   autoUpdater.on('update-downloaded', info => send({ status: 'ready', version: info.version, progress: 100, error: undefined }))
   autoUpdater.on('error', error => {
-    if (manualCheck || downloading) send({ status: 'error', error: error.message })
+    if (installing) { installing = false; cancelInstallProgress?.(); cancelInstallProgress = undefined; window.show(); send({status:'error',error:error.message}) }
+    else if (manualCheck || downloading) send({ status: 'error', error: error.message })
     else console.warn('Falha na verificação automática de atualização:', error.message)
   })
   const trusted = (event: Electron.IpcMainInvokeEvent) => {
@@ -47,21 +74,21 @@ export function setupUpdates(window: BrowserWindow) {
     trusted(event)
     if (downloading || !['available', 'error'].includes(state.status) || !state.version) return
     downloading = true
-    send({ status: 'downloading', progress: 0, error: undefined })
-    try { await autoUpdater.downloadUpdate() }
+    try {
+      popup?.destroy(); popup = createUpdateProgress(window, () => state)
+      send({ status: 'downloading', progress: 0, error: undefined })
+      await autoUpdater.downloadUpdate(); if (state.status === 'ready') await install()
+    }
     catch (error) { send({ status: 'error', error: error instanceof Error ? error.message : 'Falha no download.' }); throw error }
     finally { downloading = false }
   })
-  ipcMain.handle('update-install', event => {
-    trusted(event)
-    if (state.status !== 'ready') throw new Error('A atualização ainda não está pronta.')
-    // Leave time for the IPC reply before closing the renderer and starting NSIS.
-    setImmediate(() => autoUpdater.quitAndInstall(false, true))
-  })
+  ipcMain.handle('update-install', event => { trusted(event); return install() })
+  window.on('close', event => { if (downloading && !installing) event.preventDefault() })
   const startup = setTimeout(() => void check(), 5000)
   const interval = setInterval(() => void check(), 30 * 60 * 1000)
   window.once('closed', () => {
     clearTimeout(startup); clearInterval(interval)
+    popup?.destroy()
     for (const channel of ['update-get-state', 'update-check', 'update-download', 'update-install']) ipcMain.removeHandler(channel)
     autoUpdater.removeAllListeners()
   })

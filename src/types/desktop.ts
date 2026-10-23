@@ -1,5 +1,5 @@
 export type UpdateState = {
-  status: 'idle' | 'checking' | 'available' | 'downloading' | 'ready' | 'error'
+  status: 'idle' | 'checking' | 'available' | 'downloading' | 'ready' | 'installing' | 'error'
   version: string
   progress: number
   error?: string

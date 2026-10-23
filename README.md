@@ -162,3 +162,11 @@ Para investigar vazamento do Discord sem transmissão: com fones, fique em silê
 Tokens de sala concedem `canUpdateOwnMetadata` por meio de `shared/livekit-grant.mjs` (Electron, navegador e servidor local); o Tauri usa o mesmo campo no JWT Rust. Não são concedidas permissões de administração. Atualizações de perfil não fazem parte do caminho crítico da conexão de voz/presença. Tentativas canceladas são descartadas por geração e conexões com falha são encerradas explicitamente.
 
 `node tests/run-live-smoke.mjs` executa um diagnóstico opt-in no LiveKit configurado, em sala temporária isolada: confirma conexão, nome/metadados, envio de dados, publicação/remoção de uma faixa de áudio silenciosa gerada e desconexão. Não abre microfone nem câmera, não entra na sala de presença e remove a sala temporária ao terminar. Requer acesso de rede e o runtime Electron instalado. Os testes sem rede estão em `npm run verify`.
+
+## Atualização silenciosa (0.1.6)
+
+O botão de atualizar autoriza o ciclo completo: baixar, instalar silenciosamente (`quitAndInstall(true, true)`) e reabrir. A janela Electron exibe progresso real durante o download. Antes de sair, o aplicativo copia o helper Win32 e a logo para uma pasta temporária, inicia a janela independente e salva um marcador de versão/evento no diretório de dados do usuário. A nova versão sinaliza a conclusão somente após carregar a janela principal. A instalação tem barra animada, pois NSIS não expõe uma porcentagem real ao atualizador.
+
+O hook `build/installer.nsh` converte apenas instalações `--updated` para silenciosas. Ele também mostra um indicador de instalação para clientes antigos que ainda chamam o instalador em modo interativo. Instalações manuais continuam com escolha de diretório. O helper usa evento nomeado e não instala arquivos; o instalador verificado pelo electron-updater continua responsável pela instalação. A ausência de confirmação após três minutos produz uma mensagem para verificar o aplicativo.
+
+O build nativo (`npm run build:audio`) compila os helpers de áudio e atualização. Os testes verificam as flags de instalação, o início automático após download, recuperação de falhas e o encerramento da janela independente por evento. A atualização completa sobre uma instalação existente não é executada automaticamente pelos testes.

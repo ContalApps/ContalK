@@ -1,7 +1,7 @@
 {
   "name": "contalk",
   "private": true,
-  "version": "0.1.5",
+  "version": "0.1.6",
   "type": "module",
   "main": "dist-electron/main.js",
   "scripts": {
@@ -37,7 +37,8 @@
       "allowToChangeInstallationDirectory": true,
       "createDesktopShortcut": true,
       "createStartMenuShortcut": true,
-      "shortcutName": "ContalK"
+      "shortcutName": "ContalK",
+      "include": "build/installer.nsh"
     },
     "publish": [
       {
@@ -51,6 +52,10 @@
       {
         "from": "native/bin/contalk-audio.exe",
         "to": "audio/contalk-audio.exe"
+      },
+      {
+        "from": "native/bin/contalk-update.exe",
+        "to": "update/contalk-update.exe"
       }
     ],
     "artifactName": "ContalK-Setup-${version}.${ext}"

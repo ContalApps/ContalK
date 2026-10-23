@@ -1,12 +1,8 @@
-# ContalK 0.1.5
+# ContalK 0.1.6
 
-Correção da conexão de voz e da presença.
+- Atualização em uma etapa: após clicar em atualizar, o download termina, a instalação ocorre em modo silencioso e o aplicativo reabre automaticamente.
+- Janela compacta com a logo e porcentagem real do download. Durante a instalação, uma janela independente permanece aberta mesmo com o ContalK fechado e mostra uma barra animada até a nova versão iniciar.
+- O assistente de instalação é desativado nas atualizações automáticas, inclusive quando iniciadas por clientes antigos. Instalações manuais mantêm o assistente normal.
+- Falhas de download ou de preparação não fecham o aplicativo. A janela de instalação permite fechar e verificar o aplicativo se o processo exceder três minutos.
 
-- Corrigida a permissão canUpdateOwnMetadata nos tokens do Electron, navegador, servidor local e Tauri. Essa permissão permite atualizar o próprio nome/perfil, sem conceder administração da sala.
-- Falhas ao sincronizar a foto/perfil não interrompem a chamada nem a presença; são mostradas como avisos separados.
-- Tentativas de conexão que falham são encerradas explicitamente. Trocas rápidas de canal e cliques repetidos não deixam conexões anteriores alterarem a sala atual.
-- Falhas de consulta não mantêm listas antigas de ocupantes indefinidamente. O canal permanece selecionado para permitir tentar novamente.
-
-Feche as instâncias antigas do ContalK e reabra a versão atualizada para encerrar conexões deixadas abertas pelas versões anteriores.
-
-Validado com testes de regressão e conexão real ao LiveKit em sala temporária, com confirmação de atualização de nome/metadados, envio de dados, publicação de uma faixa silenciosa gerada para teste e encerramento da conexão. O teste não captura microfone nem câmera.
+A instalação não fornece porcentagem detalhada; a barra dessa fase indica atividade, sem exibir progresso fictício. Chamadas em andamento são encerradas ao aplicar a atualização. O Windows ainda pode pedir autorização administrativa quando a instalação exigir elevação.

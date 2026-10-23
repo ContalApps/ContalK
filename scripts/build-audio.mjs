@@ -13,3 +13,6 @@ const vcvars = path.join(install, 'VC', 'Auxiliary', 'Build', 'vcvars64.bat')
 const command = `call "${vcvars}" >nul && cl /nologo /std:c++17 /EHsc /O2 /MT /DUNICODE /D_UNICODE native\\audio-capture\\main.cpp /Fo:native\\bin\\audio-capture.obj /Fe:native\\bin\\contalk-audio.exe /link ole32.lib mmdevapi.lib user32.lib dwmapi.lib /SUBSYSTEM:CONSOLE`
 execSync(command, { stdio: 'inherit', shell: process.env.ComSpec || 'cmd.exe' })
 
+
+const updateCommand = `call "${vcvars}" >nul && cl /nologo /std:c++17 /EHsc /O2 /MT /DUNICODE /D_UNICODE native\\update-progress\\main.cpp /Fo:native\\bin\\update-progress.obj /Fe:native\\bin\\contalk-update.exe /link gdiplus.lib user32.lib gdi32.lib shell32.lib /SUBSYSTEM:WINDOWS`
+execSync(updateCommand, { stdio: 'inherit', shell: process.env.ComSpec || 'cmd.exe' })

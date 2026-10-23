@@ -3,7 +3,7 @@ import type { UpdateState } from '../types/desktop'
 import { useVoiceStore } from '../store/useVoiceStore'
 
 export function UpdateNotification() {
-  const [status, setStatus] = useState<'idle' | 'checking' | 'available' | 'downloading' | 'ready' | 'error'>('idle')
+  const [status, setStatus] = useState<'idle' | 'checking' | 'available' | 'downloading' | 'ready' | 'installing' | 'error'>('idle')
   const [version, setVersion] = useState<string>('')
   const [progress, setProgress] = useState<number>(0)
   const [updateHandle, setUpdateHandle] = useState<any>(null)
@@ -127,7 +127,7 @@ export function UpdateNotification() {
     }
   }
 
-  if (dismissed || status === 'idle' || status === 'checking') {
+  if (dismissed || status === 'idle' || status === 'checking' || status === 'installing') {
     return null
   }
 
@@ -159,7 +159,7 @@ export function UpdateNotification() {
 
           {status === 'available' && (
             <p className="text-xs text-gray-300 mt-1">
-              Uma nova versão do ContalK está pronta para ser instalada.
+              Uma nova versão está disponível. Ao atualizar, as chamadas serão encerradas e o ContalK reiniciará automaticamente.
             </p>
           )}
 
@@ -197,7 +197,7 @@ export function UpdateNotification() {
                 onClick={startDownloadAndInstall}
                 className="w-full py-1.5 px-3 rounded-lg bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white font-medium text-xs shadow-md shadow-purple-900/40 transition active:scale-95 flex items-center justify-center gap-1.5"
               >
-                <span>Baixar e Atualizar</span>
+                <span>Atualizar e reiniciar automaticamente</span>
               </button>
             )}
 
