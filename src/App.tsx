@@ -6,6 +6,7 @@ import { AuthScreen } from './components/AuthScreen'
 import { VoiceStage } from './components/VoiceStage'
 import { HomeView } from './components/HomeView'
 import { UpdateNotification } from './components/UpdateNotification'
+import { ParticipantVolumePopup } from './components/ParticipantVolumePopup'
 
 function formatTime(timestamp: number): string {
   const date = new Date(timestamp)
@@ -19,6 +20,10 @@ function AppLayout() {
     activeChannelId: voiceChannelId,
     connectionStatus,
     participants,
+    channelOccupants,
+    fetchChannelOccupants,
+    userVolumes,
+    setUserVolume,
     isMicMuted,
     isDeafened,
     isScreenSharing,
@@ -32,6 +37,7 @@ function AppLayout() {
   const [currentView, setCurrentView] = useState<'server' | 'home'>('server')
   const [messageInput, setMessageInput] = useState('')
   const [showMemberList, setShowMemberList] = useState(true)
+  const [sidebarVolumeUser, setSidebarVolumeUser] = useState<any>(null)
   const messagesEndRef = useRef<HTMLDivElement>(null)
 
   const currentServer = servers.find((s) => s.id === activeServerId) || servers[0]
@@ -70,6 +76,17 @@ function AppLayout() {
 
   const textChannels = currentServer.channels.filter((c) => c.type === 'text')
   const voiceChannels = currentServer.channels.filter((c) => c.type === 'voice')
+
+  // Atualização periódica da lista de ocupantes dos canais de voz
+  useEffect(() => {
+    if (voiceChannels.length > 0) {
+      fetchChannelOccupants(voiceChannels)
+      const timer = setInterval(() => {
+        fetchChannelOccupants(voiceChannels)
+      }, 4000)
+      return () => clearInterval(timer)
+    }
+  }, [voiceChannels, fetchChannelOccupants])
 
   // Lista de membros do servidor agrupados estilo Discord
   const serverMembers = [
@@ -236,12 +253,13 @@ function AppLayout() {
                   {voiceChannels.map((channel) => {
                     const isCurrentActive = activeChannelId === channel.id
                     const isVoiceConnectedHere = voiceChannelId === channel.id && connectionStatus === 'connected'
+                    const occupants = isVoiceConnectedHere ? participants : (channelOccupants[channel.id] || [])
 
                     return (
                       <div key={channel.id} className="space-y-1">
                         <button
                           onClick={() => handleVoiceChannelClick(channel.id, channel.name)}
-                          className={`w-full flex items-center justify-between px-2.5 py-1.5 rounded-xl text-sm transition-all text-left group ${
+                          className={`w-full flex items-center justify-between px-2.5 py-1.5 rounded-xl text-sm transition-all text-left group cursor-pointer ${
                             isCurrentActive
                               ? 'bg-purple-900/40 text-white font-medium border-l-2 border-purple-400 shadow-sm'
                               : 'text-[#9c97ad] hover:bg-purple-950/40 hover:text-white'
@@ -253,47 +271,68 @@ function AppLayout() {
                             </span>
                             <span className="truncate">{channel.name}</span>
                           </div>
-                          {isVoiceConnectedHere && (
-                            <span className="w-2 h-2 rounded-full bg-green-500 animate-pulse flex-shrink-0" title="Conectado"></span>
-                          )}
+                          {isVoiceConnectedHere ? (
+                            <span className="w-2 h-2 rounded-full bg-green-500 animate-pulse flex-shrink-0" title="Você está nesta sala"></span>
+                          ) : occupants.length > 0 ? (
+                            <span className="text-[10px] bg-purple-950/80 text-purple-300 border border-purple-800/40 px-1.5 py-0.2 rounded-full font-mono flex-shrink-0">
+                              {occupants.length}
+                            </span>
+                          ) : null}
                         </button>
 
-                        {/* Lista de participantes do canal de voz ativo com ÍCONE AO VIVO */}
-                        {isVoiceConnectedHere && participants.length > 0 && (
+                        {/* Lista de participantes do canal de voz: APARECE MESMO DESCONECTADO! */}
+                        {occupants.length > 0 && (
                           <div className="pl-6 pr-2 space-y-1 py-1">
-                            {participants.map((p) => (
-                              <div
-                                key={p.identity}
-                                className="flex items-center gap-2 py-1 px-2 rounded-lg hover:bg-purple-950/40 text-xs transition-colors"
-                              >
+                            {occupants.map((p) => {
+                              const vol = userVolumes[p.identity] ?? 100
+                              return (
                                 <div
-                                  className={`w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-bold text-white flex-shrink-0 transition-all ${
-                                    p.isSpeaking ? 'bg-green-600 ring-2 ring-green-400' : 'bg-gradient-to-br from-purple-600 to-indigo-600'
-                                  }`}
+                                  key={p.identity}
+                                  onClick={() => setSidebarVolumeUser(p)}
+                                  className="flex items-center gap-2 py-1 px-2 rounded-lg hover:bg-purple-950/60 text-xs transition-colors cursor-pointer group/user"
+                                  title={`Clique para ajustar volume de ${p.name}`}
                                 >
-                                  {p.name.charAt(0).toUpperCase()}
-                                </div>
-
-                                <span className={`truncate text-xs ${p.isSpeaking ? 'text-white font-semibold' : 'text-[#a49fb5]'}`}>
-                                  {p.name}
-                                </span>
-
-                                {/* Ícone de Compartilhamento de Tela AO VIVO no nome do canal */}
-                                {p.isScreenShareEnabled && (
-                                  <span
-                                    className="ml-auto flex items-center gap-1 bg-red-600 text-white text-[9px] font-black uppercase px-1.5 py-0.2 rounded shadow-sm flex-shrink-0 animate-pulse"
-                                    title={`${p.name} está compartilhando a tela`}
+                                  <div
+                                    className={`w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-bold text-white flex-shrink-0 transition-all ${
+                                      p.isSpeaking ? 'bg-green-600 ring-2 ring-green-400' : 'bg-gradient-to-br from-purple-600 to-indigo-600'
+                                    }`}
                                   >
-                                    <span>🖥️</span>
-                                    <span>AO VIVO</span>
-                                  </span>
-                                )}
+                                    {p.name.charAt(0).toUpperCase()}
+                                  </div>
 
-                                {!p.isAudioEnabled && !p.isScreenShareEnabled && (
-                                  <span className="text-[10px] text-red-400 ml-auto flex-shrink-0">🔇</span>
-                                )}
-                              </div>
-                            ))}
+                                  <span className={`truncate text-xs ${p.isSpeaking ? 'text-white font-semibold' : 'text-[#a49fb5] group-hover/user:text-white'}`}>
+                                    {p.name}
+                                  </span>
+
+                                  {/* Ícone AO VIVO de Compartilhamento de Tela */}
+                                  {p.isScreenShareEnabled && (
+                                    <span
+                                      className="ml-auto flex items-center gap-1 bg-red-600 text-white text-[9px] font-black uppercase px-1.5 py-0.2 rounded shadow-sm flex-shrink-0 animate-pulse"
+                                      title={`${p.name} está transmitindo tela`}
+                                    >
+                                      <span>🖥️</span>
+                                      <span>AO VIVO</span>
+                                    </span>
+                                  )}
+
+                                  {/* Botão de Ajuste de Volume */}
+                                  <button
+                                    onClick={(e) => {
+                                      e.stopPropagation()
+                                      setSidebarVolumeUser(p)
+                                    }}
+                                    className="opacity-0 group-hover/user:opacity-100 text-[10px] text-purple-300 hover:text-white ml-auto px-1 py-0.5 rounded hover:bg-purple-900/60 transition cursor-pointer"
+                                    title={`Ajustar volume de ${p.name}`}
+                                  >
+                                    {vol === 0 ? '🔇' : '🔊'}
+                                  </button>
+
+                                  {!p.isAudioEnabled && !p.isScreenShareEnabled && (
+                                    <span className="text-[10px] text-red-400 ml-auto flex-shrink-0">🔇</span>
+                                  )}
+                                </div>
+                              )
+                            })}
                           </div>
                         )}
                       </div>
@@ -560,6 +599,16 @@ function AppLayout() {
 
       {/* Notificação Automática de Atualização (Estilo Discord) */}
       <UpdateNotification />
+
+      {/* Popup de Volume para participantes da barra lateral */}
+      {sidebarVolumeUser && (
+        <ParticipantVolumePopup
+          participant={sidebarVolumeUser}
+          volume={userVolumes[sidebarVolumeUser.identity] ?? 100}
+          onVolumeChange={(newVol) => setUserVolume(sidebarVolumeUser.identity, newVol)}
+          onClose={() => setSidebarVolumeUser(null)}
+        />
+      )}
     </div>
   )
 }

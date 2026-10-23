@@ -31,11 +31,15 @@ interface VoiceState {
   participants: VoiceParticipant[]
   activeSpeakers: string[]
   error: string | null
+  userVolumes: Record<string, number>
+  channelOccupants: Record<string, VoiceParticipant[]>
 
   // Actions
   joinChannel: (channelId: string, channelName: string, user: { username: string; display_name: string }) => Promise<boolean>
   leaveChannel: () => Promise<void>
   refreshParticipants: () => void
+  setUserVolume: (identity: string, volume: number) => void
+  fetchChannelOccupants: (channelList: Array<{ id: string; name: string }>) => Promise<void>
   toggleMic: () => Promise<void>
   toggleDeafen: () => Promise<void>
   toggleCamera: () => Promise<void>
@@ -103,6 +107,15 @@ function getAudioContainer(): HTMLElement {
   return el
 }
 
+const initialUserVolumes: Record<string, number> = (() => {
+  try {
+    const saved = localStorage.getItem('contalk_user_volumes')
+    return saved ? JSON.parse(saved) : {}
+  } catch {
+    return {}
+  }
+})()
+
 export const useVoiceStore = create<VoiceState>((set, get) => ({
   currentRoom: null,
   activeChannelId: null,
@@ -115,6 +128,68 @@ export const useVoiceStore = create<VoiceState>((set, get) => ({
   participants: [],
   activeSpeakers: [],
   error: null,
+  userVolumes: initialUserVolumes,
+  channelOccupants: {},
+
+  setUserVolume: (identity: string, volume: number) => {
+    const { currentRoom, userVolumes } = get()
+    const nextVolumes = { ...userVolumes, [identity]: volume }
+    set({ userVolumes: nextVolumes })
+    try {
+      localStorage.setItem('contalk_user_volumes', JSON.stringify(nextVolumes))
+    } catch {}
+
+    if (currentRoom) {
+      const remote = currentRoom.remoteParticipants.get(identity)
+      if (remote) {
+        remote.audioTrackPublications.forEach((pub) => {
+          if (pub.audioTrack && typeof (pub.audioTrack as any).setVolume === 'function') {
+            (pub.audioTrack as any).setVolume(volume / 100)
+          }
+        })
+      }
+    }
+  },
+
+  fetchChannelOccupants: async (channels: Array<{ id: string; name: string }>) => {
+    try {
+      const { RoomServiceClient } = await import('livekit-server-sdk')
+      const client = new RoomServiceClient('https://contalk-vwlfqz0q.livekit.cloud', LIVEKIT_API_KEY, LIVEKIT_API_SECRET)
+      const activeRooms = await client.listRooms()
+      const newOccupants: Record<string, VoiceParticipant[]> = {}
+
+      for (const ch of channels) {
+        const roomFound = activeRooms.find((r) => r.name.toLowerCase() === ch.name.toLowerCase())
+        if (roomFound && roomFound.numParticipants > 0) {
+          try {
+            const parts = await client.listParticipants(roomFound.name)
+            newOccupants[ch.id] = parts.map((p) => ({
+              identity: p.identity,
+              name: p.name || p.identity,
+              isLocal: false,
+              isSpeaking: false,
+              isAudioEnabled: !p.isMuted,
+              isVideoEnabled: p.tracks?.some((t: any) => t.source === 1) || false,
+              isScreenShareEnabled: p.tracks?.some((t: any) => t.source === 2) || false,
+            }))
+          } catch {}
+        } else {
+          newOccupants[ch.id] = []
+        }
+      }
+
+      set((state) => {
+        const currentActive = state.activeChannelId
+        const merged = { ...state.channelOccupants, ...newOccupants }
+        if (currentActive && state.participants.length > 0) {
+          merged[currentActive] = state.participants
+        }
+        return { channelOccupants: merged }
+      })
+    } catch {
+      // Falha silenciosa em checagem de fundo
+    }
+  },
 
   refreshParticipants: () => {
     const { currentRoom } = get()
@@ -161,6 +236,16 @@ export const useVoiceStore = create<VoiceState>((set, get) => ({
       isCameraOn: local.isCameraEnabled,
       isMicMuted: !local.isMicrophoneEnabled,
     })
+
+    const activeId = get().activeChannelId
+    if (activeId) {
+      set((s) => ({
+        channelOccupants: {
+          ...s.channelOccupants,
+          [activeId]: list,
+        },
+      }))
+    }
   },
 
   joinChannel: async (channelId, channelName, user) => {
@@ -238,11 +323,16 @@ export const useVoiceStore = create<VoiceState>((set, get) => ({
         triggerUpdate()
       })
 
-      room.on(RoomEvent.TrackSubscribed, (track: RemoteTrack) => {
+      room.on(RoomEvent.TrackSubscribed, (track: RemoteTrack, _pub, participant) => {
         if (track.kind === Track.Kind.Audio) {
           const audioContainer = getAudioContainer()
           const element = track.attach()
           audioContainer.appendChild(element)
+
+          const userVol = get().userVolumes[participant.identity] ?? 100
+          if (typeof (track as any).setVolume === 'function') {
+            (track as any).setVolume(userVol / 100)
+          }
         }
         triggerUpdate()
       })
@@ -264,7 +354,9 @@ export const useVoiceStore = create<VoiceState>((set, get) => ({
       room.on(RoomEvent.Disconnected, () => {
         const audioContainer = getAudioContainer()
         audioContainer.innerHTML = ''
-        set({
+        const prevId = get().activeChannelId
+        const remotes = get().participants.filter((p) => !p.isLocal)
+        set((s) => ({
           currentRoom: null,
           activeChannelId: null,
           activeChannelName: null,
@@ -274,7 +366,8 @@ export const useVoiceStore = create<VoiceState>((set, get) => ({
           isMicMuted: false,
           isCameraOn: false,
           isScreenSharing: false,
-        })
+          channelOccupants: prevId ? { ...s.channelOccupants, [prevId]: remotes } : s.channelOccupants,
+        }))
       })
 
       // 4. Conectar ao SFU LiveKit
@@ -307,7 +400,16 @@ export const useVoiceStore = create<VoiceState>((set, get) => ({
   },
 
   leaveChannel: async () => {
-    const { currentRoom } = get()
+    const { currentRoom, activeChannelId, participants } = get()
+    if (activeChannelId) {
+      const remotes = participants.filter((p) => !p.isLocal)
+      set((s) => ({
+        channelOccupants: {
+          ...s.channelOccupants,
+          [activeChannelId]: remotes,
+        },
+      }))
+    }
     if (currentRoom) {
       try {
         await currentRoom.disconnect()
