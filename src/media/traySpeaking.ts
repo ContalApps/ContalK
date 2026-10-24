@@ -12,7 +12,7 @@ interface VoiceStore {
 export function setupTraySpeaking(store:VoiceStore,send:(speaking:boolean)=>void) {
   let previous:boolean|undefined
   const sync=(state:SpeakingState)=>{
-    const speaking=state.connectionStatus==='connected'&&!state.isMicMuted&&!state.isDeafened&&state.participants.some(p=>p.isLocal&&p.isSpeaking&&p.isAudioEnabled)
+    const speaking=state.connectionStatus==='connected'&&!state.isMicMuted&&!state.isDeafened&&state.participants.some(p=>p.isLocal&&p.isAudioEnabled)
     if(speaking!==previous){previous=speaking;send(speaking)}
   }
   sync(store.getState())

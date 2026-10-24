@@ -4,7 +4,7 @@ import { test } from 'node:test'
 import { loadTypescript } from './load-typescript.mjs'
 const user={username:'real-user',display_name:'Real user'}
 function deferred(){let resolve;const promise=new Promise(r=>{resolve=r});return {promise,resolve}}
-function fixture({metadataFailure=false,connectFailure=false,firstConnectGate}={}) {
+function fixture({metadataFailure=false,connectFailure=false,firstConnectGate,authority=null,authorityError=false,speak=true}={}) {
  let state;const rooms=[];const container={innerHTML:'',appendChild(){},querySelectorAll:()=>[]}
  const create=init=>{const get=()=>state;const set=value=>{state={...state,...(typeof value==='function'?value(state):value)}};state=init(set,get);return {getState:get}}
  const events=new Proxy({},{get:(_,key)=>key})
@@ -12,10 +12,11 @@ function fixture({metadataFailure=false,connectFailure=false,firstConnectGate}={
   state='disconnected';remoteParticipants=new Map();disconnects=0
   localParticipant=Object.assign(new EventEmitter(),{identity:user.username,name:user.display_name,isSpeaking:false,isMicrophoneEnabled:false,isCameraEnabled:false,isScreenShareEnabled:false,getTrackPublication:()=>undefined,setMetadata:async()=>{if(metadataFailure)throw new Error('does not have permission to update own metadata')}})
   constructor(){super();rooms.push(this)}
-  async connect(){if(connectFailure)throw new Error('connection refused');if(rooms[0]===this&&firstConnectGate)await firstConnectGate.promise;this.state='connected';this.emit('Connected')}
+  async connect(url,token){this.endpoint=url;this.token=token;if(connectFailure)throw new Error('connection refused');if(rooms[0]===this&&firstConnectGate)await firstConnectGate.promise;this.state='connected';this.emit('Connected')}
   async disconnect(){this.disconnects++;this.state='disconnected';this.emit('Disconnected')}
  }
  const store=loadTypescript('src/store/useVoiceStore.ts',{
+  '../roles/transport':{centralEnabled:()=>!!authority,centralAllows:()=>speak,centralVoiceToken:async()=>{if(authorityError)throw new Error('central denied');return authority}},
   zustand:{create},'livekit-client':{Room,RoomEvent:events,ParticipantEvent:{IsSpeakingChanged:'IsSpeakingChanged'},Track:{Source:{Camera:'camera',ScreenShare:'screen',ScreenShareAudio:'screen-audio',Microphone:'microphone'},Kind:{Audio:'audio'}}},
   '../../shared/livekit-grant.mjs':{roomGrant:()=>({})},
   '../media/microphone':{microphoneOptions:()=>({}),setSafeMicrophoneEnabled:async(room,enabled)=>{room.localParticipant.isMicrophoneEnabled=enabled;return 'test microphone'},publishSafeMicrophone:async room=>{room.localParticipant.isMicrophoneEnabled=true;return 'test microphone'}},
@@ -29,6 +30,20 @@ test('profile permission failure cannot disconnect a working voice call',async()
  assert.equal(store.getState().connectionStatus,'connected');assert.equal(store.getState().currentRoom,rooms[0]);assert.equal(rooms[0].disconnects,0)
  assert.ok(store.getState().profileError);assert.equal(store.getState().error,null)
  await store.getState().leaveChannel()
+})
+
+test('a configured community uses its own SFU token and a listener without SPEAK never opens the microphone',async()=>{
+ const f=fixture({authority:{url:'wss://central.invalid',token:'central-token'},speak:false})
+ assert.equal(await f.store.getState().joinChannel('voice','Voice',user),true)
+ assert.equal(f.rooms[0].endpoint,'wss://central.invalid');assert.equal(f.rooms[0].token,'central-token')
+ assert.equal(f.rooms[0].localParticipant.isMicrophoneEnabled,false)
+ await f.store.getState().leaveChannel()
+})
+test('a rejected central voice token cannot fall back to the legacy signer',async()=>{
+ const f=fixture({authorityError:true})
+ assert.equal(await f.store.getState().joinChannel('voice','Voice',user),false)
+ assert.equal(f.rooms.length,0)
+ assert.match(f.store.getState().error,/central denied/)
 })
 test('a rejected connection is disposed and leaves a retryable selected channel',async()=>{
  const {store,rooms}=fixture({connectFailure:true})

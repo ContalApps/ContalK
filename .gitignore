@@ -40,3 +40,4 @@ native/bin/
 
 # Central Telegram session, temporary uploads, manifests and view receipts
 .storage-data/
+.community-data/

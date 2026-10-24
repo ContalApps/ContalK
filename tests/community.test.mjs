@@ -39,7 +39,7 @@ function fixture({metadataFailure=false}={}) {
   async disconnect(){this.state='disconnected';this.emit('disconnected')}
  }
  const events={ParticipantConnected:'joined',ParticipantDisconnected:'left',ParticipantMetadataChanged:'metadata',ParticipantNameChanged:'name',DataReceived:'data',Reconnecting:'reconnecting',Reconnected:'reconnected',Disconnected:'disconnected'}
- const store=loadTypescript('src/store/useCommunityStore.ts',{'zustand':{create:createStore},'livekit-client':{Room,RoomEvent:events},'./useFriendStore':{useFriendStore:friends},'./useAppStore':{useAppStore:app},'./useVoiceStore':{getLiveKitToken:async()=> 'test-token',useVoiceStore:{getState:()=>voice}}},{window:{},crypto:{randomUUID:()=> 'transfer-test'},TextEncoder,TextDecoder,localStorage:{getItem:key=>storage.get(key)||null,setItem:(key,value)=>storage.set(key,value)}}).useCommunityStore
+ const store=loadTypescript('src/store/useCommunityStore.ts',{'../roles/transport':{centralEnabled:()=>false,centralPresenceToken:async()=>null},'zustand':{create:createStore},'livekit-client':{Room,RoomEvent:events},'./useFriendStore':{useFriendStore:friends},'./useAppStore':{useAppStore:app},'./useVoiceStore':{getLiveKitToken:async()=> 'test-token',useVoiceStore:{getState:()=>voice}}},{window:{},crypto:{randomUUID:()=> 'transfer-test'},TextEncoder,TextDecoder,localStorage:{getItem:key=>storage.get(key)||null,setItem:(key,value)=>storage.set(key,value)}}).useCommunityStore
  return {store,app,instances,friends,voice}
 }
 test('roster only reflects connected peers and clears online flags on connection loss',async()=>{

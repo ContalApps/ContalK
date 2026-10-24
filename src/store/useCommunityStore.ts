@@ -5,6 +5,7 @@ import { getLiveKitToken, useVoiceStore } from './useVoiceStore'
 import type { Attachment, MessageOptions } from './useAppStore'
 import type { User } from './useAuthStore'
 import { useFriendStore } from './useFriendStore'
+import { centralCommand, centralEnabled, centralPresenceToken } from '../roles/transport'
 
 export interface Member { username: string; display_name: string; avatar?: string; bio?: string; online: boolean }
 function cachedMembers(): Member[] { try { return JSON.parse(localStorage.getItem('contalk-members-v1') || '[]').map((m: Member) => ({ ...m, online: false })) } catch { return [] } }
@@ -43,6 +44,7 @@ export const useCommunityStore = create<{ members: Member[]; status: string; pro
     const transfers = new Map<string, { chunks: string[]; next: number; total: number; expires: number }>()
     const receive = (payload: Uint8Array, _participant: unknown, _kind: unknown, topic?: string) => {
       if (room !== connection) return
+      if(centralEnabled()&&['community-channels','community-channel-deletions-v1'].includes(topic||''))return
       if(topic === 'contalk-friendship-v1') {
         const participant = _participant as {identity?: string; name?: string}
         if (!participant?.identity || !connection.remoteParticipants.has(participant.identity) || payload.byteLength > 2000) return
@@ -52,7 +54,7 @@ export const useCommunityStore = create<{ members: Member[]; status: string; pro
       if(topic==='community-message-change-v1') {
         const participant=_participant as {identity?:string}
         if(!participant?.identity || !connection.remoteParticipants.has(participant.identity) || payload.byteLength>12000)return
-        try{const change=JSON.parse(new TextDecoder().decode(payload));if(typeof change.channelId==='string'&&typeof change.id==='string'&&(change.content===undefined||typeof change.content==='string'))useAppStore.getState().changeMessage(change.channelId,change.id,participant.identity,change.content)}catch{/* Invalid change. */}
+        try{const change=JSON.parse(new TextDecoder().decode(payload));if(centralEnabled()&&!String(change.channelId).startsWith('dm:'))return;if(typeof change.channelId==='string'&&typeof change.id==='string'&&(change.content===undefined||typeof change.content==='string'))useAppStore.getState().changeMessage(change.channelId,change.id,participant.identity,change.content)}catch{/* Invalid change. */}
         return
       }
       if(topic==='community-attachment-v1') {
@@ -77,6 +79,7 @@ export const useCommunityStore = create<{ members: Member[]; status: string; pro
         try {
           const message=JSON.parse(new TextDecoder().decode(payload))
           if(typeof message.content!=='string'||message.content.length>2000||typeof message.channelId!=='string')return
+          if(centralEnabled()&&!message.channelId.startsWith('dm:'))return
           if(message.attachment?.storageId) {
             const a=message.attachment
             if(!/^[0-9a-f-]{36}$/.test(a.storageId)||typeof a.name!=='string'||a.name.length>200||typeof a.type!=='string'||a.type.length>100||!Number.isSafeInteger(a.size)||a.size<0||a.size>2*1024**3||a.data!==''||(a.thumbnail!==undefined&&(typeof a.thumbnail!=='string'||a.thumbnail.length>40000||!/^[A-Za-z0-9+/=]+$/.test(a.thumbnail))))return
@@ -126,9 +129,10 @@ export const useCommunityStore = create<{ members: Member[]; status: string; pro
       const local = await window.contalkDesktop?.listAccounts().catch(()=>[])
       if(version!==generation)return
       if(local) set({members:[...new Map([...get().members,...local.map(m=>({...m,online:false}))].map(m=>[m.username,m])).values()]})
-      const token=await getLiveKitToken('contalk-community-presence-v1',user.username,user.display_name)
+      const authority=await centralPresenceToken(user.display_name)
+      const token=authority?.token||await getLiveKitToken('contalk-community-presence-v1',user.username,user.display_name)
       if(version!==generation)return
-      await connection.connect('wss://contalk-vwlfqz0q.livekit.cloud',token,{autoSubscribe:false})
+      await connection.connect(authority?.url||'wss://contalk-vwlfqz0q.livekit.cloud',token,{autoSubscribe:false})
       if(version!==generation){await connection.disconnect();return}
       set({status:'online'});refresh()
       friendRetry = setInterval(() => { void useFriendStore.getState().flush(); void get().broadcastChannels().catch(()=>{}) }, 10000)
@@ -144,19 +148,25 @@ export const useCommunityStore = create<{ members: Member[]; status: string; pro
     if(room?.state==='connected') {await room.localParticipant.setName(user.display_name);await room.localParticipant.setMetadata(JSON.stringify({avatar:user.avatar || '',bio:user.bio || ''}))}
   },
   sendMessage: async (channelId, content, destination, attachment, options) => {
-    if(!room || room.state!=='connected')throw new Error('Aguarde a conexão para enviar mensagens.')
+    if(centralEnabled()&&!destination&&!channelId.startsWith('dm:')){await centralCommand({type:'message-send',id:crypto.randomUUID(),channel:channelId,content,attachment,preview:options?.preview,once:options?.once});return}
+    const connection=room
+    if(!connection || connection.state!=='connected')throw new Error('Aguarde a conexão para enviar mensagens.')
     if((!content.trim()&&!attachment)||content.length>2000)throw new Error('Escreva uma mensagem de até 2000 caracteres.')
-    if(destination&&!room.remoteParticipants.has(destination))throw new Error('Essa pessoa está offline.')
+    if(destination&&!connection.remoteParticipants.has(destination))throw new Error('Essa pessoa está offline.')
+    if(destination&&attachment?.storageId)await window.contalkDesktop?.shareStorageFile(attachment.storageId,destination)
+    if(room!==connection||connection.state!=='connected')throw new Error('A conta ou a conexão foi alterada. Tente enviar novamente.')
     const metadata={id:crypto.randomUUID(),preview:options?.preview!==false,once:options?.once===true}
     const data = JSON.stringify({channelId,content,attachment,...metadata})
     if(attachment) {
       if((!attachment.storageId&&attachment.size > 1048576) || attachment.size>2*1024**3 || data.length > 1440000)throw new Error('O arquivo deve ter até 1 MB.')
       const id=crypto.randomUUID(), total=Math.ceil(data.length/8000)
-      for(let index=0;index<total;index++)await room.localParticipant.publishData(encoder.encode(JSON.stringify({id,index,total,chunk:data.slice(index*8000,(index+1)*8000)})),{reliable:true,topic:'community-attachment-v1',...(destination?{destinationIdentities:[destination]}:{})})
-    } else await room.localParticipant.publishData(encoder.encode(data),{reliable:true,topic:'community-message',...(destination?{destinationIdentities:[destination]}:{})})
-    useAppStore.getState().addMessage(channelId,content,{username:room.localParticipant.identity,display_name:room.localParticipant.name||room.localParticipant.identity},attachment,metadata)
+      for(let index=0;index<total;index++)await connection.localParticipant.publishData(encoder.encode(JSON.stringify({id,index,total,chunk:data.slice(index*8000,(index+1)*8000)})),{reliable:true,topic:'community-attachment-v1',...(destination?{destinationIdentities:[destination]}:{})})
+    } else await connection.localParticipant.publishData(encoder.encode(data),{reliable:true,topic:'community-message',...(destination?{destinationIdentities:[destination]}:{})})
+    if(room!==connection)return
+    useAppStore.getState().addMessage(channelId,content,{username:connection.localParticipant.identity,display_name:connection.localParticipant.name||connection.localParticipant.identity},attachment,metadata)
   },
   changeMessage:async(channelId,id,content)=>{
+    if(centralEnabled()&&!channelId.startsWith('dm:')){await centralCommand(content===undefined?{type:'message-delete',channel:channelId,id}:{type:'message-edit',channel:channelId,id,content});return}
     if(!room||room.state!=='connected')throw new Error('Aguarde a conexão.')
     const message=useAppStore.getState().messages[channelId]?.find(m=>m.id===id)
     if(message?.userId!==room.localParticipant.identity)throw new Error('Somente o autor pode alterar a mensagem.')
@@ -166,6 +176,7 @@ export const useCommunityStore = create<{ members: Member[]; status: string; pro
     useAppStore.getState().changeMessage(channelId,id,room.localParticipant.identity,content)
   },
   renameChannel:async(serverId,channelId,name)=>{
+    if(centralEnabled()){await centralCommand({type:'channel-rename',id:channelId,name});return}
     if(!name.trim()||name.trim().length>60)throw new Error('Informe um nome de até 60 caracteres.')
     useAppStore.getState().renameChannel(serverId,channelId,name)
     const current=useAppStore.getState().servers.find(s=>s.id===serverId)?.channels.find(c=>c.id===channelId)
@@ -174,11 +185,13 @@ export const useCommunityStore = create<{ members: Member[]; status: string; pro
     await get().broadcastChannels()
   },
   deleteChannel: async (serverId, channelId) => {
+    if(centralEnabled()){await centralCommand({type:'channel-delete',id:channelId});return}
     useAppStore.getState().removeChannel(serverId, channelId)
     if (useVoiceStore.getState().activeChannelId === channelId) await useVoiceStore.getState().leaveChannel()
     await get().broadcastChannels()
   },
   broadcastChannels: async () => {
+    if(centralEnabled())return
     const connection = room
     if (!connection || connection.state !== 'connected') throw new Error('A sincronização aguarda a conexão.')
     const sendRecords = async (records: unknown[], topic: string) => {

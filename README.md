@@ -126,17 +126,17 @@ As credenciais padrão estão no `livekit.yaml` e `token-server.mjs`:
 MIT
 ## Atualizações do Electron (Windows)
 
-O instalador Electron usa `electron-updater` com GitHub Releases. Não é preciso manter servidor de atualização. Instale manualmente a versão 0.1.2 uma vez; ela consulta novas versões ao iniciar e a cada 30 minutos. O usuário escolhe baixar e reiniciar. Reiniciar encerra chamadas e transmissões.
+O instalador Electron usa `electron-updater` com GitHub Releases. A verificação ocorre ao iniciar, a cada cinco minutos e ao focar a janela. O sino mostra a versão disponível e suas notas. Ao autorizar a atualização, o aplicativo baixa, instala silenciosamente e reabre; esse processo encerra chamadas e transmissões. A distribuição das atualizações usa o GitHub, independentemente do serviço de comunidade.
 
 Para publicar usando o próprio computador, sem GitHub Actions:
 
 1. Atualize a versão em `package.json`, `package-lock.json`, `Cargo.toml`, `Cargo.lock` (pacotes do workspace) e `src-tauri/tauri.conf.json`.
 2. Escreva `RELEASE_NOTES.md`.
 3. Execute `npm ci`, `npm run build:audio`, `npm run verify` e `npm run build:electron`.
-4. Faça commit, crie a tag `v<VERSÃO>` nesse commit e envie o commit e a tag ao GitHub.
+4. Faça commit na `dev/caliari`, abra o PR para `main`, confira os checks e faça o merge respeitando as proteções. Crie a tag `v<VERSÃO>` no commit integrado à `main` e envie a tag ao GitHub. Preserve e sincronize a `dev/caliari`.
 5. Execute `npm run publish:electron` com o GitHub CLI autenticado. O script verifica os hashes, publica o instalador, o blockmap e `latest.yml` em um rascunho e só então torna a versão pública.
 
-O empacotamento requer Windows x64, Visual Studio C++ Build Tools e Windows SDK 10.0.20348 ou posterior. O fluxo em `.github/workflows/release.yml` executa os mesmos passos se o GitHub Actions estiver disponível. Os pacotes Electron e Tauri possuem atualizadores distintos; `latest.yml` é exclusivo do Electron.
+O empacotamento requer Windows x64, Visual Studio C++ Build Tools e Windows SDK 10.0.20348 ou posterior. O fluxo em `.github/workflows/release.yml` executa os mesmos passos quando uma tag é enviada; aguarde esse fluxo em vez de disputar a publicação com uma execução local. Confirme a release pública, marcada como latest, com instalador, blockmap e `latest.yml` antes de informar que a atualização está disponível. Os pacotes Electron e Tauri possuem atualizadores distintos; `latest.yml` é exclusivo do Electron.
 
 ## Áudio das transmissões
 

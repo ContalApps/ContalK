@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type ReactNode } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { usePreferencesStore } from '../store/usePreferencesStore'
 import { UpdateNotification } from './UpdateNotification'
 import { BrandMark } from './BrandMark'
@@ -8,8 +8,8 @@ function TitleIcon({name}: {name: 'back' | 'forward' | 'search' | 'help' | 'clos
   return <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d={paths[name]}/></svg>
 }
 
-export function TitleBar({title = 'ConTALK', authenticated = false, disabled = false, canBack = false, canForward = false, onBack, onForward, search = '', onSearch, profile}: {
-  title?: string; authenticated?: boolean; disabled?: boolean; canBack?: boolean; canForward?: boolean; onBack?: () => void; onForward?: () => void; search?: string; onSearch?: (value: string) => void; profile?: ReactNode
+export function TitleBar({title = 'ConTALK', authenticated = false, disabled = false, canBack = false, canForward = false, onBack, onForward, search = '', onSearch,onOpenNotification}: {
+  title?: string; authenticated?: boolean; disabled?: boolean; canBack?: boolean; canForward?: boolean; onBack?: () => void; onForward?: () => void; search?: string; onSearch?: (value: string) => void;onOpenNotification?:(id:string)=>void
 }) {
   const preferences = usePreferencesStore()
   const [panel, setPanel] = useState<'search' | 'help' | null>(null)
@@ -58,9 +58,8 @@ export function TitleBar({title = 'ConTALK', authenticated = false, disabled = f
       <div className="ct-titlebar-context" title={title}><BrandMark/><span>{title}</span></div>
       <div className="ct-titlebar-actions">{authenticated && <>
         {preferences.titleBarSearch && <button ref={searchButton} aria-label="Buscar no ConTALK" title="Buscar (Ctrl+K)" aria-expanded={panel==='search'} onClick={()=>setPanel(panel==='search'?null:'search')} data-active={!!search}><TitleIcon name="search"/></button>}
-        <UpdateNotification/>
+        <UpdateNotification onOpenNotification={onOpenNotification}/>
         {preferences.titleBarHelp && <button ref={helpButton} aria-label="Ajuda do ConTALK" title="Ajuda (F1)" aria-expanded={panel==='help'} onClick={()=>setPanel(panel==='help'?null:'help')}><TitleIcon name="help"/></button>}
-        {profile}
       </>}</div>
     </div>
     {panel==='search' && <section className="ct-titlebar-popover ct-titlebar-search" aria-label="Busca" role="search">

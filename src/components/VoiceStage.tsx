@@ -3,10 +3,9 @@ import { useVoiceStore, VoiceParticipant } from '../store/useVoiceStore'
 import { useAuthStore } from '../store/useAuthStore'
 import { useCommunityStore } from '../store/useCommunityStore'
 import { Track } from 'livekit-client'
-import { ParticipantVolumePopup } from './ParticipantVolumePopup'
 import { ControlIcon } from './ControlIcon'
-import { StreamAudioPopover } from './StreamVolumeControl'
 import { FriendButton } from './FriendButton'
+import { RoleName } from './RoleName'
 
 function VideoTrackView({
   track,
@@ -44,19 +43,15 @@ function VideoTrackView({
 
 function ScreenShareViewer({
   participant,
-  onStopSharing,
   onFocus,
   onMinimize,
   isSpotlight = false,
-  hideAudioControl = false,
   onFullscreen,
 }: {
   participant: VoiceParticipant
-  onStopSharing?: () => void
   onFocus?: () => void
   onMinimize?: () => void
   isSpotlight?: boolean
-  hideAudioControl?:boolean
   onFullscreen?: () => void
 }) {
   const [ready,setReady]=useState(false)
@@ -76,7 +71,7 @@ function ScreenShareViewer({
             <span className="w-1.5 h-1.5 rounded-full bg-white animate-pulse" />
             AO VIVO
           </span>
-          <span className="text-white text-xs font-semibold tracking-wide">
+          <span data-profile-identity={participant.identity} data-profile-name={participant.name} title="Botão direito para opções da pessoa" className="text-white text-xs font-semibold tracking-wide">
             {participant.isLocal ? 'Sua Transmissão de Tela' : `Tela de ${participant.name}`}
           </span>
         </div>
@@ -122,25 +117,7 @@ function ScreenShareViewer({
         </div>
       </div>
 
-      {/* Bottom overlay para o usuário transmissor local */}
-      {!participant.isLocal && !hideAudioControl && <div className="ct-stream-overlay"><StreamAudioPopover identity={participant.identity} name={participant.name}/></div>}
-      {participant.isLocal && onStopSharing && (
-        <div className="absolute bottom-3 flex items-center gap-3 bg-black/85 backdrop-blur-md px-4 py-1.5 rounded-full border border-purple-500/30 shadow-2xl pointer-events-auto">
-          <span className="text-xs text-purple-200 flex items-center gap-2 font-medium">
-            <span className="w-2 h-2 rounded-full bg-green-500 animate-pulse" />
-            Você está transmitindo
-          </span>
-          <button
-            onClick={(e) => {
-              e.stopPropagation()
-              onStopSharing()
-            }}
-            className="text-xs font-bold bg-red-600 hover:bg-red-700 text-white px-3 py-0.5 rounded-full transition shadow-md"
-          >
-            Parar Transmissão
-          </button>
-        </div>
-      )}
+
     </div>
   )
 }
@@ -148,14 +125,16 @@ function ScreenShareViewer({
 function ParticipantTile({
   participant,
   userVolume,
-  onOpenVolume,
+  onProfile,
+  onParticipantMenu,
   isMaximized,
   onMaximize,
   onViewScreen,
 }: {
   participant: VoiceParticipant
   userVolume: number
-  onOpenVolume: (p: VoiceParticipant) => void
+  onProfile: (p: VoiceParticipant) => void
+  onParticipantMenu: (p:VoiceParticipant,event:React.MouseEvent)=>void
   isMaximized?: boolean
   onMaximize?: () => void
   onViewScreen?: () => void
@@ -165,7 +144,7 @@ function ParticipantTile({
   return (
     <div
       onDoubleClick={onMaximize}
-      onContextMenu={e => { e.preventDefault(); onOpenVolume(participant) }}
+      onContextMenu={e => { e.preventDefault(); onParticipantMenu(participant,e) }}
       className={`relative rounded-xl overflow-hidden bg-[#181427] flex flex-col items-center justify-center p-3 transition-colors border group select-none ${
         participant.isSpeaking
           ? 'ring-4 ring-green-500 border-green-400 shadow-green-500/25'
@@ -187,13 +166,13 @@ function ParticipantTile({
               <div className="absolute -inset-2 rounded-full bg-green-500/30 blur-md animate-ping" />
             )}
             <div
-              onClick={() => onOpenVolume(participant)}
+              onClick={() => onProfile(participant)}
               className={`w-16 h-16 rounded-full flex items-center justify-center text-2xl font-black text-white transition-all duration-300 shadow-2xl relative cursor-pointer hover:scale-105 ${
                 participant.isSpeaking
                   ? 'scale-110 ring-4 ring-green-400 bg-gradient-to-br from-green-600 to-emerald-700'
                   : 'bg-gradient-to-br from-purple-600 to-indigo-700 border-2 border-purple-400/40 ring-4 ring-purple-900/30'
               }`}
-              title="Clique para ajustar volume"
+              title="Abrir perfil · botão direito para opções"
             >
               {avatar?<img src={avatar} alt={participant.name} className="ct-voice-avatar"/>:participant.name.charAt(0).toUpperCase()}
             </div>
@@ -203,17 +182,17 @@ function ParticipantTile({
 
       {/* Badges no canto inferior esquerdo */}
       <div
-        onClick={() => onOpenVolume(participant)}
+        onClick={() => onProfile(participant)}
         className="absolute bottom-4 left-4 flex items-center gap-2 bg-black/75 backdrop-blur-md px-3 py-1.5 rounded-xl text-xs border border-white/10 shadow-lg cursor-pointer hover:bg-black/90 transition"
-        title="Clique para ajustar volume"
+        title="Abrir perfil · botão direito para opções"
       >
-        <span className="font-bold text-white tracking-wide">{participant.name}</span>
+        <span className="font-bold text-white tracking-wide"><RoleName identity={participant.identity} name={participant.name}/></span>
         {participant.isLocal && (
           <span className="text-[10px] bg-purple-950/80 border border-purple-700/50 text-purple-300 px-1.5 py-0.5 rounded font-medium">
             você
           </span>
         )}
-        {!participant.isAudioEnabled && (
+        {(!participant.isAudioEnabled||userVolume===0) && (
           <span className="text-red-400 text-xs ml-1" title="Microfone Desativado">
             🔇
           </span>
@@ -225,19 +204,6 @@ function ParticipantTile({
 
       {/* Botões de Ação no Canto Superior Direito */}
       <div className="absolute top-4 right-4 flex items-center gap-2">
-        {/* Botão de Controle de Volume Individual */}
-        <button
-          onClick={(e) => {
-            e.stopPropagation()
-            onOpenVolume(participant)
-          }}
-          className="bg-black/80 hover:bg-black text-purple-300 hover:text-white px-2 py-1 rounded-xl border border-purple-500/30 text-xs font-semibold flex items-center gap-1 shadow-lg cursor-pointer transition"
-          title={`Ajustar volume de ${participant.name}`}
-        >
-          <span>{userVolume === 0 ? '🔇' : userVolume > 100 ? '🔊' : '🔉'}</span>
-          <span className="font-mono text-[11px]">{userVolume}%</span>
-        </button>
-
         {participant.isScreenShareEnabled && participant.screenTrack && (
           <button
             onClick={onViewScreen}
@@ -264,9 +230,13 @@ function ParticipantTile({
 export function VoiceStage({
   showMemberList,
   onToggleMemberList,
+  onProfile,
+  onParticipantMenu,
 }: {
   showMemberList?: boolean
   onToggleMemberList?: () => void
+  onProfile:(participant:VoiceParticipant)=>void
+  onParticipantMenu:(participant:VoiceParticipant,event:React.MouseEvent)=>void
 }) {
   const { user } = useAuthStore()
   const {
@@ -277,9 +247,7 @@ export function VoiceStage({
     error,
     screenShareError,
     joinChannel,
-    toggleScreenShare,
     userVolumes,
-    setUserVolume,
   } = useVoiceStore()
 
   // Telas compartilhadas ativas
@@ -291,7 +259,6 @@ export function VoiceStage({
   const [pinnedParticipantId, setPinnedParticipantId] = useState<string | null>(null)
 
   // Popup de Volume e Modal de Transmissão de Tela
-  const [volumeTarget, setVolumeTarget] = useState<VoiceParticipant | null>(null)
   const stageRef = useRef<HTMLDivElement>(null)
   const [isFullscreen, setIsFullscreen] = useState(false)
   // null acompanha todas as transmissões, inclusive as que começam depois.
@@ -471,19 +438,17 @@ export function VoiceStage({
                   <ScreenShareViewer
                     participant={p}
                     onFullscreen={() => void openFullscreen(p.identity)}
-                    onStopSharing={p.isLocal ? toggleScreenShare : undefined}
                     onFocus={() => {
                       setSpotlightScreenId(p.identity)
                       setStageViewMode('spotlight')
                     }}
                     isSpotlight={false}
-                    hideAudioControl={screenShares.length===1}
                   />
                 </div>
               ))}
             </div>
 
-            <div className="ct-share-footer">{screenShares.length===1&&!screenShares[0].isLocal&&<div className="ct-stream-overlay"><StreamAudioPopover identity={screenShares[0].identity} name={screenShares[0].name}/></div>}<div className="ct-share-people">{participants.map(p=><button className={p.isScreenShareEnabled?'sharing':''} key={p.identity} onClick={()=>setVolumeTarget(p)} title={`Ajustar volume de ${p.name}`}><span className="ct-share-initial">{p.name.slice(0,1).toUpperCase()}</span><strong>{p.name}</strong>{p.isScreenShareEnabled&&<small>AO VIVO</small>}</button>)}</div></div>
+
           </div>
         ) : screenShares.length > 0 && stageViewMode === 'spotlight' && focusedScreen ? (
           /* ═══════════════════════════════════════════════════════════════════ */
@@ -493,60 +458,11 @@ export function VoiceStage({
             <ScreenShareViewer
               participant={focusedScreen}
               onFullscreen={() => void openFullscreen(focusedScreen.identity)}
-              onStopSharing={focusedScreen.isLocal ? toggleScreenShare : undefined}
               onMinimize={() => setStageViewMode('grid')}
               isSpotlight={true}
             />
 
-            {/* Faixa inferior de participantes e outras telas */}
-            <div className="h-24 flex items-center justify-center gap-3 overflow-x-auto py-1 px-1 scrollbar-thin flex-shrink-0">
-              {participants.map((p) => {
-                const isFocused = p.identity === focusedScreen.identity
-                const isSharing = p.isScreenShareEnabled && p.screenTrack
-                const userVol = userVolumes[p.identity] ?? 100
-                return (
-                  <div
-                    key={p.identity}
-                    onClick={() => {
-                      if (isSharing) {
-                        setSpotlightScreenId(p.identity)
-                      } else {
-                        setVolumeTarget(p)
-                      }
-                    }}
-                    className={`relative h-20 aspect-video rounded-2xl overflow-hidden bg-[#181427] flex-shrink-0 flex items-center justify-center transition shadow-md cursor-pointer hover:scale-105 ${
-                      isFocused
-                        ? 'ring-3 ring-red-500 shadow-red-500/30 border border-red-500'
-                        : isSharing
-                        ? 'ring-2 ring-purple-500'
-                        : p.isSpeaking
-                        ? 'ring-2 ring-green-500'
-                        : 'border border-purple-900/40 hover:border-purple-500/50'
-                    }`}
-                    title={isSharing ? `Ver tela de ${p.name}` : `Ajustar volume de ${p.name}`}
-                  >
-                    {p.isVideoEnabled && p.videoTrack ? (
-                      <VideoTrackView track={p.videoTrack} isLocal={p.isLocal} className="w-full h-full object-cover" />
-                    ) : (
-                      <div className="w-10 h-10 rounded-full bg-gradient-to-br from-purple-600 to-indigo-600 flex items-center justify-center text-white font-bold text-sm shadow">
-                        {p.name.charAt(0).toUpperCase()}
-                      </div>
-                    )}
 
-                    <div className="absolute bottom-1 left-1 flex items-center gap-1 bg-black/75 px-1.5 py-0.5 rounded text-[10px] text-white max-w-[90%]">
-                      <span className="truncate">{p.name}</span>
-                      {userVol === 0 && <span className="text-red-400">🔇</span>}
-                    </div>
-
-                    {isSharing && (
-                      <div className="absolute top-1 right-1 bg-red-600 text-white text-[9px] font-black px-1.5 py-0.2 rounded shadow">
-                        AO VIVO
-                      </div>
-                    )}
-                  </div>
-                )
-              })}
-            </div>
           </div>
         ) : pinnedParticipant ? (
           /* ═══════════════════════════════════════════════════════════════════ */
@@ -557,7 +473,7 @@ export function VoiceStage({
               <ParticipantTile
                 participant={pinnedParticipant}
                 userVolume={userVolumes[pinnedParticipant.identity] ?? 100}
-                onOpenVolume={setVolumeTarget}
+                onProfile={onProfile} onParticipantMenu={onParticipantMenu}
                 isMaximized={true}
                 onMaximize={() => setPinnedParticipantId(null)}
                 onViewScreen={() => {
@@ -613,7 +529,7 @@ export function VoiceStage({
                   key={p.identity}
                   participant={p}
                   userVolume={userVolumes[p.identity] ?? 100}
-                  onOpenVolume={setVolumeTarget}
+                  onProfile={onProfile} onParticipantMenu={onParticipantMenu}
                   onMaximize={() => setPinnedParticipantId(p.identity)}
                   onViewScreen={() => {
                     setSpotlightScreenId(p.identity)
@@ -629,15 +545,7 @@ export function VoiceStage({
 
       {fullscreenError && <p role="alert">{fullscreenError}</p>}
       {screenShareError && <div role="alert" className="mx-4 mb-2 rounded-xl border border-red-500/40 bg-red-950/30 p-3 text-xs text-red-200">{screenShareError}</div>}
-      {/* Popup de Controle de Volume do Participante */}
-      {volumeTarget && (
-        <ParticipantVolumePopup
-          participant={volumeTarget}
-          volume={userVolumes[volumeTarget.identity] ?? 100}
-          onVolumeChange={(newVol) => setUserVolume(volumeTarget.identity, newVol)}
-          onClose={() => setVolumeTarget(null)}
-        />
-      )}
+
 
     </div>
   )

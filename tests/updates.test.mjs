@@ -48,6 +48,13 @@ test('rejects updater calls from untrusted frames and removes IPC on close', asy
   finally { f.window.emit('closed') }
 })
 
+test('late updater errors after the window closes do not become uncaught main-process exceptions',()=>{
+ const f=fixture()
+ f.window.emit('closed')
+ assert.doesNotThrow(()=>f.updater.emit('error',new Error('Installer is exiting')))
+ assert.equal(f.updater.listenerCount('error'),1)
+})
+
 test('release notes travel with updater state and survive download progress', () => {
   const f = fixture()
   try {

@@ -14,7 +14,7 @@ const desktop: DesktopBridge = {
   isElectron: true,
   setTitleBarAppearance: (theme, scale) => ipcRenderer.send('window-titlebar-appearance', theme, scale),
   setInterfaceScale: percent => {
-    if(!Number.isInteger(percent)||percent<80||percent>125||percent%5!==0)throw new Error('Escala inválida.')
+    if(!Number.isInteger(percent)||percent<80||percent>120)throw new Error('Escala inválida.')
     webFrame.setZoomFactor(percent/100)
   },
   uploadInlineAttachment:attachment=>ipcRenderer.invoke('storage-inline',attachment),
@@ -24,7 +24,23 @@ const desktop: DesktopBridge = {
   selectStorageFile:()=>ipcRenderer.invoke('storage-select'),
   uploadStorageFile:id=>ipcRenderer.invoke('storage-upload',id),
   openStorageFile:id=>ipcRenderer.invoke('storage-open',id),
+  shareStorageFile:(id,recipient)=>ipcRenderer.invoke('storage-share',id,recipient),
   setSpeaking: speaking => ipcRenderer.send('voice-speaking',speaking),
+  setTrayState: state => ipcRenderer.send('tray-voice-state',state),
+  onTrayAction: listener => subscribe('tray-action',listener),
+  notifyActivity: notice => ipcRenderer.send('activity-notify',notice),
+  onNotificationOpen: listener => subscribe('notification-open',listener),
+  communityStatus:()=>ipcRenderer.invoke('community-status'),
+  configureCommunity:value=>ipcRenderer.invoke('community-configure',value),
+  communitySnapshot:serverId=>ipcRenderer.invoke('community-snapshot',serverId),
+  communityHistory:(serverId,channelId,before)=>ipcRenderer.invoke('community-history',serverId,channelId,before),
+  communityCommand:(serverId,revision,action)=>ipcRenderer.invoke('community-command',serverId,revision,action),
+  communityVoiceToken:(serverId,channelId)=>ipcRenderer.invoke('community-voice-token',serverId,channelId),
+  communityPresenceToken:name=>ipcRenderer.invoke('community-presence-token',name),
+  communityOccupants:serverId=>ipcRenderer.invoke('community-occupants',serverId),
+  subscribeCommunity:serverId=>ipcRenderer.invoke('community-subscribe',serverId),
+  unsubscribeCommunity:()=>ipcRenderer.invoke('community-unsubscribe'),
+  onCommunityState:listener=>subscribe('community-state',listener),
   getDesktopSources: () => ipcRenderer.invoke('get-desktop-sources'),
   getLiveKitToken: params => ipcRenderer.invoke('get-livekit-token', params),
   login: params => ipcRenderer.invoke('auth-login', params),
