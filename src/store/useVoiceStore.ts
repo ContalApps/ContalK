@@ -1,6 +1,7 @@
 import { roomGrant } from '../../shared/livekit-grant.mjs'
 import { create } from 'zustand'
 import { microphoneOptions, publishSafeMicrophone, setSafeMicrophoneEnabled } from '../media/microphone'
+import { centralAllows, centralEnabled, centralOccupants, centralVoiceToken } from '../roles/transport'
 import { startScreenShare, stopScreenShare } from '../media/screenShare'
 import {
   Room,
@@ -211,6 +212,10 @@ export const useVoiceStore = create<VoiceState>((set, get) => ({
   },
 
   fetchChannelOccupants: async (channels: Array<{ id: string; name: string }>) => {
+    if(centralEnabled()){
+      try{const occupants=await centralOccupants();set({channelOccupants:{...occupants,...(get().activeChannelId?{[get().activeChannelId!]:get().participants}:{})}})}catch{set({channelOccupants:get().activeChannelId?{[get().activeChannelId!]:get().participants}:{}})}
+      return
+    }
     const request = ++occupantsGeneration
     try {
       const { RoomServiceClient } = await import('livekit-server-sdk')
@@ -346,7 +351,8 @@ export const useVoiceStore = create<VoiceState>((set, get) => ({
     let room: Room | undefined
     try {
       // 1. Obter token JWT do LiveKit
-      const token = await getLiveKitToken(channelId, user.username, user.display_name)
+      const authority=await centralVoiceToken(channelId)
+      const token = authority?.token||await getLiveKitToken(channelId, user.username, user.display_name)
       if (!token || typeof token !== 'string') {
         throw new Error('Não foi possível gerar um token de acesso para a sala.')
       }
@@ -461,7 +467,7 @@ export const useVoiceStore = create<VoiceState>((set, get) => ({
       })
 
       // 4. Conectar ao SFU LiveKit
-      await connection.connect(LIVEKIT_URL, token)
+      await connection.connect(authority?.url||LIVEKIT_URL, token)
       if (attempt !== connectionGeneration) { await connection.disconnect(); return false }
       if (connection.state !== 'connected') throw new Error('A conexão de voz foi encerrada. Tente novamente.')
       try { await connection.localParticipant.setMetadata(JSON.stringify({ avatar: user.avatar || '' })) }
@@ -469,7 +475,7 @@ export const useVoiceStore = create<VoiceState>((set, get) => ({
       if (attempt !== connectionGeneration) { await connection.disconnect(); return false }
 
       // 5. Ativar microfone local se permitido
-      try {
+      if(centralAllows('SPEAK',channelId))try {
         const label = await publishSafeMicrophone(connection, get().microphoneDeviceId)
         if (attempt === connectionGeneration) set({ microphoneLabel: label, microphoneError: null })
       } catch (micErr) {
@@ -547,6 +553,7 @@ export const useVoiceStore = create<VoiceState>((set, get) => ({
   },
 
   toggleMic: async () => {
+    if(get().isMicMuted&&!centralAllows('SPEAK',get().activeChannelId||undefined)){set({microphoneError:'Seu cargo não permite falar neste canal.'});return}
     const { currentRoom, isMicMuted, isDeafened } = get()
     if (!currentRoom) return
     if (isDeafened) return

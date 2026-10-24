@@ -11,8 +11,8 @@ test('title bar accepts appearance only from the main frame, scales native contr
   assert.equal(titleBarOptions.titleBarStyle,'hidden')
   setupTitleBar(window)
   const event = {sender:window.webContents,senderFrame:window.webContents.mainFrame}
-  ipcMain.emit('window-titlebar-appearance',event,'vice-city',125)
-  assert.equal(appearances[0].height,45)
+  ipcMain.emit('window-titlebar-appearance',event,'vice-city',120)
+  assert.equal(appearances[0].height,43)
   assert.equal(appearances[0].color,'#172b26')
   ipcMain.emit('window-titlebar-appearance',event,'classic',80)
   assert.equal(appearances[1].height,29)

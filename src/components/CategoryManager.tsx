@@ -1,0 +1,11 @@
+import { useState } from 'react'
+import { useRoleStore } from '../store/useRoleStore'
+import { can } from '../roles/permissions'
+import { ChannelPermissions } from './ChannelPermissions'
+
+export function CategoryManager(){
+  const state=useRoleStore(),snapshot=state.snapshot!,[name,setName]=useState(''),[selected,setSelected]=useState(''),[confirm,setConfirm]=useState(false),[error,setError]=useState('')
+  const {policy,actor}=snapshot,category=policy.categories.find(item=>item.id===selected)||policy.categories[0]
+  const allowed=can(policy,actor,'MANAGE_CHANNELS')&&state.status==='connected'&&!state.busy
+  return <div className="ct-role-layout"><aside><h3>Categorias</h3>{policy.categories.map(item=><button key={item.id} aria-current={category?.id===item.id?'true':undefined} onClick={()=>{setSelected(item.id);setConfirm(false)}}>{item.name}</button>)}<form onSubmit={async event=>{event.preventDefault();setError('');const id=crypto.randomUUID();try{await state.command({type:'role',command:{type:'category-create',id,name}});setName('');setSelected(id)}catch(error){setError(error instanceof Error?error.message:'Não foi possível criar a categoria.')}}}><input aria-label="Nome da nova categoria" placeholder="Nova categoria…" maxLength={100} value={name} onChange={event=>setName(event.target.value)}/><button disabled={!allowed||!name.trim()}>Criar categoria</button></form></aside><section>{category?<><h3>{category.name}</h3><ChannelPermissions key={category.id} category contextId={category.id}/>{confirm?<div role="alertdialog" aria-label="Confirmar exclusão da categoria"><p>Excluir {category.name}? Os canais serão mantidos, preservando suas permissões atuais.</p><button onClick={()=>setConfirm(false)} disabled={state.busy}>Cancelar</button><button className="ct-role-danger" disabled={!allowed} onClick={async()=>{setError('');try{await state.command({type:'role',command:{type:'category-delete',id:category.id}});setConfirm(false);setSelected('')}catch(error){setError(error instanceof Error?error.message:'Não foi possível excluir.')}}}>Excluir categoria</button></div>:<button className="ct-role-danger" disabled={!allowed} onClick={()=>setConfirm(true)}>Excluir categoria…</button>}</>:<p>Crie uma categoria para compartilhar regras entre seus canais.</p>}{error&&<p role="alert">{error}</p>}</section></div>
+}

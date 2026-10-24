@@ -1,8 +1,11 @@
 import { useState, useEffect, useRef } from 'react'
 import type { UpdateState } from '../types/desktop'
 import { useVoiceStore } from '../store/useVoiceStore'
+import { useNotificationStore } from '../store/useNotificationStore'
 
-export function UpdateNotification() {
+export function UpdateNotification({onOpenNotification}:{onOpenNotification?:(id:string)=>void}) {
+  const activity=useNotificationStore()
+  const unread=activity.entries.filter(entry=>!entry.read).length
   const [status, setStatus] = useState<'idle' | 'checking' | 'available' | 'downloading' | 'ready' | 'installing' | 'error'>('idle')
   const [version, setVersion] = useState<string>('')
   const [progress, setProgress] = useState<number>(0)
@@ -153,8 +156,8 @@ export function UpdateNotification() {
 
 
   return (
-    <div ref={container} className="ct-update-bell"><button aria-label="Notificações e atualizações" aria-expanded={!dismissed} aria-controls="ct-update-popup" onClick={()=>setDismissed(!dismissed)}><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9M10 21h4"/></svg>{['available','ready','error'].includes(status)&&<i/>}</button>{!dismissed&&<div id="ct-update-popup" role="dialog" aria-label="Atualizações" className="ct-update-popup">
-      <div className="flex items-start justify-between gap-3">
+    <div ref={container} className="ct-update-bell"><button aria-label="Notificações e atualizações" aria-expanded={!dismissed} aria-controls="ct-update-popup" onClick={()=>setDismissed(!dismissed)}><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9M10 21h4"/></svg>{['available','ready','error'].includes(status)&&<i/>}{unread>0&&<span className="ct-notification-badge">{unread>99?'99+':unread}</span>}</button>{!dismissed&&<div id="ct-update-popup" role="dialog" aria-label="Atualizações" className="ct-update-popup">
+      <section className="ct-notification-center" aria-label="Atividade no ConTALK"><header><strong>Notificações</strong><button disabled={!unread} onClick={activity.markAllRead}>Marcar tudo como lido</button></header><div className="ct-notification-items">{activity.entries.length?activity.entries.map(entry=><button key={entry.id} className={entry.read?'read':'unread'} onClick={()=>{activity.markRead(entry.id);onOpenNotification?.(entry.id);setDismissed(true)}}><strong>{entry.title}</strong><span>{entry.body}</span><small>{new Date(entry.createdAt).toLocaleString('pt-BR',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'})}</small></button>):<p>Nenhuma atividade por enquanto. Mensagens, amizades e chamadas aparecerão aqui.</p>}</div>{activity.entries.length>0&&<button onClick={activity.clear}>Limpar histórico</button>}</section><div className="flex items-start justify-between gap-3">
         <div className="w-10 h-10 rounded-xl bg-purple-600/20 border border-purple-500/30 flex items-center justify-center shrink-0 text-xl">
           {status === 'ready' ? '🎉' : status === 'downloading' ? '⏳' : status === 'error' ? '⚠️' : '🚀'}
         </div>

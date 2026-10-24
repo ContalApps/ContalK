@@ -12,7 +12,7 @@ export function createUpdateProgress(parent: BrowserWindow, state: () => UpdateS
   popup.webContents.once('did-finish-load', () => { if (!popup.isDestroyed()) { popup.webContents.send('update-state', state()); popup.show() } })
   void popup.loadFile(path.join(process.env.VITE_PUBLIC!, 'update-progress.html')).catch(() => { disposed = true; popup.destroy() })
   return {
-    send: (value: UpdateState) => { if (!popup.isDestroyed()) popup.webContents.send('update-state', value) },
+    send: (value: UpdateState) => { if (!popup.isDestroyed()&&!popup.webContents.isDestroyed()) popup.webContents.send('update-state', value) },
     destroy: () => { disposed = true; if (!popup.isDestroyed()) popup.destroy() },
   }
 }

@@ -1,0 +1,3 @@
+export const auditLabels:Record<string,string>={
+  'role.create':'Cargo criado','role.edit':'Cargo atualizado','role.delete':'Cargo excluído','role.move':'Ordem dos cargos alterada','role.assign':'Cargo atribuído','role.remove':'Cargo removido do membro','role.overwrite':'Permissões do canal atualizadas','role.category-create':'Categoria criada','role.category-delete':'Categoria excluída','role.category-link':'Categoria do canal alterada','role.timeout':'Restrição temporária atualizada','channel-create':'Canal criado','channel-rename':'Canal renomeado','channel-delete':'Canal excluído','message-send':'Mensagem enviada','message-edit':'Mensagem editada','message-delete':'Mensagem apagada','member.provision':'Membro provisionado',
+}

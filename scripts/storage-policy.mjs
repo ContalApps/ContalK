@@ -8,3 +8,8 @@ export function validDownload(key,id,expires,provided,now=Date.now()){
  return Number.isSafeInteger(expires)&&expires>=now&&typeof provided==='string'&&provided.length===expected.length&&timingSafeEqual(Buffer.from(provided),Buffer.from(expected))
 }
 export function storageOwner(tokens,token){return typeof token==='string'&&Object.hasOwn(tokens,token)&&typeof tokens[token]==='string'?tokens[token]:null}
+export const signScopedDownload=(key,id,expires,viewer)=>createHmac('sha256',key).update(JSON.stringify([id,expires,viewer])).digest('hex')
+export function validScopedDownload(key,id,expires,viewer,provided,now=Date.now()){
+ const expected=signScopedDownload(key,id,expires,viewer)
+ return Number.isSafeInteger(expires)&&expires>=now&&typeof viewer==='string'&&typeof provided==='string'&&provided.length===expected.length&&timingSafeEqual(Buffer.from(provided),Buffer.from(expected))
+}

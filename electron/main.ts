@@ -11,6 +11,8 @@ import { setupStorage } from './storage'
 import { setupTray } from './tray'
 import { setupUpdates } from './updates'
 import { setupTitleBar, titleBarOptions } from './title-bar'
+import { setupNotifications } from './notifications'
+import { setupCommunity } from './community'
 import { setupCaptureAudio } from './capture-audio'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
@@ -104,6 +106,7 @@ ipcMain.handle('auth-profile', (_event, profile) => {
 })
 
 function createWindow() {
+  if(process.platform==='win32')app.setAppUserModelId('com.contalk.app')
   const iconPath = path.join(process.env.VITE_PUBLIC!, 'app-icon.png')
 
   win = new BrowserWindow({
@@ -126,8 +129,10 @@ function createWindow() {
 
   setupUpdates(win)
   setupTitleBar(win)
+  setupNotifications(win)
   setupTray(win)
   setupStorage(win,()=>sessionUser)
+  setupCommunity(win,()=>sessionUser)
   setupCaptureAudio(win)
 
   // Test active push message to Renderer_process.

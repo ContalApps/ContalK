@@ -24,10 +24,10 @@ test('invalid saved settings fall back safely; failed saves do not pretend to pe
 test('interface scale is isolated per user, persists, and resets on logout',()=>{
  const f=fixture(),state=f.store.getState
  state().activate('alice');state().update({interfaceScale:80})
- state().activate('bob');assert.equal(state().interfaceScale,100);state().update({interfaceScale:125})
+ state().activate('bob');assert.equal(state().interfaceScale,100);state().update({interfaceScale:120})
  state().activate('alice');assert.equal(state().interfaceScale,80)
  state().update({theme:'vice-city'});assert.equal(state().interfaceScale,80)
- state().activate('bob');assert.equal(state().interfaceScale,125)
+ state().activate('bob');assert.equal(state().interfaceScale,120)
  state().activate(null);assert.equal(state().interfaceScale,100)
 })
 
@@ -48,4 +48,19 @@ test('title bar shortcuts default on and are saved separately for each account',
  state().activate('bob');assert.equal(state().titleBarSearch,true);assert.equal(state().titleBarHelp,true)
  state().activate('alice');assert.equal(state().titleBarSearch,false);assert.equal(state().titleBarHelp,false)
  state().update({theme:'vice-city'});assert.equal(state().titleBarSearch,false)
+})
+
+test('density accepts each integer from 80 to 120 and migrates the previous upper limit',()=>{
+ const f=fixture(),state=f.store.getState;state().activate('alice')
+ for(let value=80;value<=120;value++){state().update({interfaceScale:value});assert.equal(state().interfaceScale,value)}
+ assert.throws(()=>state().update({interfaceScale:121}),/Escala inválida/)
+ f.storage.set('contalk-preferences-v1:alice',JSON.stringify({interfaceScale:125}));state().activate('alice');assert.equal(state().interfaceScale,120)
+})
+
+test('role mention preferences persist independently from general notifications and other accounts',()=>{
+ const f=fixture(),state=f.store.getState
+ state().activate('alice');state().update({roleMentionNotifications:false})
+ assert.equal(state().systemNotifications,true)
+ state().activate('bob');assert.equal(state().roleMentionNotifications,true)
+ state().activate('alice');assert.equal(state().roleMentionNotifications,false)
 })

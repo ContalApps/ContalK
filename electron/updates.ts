@@ -1,6 +1,8 @@
 import { app, BrowserWindow, ipcMain } from 'electron'
 import { createUpdateProgress, startInstallProgress, finishInstallProgress } from './update-progress'
 import { createRequire } from 'node:module'
+import fs from 'node:fs'
+import path from 'node:path'
 import type { UpdateState } from '../src/types/desktop'
 
 // electron-updater is CommonJS; keep it external to the Vite main-process bundle.
@@ -9,6 +11,11 @@ const { autoUpdater } = require('electron-updater') as typeof import('electron-u
 
 export function setupUpdates(window: BrowserWindow) {
   let state: UpdateState = { status: 'idle', version: '', progress: 0 }
+  let closed=false
+  const logError=(error:unknown)=>{
+    try{const directory=app.getPath('logs');fs.mkdirSync(directory,{recursive:true});fs.appendFileSync(path.join(directory,'updates.log'),`${new Date().toISOString()} ${error instanceof Error?error.stack:String(error)}\n`)}catch{/* Logging must never block shutdown. */}
+  }
+  const show=()=>{if(!closed&&!window.isDestroyed())window.show()}
   let checking = false
   let downloading = false
   let manualCheck = false
@@ -18,11 +25,12 @@ export function setupUpdates(window: BrowserWindow) {
   window.webContents.once('did-finish-load', finishInstallProgress)
   const send = (next: Partial<UpdateState>) => {
     state = { ...state, ...next }
-    if (!window.isDestroyed()) { window.webContents.send('update-state', state); window.setProgressBar(state.status === 'downloading' ? state.progress / 100 : -1) }
+    if(closed)return
+    if (!window.isDestroyed()&&!window.webContents.isDestroyed?.()) { window.webContents.send('update-state', state); window.setProgressBar(state.status === 'downloading' ? state.progress / 100 : -1) }
     popup?.send(state)
   }
   const check = async (manual = false) => {
-    if (!app.isPackaged || checking || downloading || installing || state.status === 'ready') return state
+    if (closed || !app.isPackaged || checking || downloading || installing || state.status === 'ready') return state
     checking = true
     manualCheck = manual
     if (manual) send({ status: 'checking', error: undefined })
@@ -43,12 +51,12 @@ export function setupUpdates(window: BrowserWindow) {
       window.hide()
       setImmediate(() => {
         try { autoUpdater.quitAndInstall(true, true) }
-        catch (error) { installing = false; cancelInstallProgress?.(); cancelInstallProgress = undefined; window.show(); send({status:'error',error:error instanceof Error ? error.message : 'Falha ao iniciar o instalador.'}) }
+        catch (error) { installing = false; cancelInstallProgress?.(); cancelInstallProgress = undefined; show(); send({status:'error',error:error instanceof Error ? error.message : 'Falha ao iniciar o instalador.'}) }
       })
     } catch (error) {
       installing = false; cancelInstallProgress?.(); cancelInstallProgress = undefined
       send({status:'error',error:error instanceof Error ? error.message : 'Não foi possível iniciar a instalação.'})
-      window.show()
+      show()
       throw error
     }
   }
@@ -61,7 +69,8 @@ export function setupUpdates(window: BrowserWindow) {
   autoUpdater.on('download-progress', info => send({ status: 'downloading', progress: Math.round(info.percent) }))
   autoUpdater.on('update-downloaded', info => send({ status: 'ready', version: info.version, progress: 100, error: undefined }))
   autoUpdater.on('error', error => {
-    if (installing) { installing = false; cancelInstallProgress?.(); cancelInstallProgress = undefined; window.show(); send({status:'error',error:error.message}) }
+    logError(error)
+    if (installing) { installing = false; cancelInstallProgress?.(); cancelInstallProgress = undefined; show(); send({status:'error',error:error.message}) }
     else if (manualCheck || downloading) send({ status: 'error', error: error.message })
     else console.warn('Falha na verificação automática de atualização:', error.message)
   })
@@ -80,7 +89,7 @@ export function setupUpdates(window: BrowserWindow) {
       window.hide()
       await autoUpdater.downloadUpdate(); if (state.status === 'ready') await install()
     }
-    catch (error) { window.show(); send({ status: 'error', error: error instanceof Error ? error.message : 'Falha no download.' }); throw error }
+    catch (error) { show(); send({ status: 'error', error: error instanceof Error ? error.message : 'Falha no download.' }); throw error }
     finally { downloading = false }
   })
   ipcMain.handle('update-install', event => { trusted(event); return install() })
@@ -89,9 +98,13 @@ export function setupUpdates(window: BrowserWindow) {
   window.on('focus',()=>void check())
   const interval = setInterval(() => void check(), 5 * 60 * 1000)
   window.once('closed', () => {
+    closed=true
     clearTimeout(startup); clearInterval(interval)
     popup?.destroy()
     for (const channel of ['update-get-state', 'update-check', 'update-download', 'update-install']) ipcMain.removeHandler(channel)
     autoUpdater.removeAllListeners()
+    // Async updater errors can arrive after quitAndInstall destroys the window.
+    // EventEmitter 'error' without a listener produces a main-process JS dialog.
+    autoUpdater.on('error',logError)
   })
 }

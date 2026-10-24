@@ -39,6 +39,8 @@ export interface Message {
   editedAt?: number
   attachment?: Attachment
   userColor?: string
+  roleMentions?:string[]
+  mentionsEveryone?:'all'|'online'
 }
 
 interface AppState {

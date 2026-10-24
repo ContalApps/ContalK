@@ -23,4 +23,4 @@ A regra vale também para PRs de preparação de release: eles integram a mesma 
 - Manter a interface leve e minimalista, com espaços moderados, ícones SVG discretos e botões compactos. Usar texto acessível em aria-label/title nos controles por ícone.
 - Concentrar microfone, saída de áudio, câmera, compartilhamento e desconexão no card do usuário no canto inferior esquerdo; não recriar barras grandes de controles no palco de voz.
 - Canais exibem uma engrenagem para abrir configurações, inclusive pelo menu de contexto. Renomeação e exclusão ficam nesse painel; exclusão sempre requer confirmação separada, sem lixeira de acesso direto na lista.
-- Por enquanto qualquer membro pode administrar canais. Não apresentar cargos ou permissões individuais como disponíveis antes de implementá-los de fato.
+- No ConTALK HQ, por decisão explícita do usuário, todos os participantes são coproprietários nesta fase. O sistema de cargos deve conservar essa política inicial; não selecionar um proprietário exclusivo automaticamente. Não apresentar cargos ou permissões individuais como disponíveis antes de implementá-los de fato.
