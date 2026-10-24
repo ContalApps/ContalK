@@ -82,6 +82,7 @@ export function setupCentralCommunity(){
   }
   const stopRoles=useRoleStore.subscribe((state,previous)=>{
     if(state.owner!==previous.owner)restore()
+    if(state.connectionVersion!==previous.connectionVersion||(state.configured&&(!previous.configured||state.url!==previous.url)))void useVoiceStore.getState().leaveChannel()
     if(state.snapshot&&state.configured&&state.status==='connected')apply(state.snapshot)
   })
   const stopAuth=useAuthStore.subscribe((state,previous)=>{

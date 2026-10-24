@@ -1,15 +1,11 @@
-# ConTALK 0.1.14
+# ConTALK 0.1.15
 
-- Escala da interface com controle − / + e campo numérico de 80% a 120%, passos de um ponto e espera curta para evitar oscilações durante o ajuste.
-- Interface mais compacta: removidos o avatar da barra de título, o selo CALL, o cartão de informações do servidor e os nomes no rodapé das transmissões.
-- Listas de canais e membros recolhíveis, mantendo primeiras letras, avatares e indicador vermelho pulsante de transmissão.
-- Configurações pessoais, dispositivos e volumes individuais acessíveis pelo menu aberto com o botão direito sobre o perfil, inclusive em tela cheia.
-- Sino com mensagens, amizades, entradas na chamada, transmissões e atualizações; contadores de mensagens não lidas por canal e avisos do Windows configuráveis.
-- Animação da bandeja iniciada pelo estado de captura do microfone, sem aguardar detecção de fala. Menu da bandeja com controles de microfone e saída de áudio.
-- Corrigido o erro de JavaScript ao encerrar a janela durante a instalação de uma atualização, com tratamento de erros tardios do atualizador.
-- Editor de cargos com hierarquia, cores, ícones, atribuições, menções, prévia de permissões e auditoria; regras de canal e categorias sincronizáveis no modo de comunidade central.
-- Serviço de comunidade com autenticação individual, histórico persistente e paginado, validação de operações e integração com a autorização de anexos e tokens de voz.
+- A engrenagem do servidor permite acessar os cargos e configurar a comunidade mesmo antes de informar o endereço da VPS.
+- Tela de conexão com estado de configuração pendente. O endereço HTTPS e a chave individual podem ser informados posteriormente, sem recompilar o aplicativo.
+- Ao configurar ou trocar a conexão da comunidade, a presença é reconectada e a chamada anterior é encerrada para aplicar o acesso central. Alterações comuns de cargos não encerram a chamada.
+- Preparação da VPS com geração de chaves individuais, proteção contra substituição de configurações existentes e endereço inicialmente opcional.
+- Pacote de implantação com Docker Compose, volume persistente para cargos e histórico, verificação de saúde e proxy HTTPS. Inclui guia de configuração, backup e atualização.
 
-**Ativação dos cargos:** a hospedagem do serviço de comunidade e a migração das credenciais de voz serão tratadas posteriormente. Esta atualização não ativa esse serviço automaticamente. O HQ mantém a política inicial de copropriedade entre seus participantes. Recursos de plataforma ainda indisponíveis permanecem desabilitados.
+O ConTALK HQ mantém todos os participantes provisionados como coproprietários nesta fase. A publicação não implanta nem ativa a VPS automaticamente: o endereço, as credenciais privadas de voz e os serviços opcionais de arquivos serão configurados posteriormente.
 
-Validação: tipos, 110 testes automatizados, build de produção, testes de interface no Electron com dois clientes autenticados e revogação de permissões em um servidor LiveKit local real. O ciclo de atualização foi validado com dois instaladores Windows de teste isolados. A infraestrutura de produção dos cargos e o login da conta Telegram permanecem pendentes de configuração.
+Validação: tipos, 113 testes automatizados, build de produção e testes de interface no Electron. O serviço real foi iniciado a partir da configuração gerada, recebeu alterações de duas contas e preservou cargos, atribuições e auditoria após reiniciar. O fluxo sem endereço e a conexão pelo painel de cargos também foram validados. A execução do contêiner e a emissão de certificado serão conferidas na implantação da VPS.

@@ -1,0 +1,5 @@
+{$CONTALK_COMMUNITY_DOMAIN} {
+    reverse_proxy community:8789 {
+        flush_interval -1
+    }
+}
