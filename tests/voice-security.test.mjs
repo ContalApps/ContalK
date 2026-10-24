@@ -18,5 +18,6 @@ test('Coolify Compose preserves an external volume and keeps the TURN secret run
   assert.deepEqual(community.services.community.volumes, ['community_data:/app/data'])
   const turn = load(fs.readFileSync('deploy/voice/compose.yml', 'utf8')).services.turn
   assert.equal(turn.environment.CONTALK_TURN_SECRET, '${CONTALK_TURN_SECRET:-}')
-  assert.match(turn.command[0], /test -n "\$\$CONTALK_TURN_SECRET" &&/)
+  assert.match(turn.command[0], /test -n "\$\$CONTALK_TURN_SECRET" \|\| exit 1/)
+  assert.match(turn.command[0], /--relay-ip="\$\$relay_ip"/)
 })

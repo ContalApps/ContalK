@@ -12,16 +12,24 @@ services:
       CONTALK_TURN_PRIVATE_PEER_RANGE: ${CONTALK_TURN_PRIVATE_PEER_RANGE:-${CONTALK_MEDIA_PUBLIC_IP}}
     entrypoint: [/bin/sh, -ec]
     command:
-      - >-
-        test -n "$$CONTALK_TURN_SECRET" &&
-        exec turnserver -n --no-cli --no-tls --no-dtls --fingerprint --pidfile=/tmp/turnserver.pid
-        --use-auth-secret --static-auth-secret="$$CONTALK_TURN_SECRET"
-        --realm=contalapps.com.br --external-ip="$$CONTALK_MEDIA_PUBLIC_IP"
-        --listening-port=3478 --min-port=49160 --max-port=49200
-        --total-quota=32 --user-quota=8 --no-multicast-peers
-        --denied-peer-ip=0.0.0.0-255.255.255.255
-        --allowed-peer-ip="$$CONTALK_MEDIA_PUBLIC_IP"
-        --allowed-peer-ip="$$CONTALK_TURN_PRIVATE_PEER_RANGE" --log-file=stdout --simple-log
+      - |
+        test -n "$$CONTALK_TURN_SECRET" || exit 1
+        peer_start="$${CONTALK_TURN_PRIVATE_PEER_RANGE%%-*}"
+        peer_prefix="$${peer_start%.*}."
+        relay_ip=""
+        for address in $$(hostname -I); do
+          case "$$address" in "$$peer_prefix"*) relay_ip="$$address"; break;; esac
+        done
+        set --
+        if [ -n "$$relay_ip" ]; then set -- --relay-ip="$$relay_ip"; fi
+        exec turnserver "$$@" -n --no-cli --no-tls --no-dtls --fingerprint --pidfile=/tmp/turnserver.pid \
+          --use-auth-secret --static-auth-secret="$$CONTALK_TURN_SECRET" \
+          --realm=contalapps.com.br --external-ip="$$CONTALK_MEDIA_PUBLIC_IP" \
+          --listening-port=3478 --min-port=49160 --max-port=49200 \
+          --total-quota=32 --user-quota=8 --no-multicast-peers \
+          --denied-peer-ip=0.0.0.0-255.255.255.255 \
+          --allowed-peer-ip="$$CONTALK_MEDIA_PUBLIC_IP" \
+          --allowed-peer-ip="$$CONTALK_TURN_PRIVATE_PEER_RANGE" --log-file=stdout --simple-log
     ports:
       - "3478:3478/tcp"
       - "3478:3478/udp"
