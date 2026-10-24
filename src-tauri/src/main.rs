@@ -45,60 +45,6 @@ fn get_auth_db_path(app: &tauri::AppHandle) -> PathBuf {
 
 // ─── Comandos Tauri ────────────────────────────────────────────────
 
-const LIVEKIT_API_KEY: &str = "APIoDkLmBTDG5T5";
-const LIVEKIT_API_SECRET: &str = "ahn9v2PgmEIJCxM1QQARYd1j39r76pq4bWrVx7KFcnD";
-
-#[derive(Debug, Serialize, Deserialize)]
-pub struct LiveKitVideoGrant {
-    #[serde(rename = "roomJoin")]
-    pub room_join: bool,
-    pub room: String,
-    #[serde(rename = "canPublish")]
-    pub can_publish: bool,
-    #[serde(rename = "canSubscribe")]
-    pub can_subscribe: bool,
-    #[serde(rename = "canPublishData")]
-    pub can_publish_data: bool,
-    #[serde(rename = "canUpdateOwnMetadata")]
-    pub can_update_own_metadata: bool,
-}
-
-#[derive(Debug, Serialize, Deserialize)]
-pub struct LiveKitClaims {
-    pub iss: String,
-    pub sub: String,
-    pub name: String,
-    pub nbf: i64,
-    pub exp: i64,
-    pub video: LiveKitVideoGrant,
-}
-
-#[tauri::command]
-fn get_livekit_token(room: String, identity: String, name: String) -> Result<String, String> {
-    let now = chrono::Utc::now().timestamp();
-    let claims = LiveKitClaims {
-        iss: LIVEKIT_API_KEY.to_string(),
-        sub: identity,
-        name,
-        nbf: now - 5,
-        exp: now + 24 * 3600,
-        video: LiveKitVideoGrant {
-            room_join: true,
-            room,
-            can_publish: true,
-            can_subscribe: true,
-            can_publish_data: true,
-            can_update_own_metadata: true,
-        },
-    };
-    jsonwebtoken::encode(
-        &jsonwebtoken::Header::default(),
-        &claims,
-        &jsonwebtoken::EncodingKey::from_secret(LIVEKIT_API_SECRET.as_bytes()),
-    )
-    .map_err(|e| e.to_string())
-}
-
 #[tauri::command]
 async fn register(
     state: State<'_, AuthState>,
@@ -158,7 +104,6 @@ fn main() {
             check_session,
             logout,
             screen_capture::get_capture_sources,
-            get_livekit_token,
         ])
         .run(tauri::generate_context!())
         .expect("erro ao iniciar ConTALK");

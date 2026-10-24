@@ -1,4 +1,4 @@
-//! ContalSpeak Core - lógica de negócios, protocolos e integração com LiveKit.
+//! ContalSpeak Core - lógica de negócios, protocolos e autenticação.
 
 pub mod auth;
 

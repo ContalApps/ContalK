@@ -4,7 +4,7 @@ import { test } from 'node:test'
 import { loadTypescript } from './load-typescript.mjs'
 const user={username:'real-user',display_name:'Real user'}
 function deferred(){let resolve;const promise=new Promise(r=>{resolve=r});return {promise,resolve}}
-function fixture({metadataFailure=false,connectFailure=false,firstConnectGate,authority=null,authorityError=false,speak=true}={}) {
+function fixture({metadataFailure=false,connectFailure=false,firstConnectGate,authority={url:'wss://self-hosted.invalid',token:'test-token'},authorityError=false,speak=true}={}) {
  let state;const rooms=[];const container={innerHTML:'',appendChild(){},querySelectorAll:()=>[]}
  const create=init=>{const get=()=>state;const set=value=>{state={...state,...(typeof value==='function'?value(state):value)}};state=init(set,get);return {getState:get}}
  const events=new Proxy({},{get:(_,key)=>key})
@@ -17,11 +17,10 @@ function fixture({metadataFailure=false,connectFailure=false,firstConnectGate,au
  }
  const store=loadTypescript('src/store/useVoiceStore.ts',{
   '../roles/transport':{centralEnabled:()=>!!authority,centralAllows:()=>speak,centralVoiceToken:async()=>{if(authorityError)throw new Error('central denied');return authority}},
-  zustand:{create},'livekit-client':{Room,RoomEvent:events,ParticipantEvent:{IsSpeakingChanged:'IsSpeakingChanged'},Track:{Source:{Camera:'camera',ScreenShare:'screen',ScreenShareAudio:'screen-audio',Microphone:'microphone'},Kind:{Audio:'audio'}}},
-  '../../shared/livekit-grant.mjs':{roomGrant:()=>({})},
+  zustand:{create},'../media/realtime':{Room,RoomEvent:events,ParticipantEvent:{IsSpeakingChanged:'IsSpeakingChanged'},Track:{Source:{Camera:'camera',ScreenShare:'screen',ScreenShareAudio:'screen-audio',Microphone:'microphone'},Kind:{Audio:'audio'}}},
   '../media/microphone':{microphoneOptions:()=>({}),setSafeMicrophoneEnabled:async(room,enabled)=>{room.localParticipant.isMicrophoneEnabled=enabled;return 'test microphone'},publishSafeMicrophone:async room=>{room.localParticipant.isMicrophoneEnabled=true;return 'test microphone'}},
   '../media/screenShare':{stopScreenShare:async()=>{},startScreenShare:async()=>{}},
- },{window:{contalkDesktop:{getLiveKitToken:async()=> 'test-token'}},localStorage:{getItem:()=>null,setItem(){}},document:{getElementById:()=>container},console:{error(){},warn(){}}}).useVoiceStore
+ },{window:{},localStorage:{getItem:()=>null,setItem(){}},document:{getElementById:()=>container},console:{error(){},warn(){}}}).useVoiceStore
  return {store,rooms}
 }
 test('profile permission failure cannot disconnect a working voice call',async()=>{

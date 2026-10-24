@@ -42,7 +42,6 @@ const desktop: DesktopBridge = {
   unsubscribeCommunity:()=>ipcRenderer.invoke('community-unsubscribe'),
   onCommunityState:listener=>subscribe('community-state',listener),
   getDesktopSources: () => ipcRenderer.invoke('get-desktop-sources'),
-  getLiveKitToken: params => ipcRenderer.invoke('get-livekit-token', params),
   login: params => ipcRenderer.invoke('auth-login', params),
   register: params => ipcRenderer.invoke('auth-register', params),
   getUpdateState: () => ipcRenderer.invoke('update-get-state'),

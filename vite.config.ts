@@ -12,6 +12,7 @@ export default defineConfig({
     electron({
       main: {
         entry: 'electron/main.ts',
+        vite: { build: { emptyOutDir: true } },
       },
       preload: {
         input: path.join(__dirname, 'electron/preload.ts'),
@@ -28,6 +29,6 @@ export default defineConfig({
     port: 5173,
   },
   build: {
-    emptyOutDir: false,
+    emptyOutDir: true,
   },
 })

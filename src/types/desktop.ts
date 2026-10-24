@@ -49,7 +49,6 @@ export interface DesktopBridge {
   setTitleBarAppearance: (theme: 'classic' | 'vice-city', scale: number) => void
   isElectron: true
   getDesktopSources: () => Promise<DesktopSource[]>
-  getLiveKitToken: (params: { room: string; identity: string; name: string }) => Promise<string>
   login: (params: { identifier: string; password: string }) => Promise<any>
   register: (params: { username: string; email: string; password: string }) => Promise<any>
   getUpdateState: () => Promise<UpdateState>

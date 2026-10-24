@@ -42,3 +42,6 @@ native/bin/
 .storage-data/
 .community-data/
 .community-deploy/
+
+!.env.example
+!**/.env.example

@@ -43,30 +43,8 @@ Uploads novos nesse modo recebem acesso controlado. O autor conserva acesso ao o
 
 Arquivos anteriores à ativação conservam a política legada. Ativar os serviços não os torna privados retroativamente. O transporte binário permanece no Telegram; os testes de autorização usam os dois serviços HTTP reais com um provedor binário de teste. A autenticação e o envio real à conta Telegram ainda exigem configuração do administrador.
 
-## Voz central
+## Comunicação central
 
-O serviço pode receber credenciais privadas por estas variáveis:
+A presença usa WebSocket autenticado em /realtime; o backend emite tickets opacos de uso único com 30 segundos de validade. A mídia usa mediasoup, com autorização de publicação/recepção no servidor e fechamento das publicações quando permissões mudam. Não há assinatura de sala no desktop.
 
-```dotenv
-CONTALK_COMMUNITY_LIVEKIT_URL=wss://seu-projeto.livekit.cloud
-CONTALK_COMMUNITY_LIVEKIT_API_KEY=chave_privada_do_servidor
-CONTALK_COMMUNITY_LIVEKIT_API_SECRET=segredo_privado_do_servidor
-```
-
-Tokens de sala têm validade curta, identidade derivada da chave autenticada e fontes de publicação limitadas pelas permissões. O serviço usa a API administrativa para atualizar ou remover participantes ativos quando o acesso muda.
-
-O serviço também emite tokens de presença com identidade autenticada, sem permissão de publicar mídia. Alterações de permissões são reconciliadas com os participantes ativos. Enquanto a reconciliação estiver pendente, novos tokens de voz são recusados; o estado é indicado no editor. Expirações de timeout também são processadas sem exigir uma nova ação do usuário.
-
-O modo legado conserva a arquitetura anterior de emissão de tokens. A transição exige revogar as credenciais distribuídas anteriormente ou usar um novo projeto com credenciais privadas antes de tratar restrições de voz como proteção contra um cliente alterado. O aplicativo configurado solicita tokens centrais e não retorna ao modo legado quando o serviço recusa uma operação. A migração de produção permanece pendente.
-
-A revogação foi validada com o servidor LiveKit oficial local: retirar Falar interrompe a publicação e impede republicação; retirar Conectar desconecta e bloqueia novos tokens. No projeto Cloud atual, novas conexões receberam HTTP 429 com `connection minutes limit exceeded`. A [documentação oficial de cotas](https://docs.livekit.io/deploy/admin/quotas-and-limits/) descreve as restrições de franquia. O teste não altera o plano nem as cotas.
-
-## Validação
-
-`npm run verify` inclui testes HTTP com clientes autenticados, entrega de revisões por SSE, filtragem de canais privados, autoria, concorrência, persistência, auditoria e cálculo de permissões. Os testes de voz verificam a assinatura e as permissões dos tokens com o SDK instalado.
-
-`node tests/run-roles-ui-smoke.mjs` abre um Electron isolado e conecta o editor e a tela de chat ao serviço HTTP real de teste. Verifica a configuração cifrada no Windows, criação, edição, atribuição, sincronização, conflito de rascunho, confirmação de exclusão, auditoria, mensagens centrais, exclusão dos dados privados do cache compartilhado, regras de canal, categorias, agrupamento, cores e menções. Pode usar `ELECTRON_PATH` para selecionar um runtime local. Capturas e resultados ficam em `release/roles-ui-smoke`, ignorados pelo Git.
-
-`node tests/run-community-voice-smoke.mjs` é uma verificação opcional contra um SFU real. Recebe as três variáveis privadas de LiveKit apenas no processo de serviço, cria uma sala temporária, usa microfone sintético e tenta verificar a revogação de falar/conectar. O teste interrompe na checagem de franquia se o projeto estiver bloqueado; não aumenta cotas nem muda planos. Resultados sem credenciais ficam em `release/community-voice-smoke`.
-
-`node tests/run-local-community-voice-smoke.mjs` executa esse mesmo cenário com um servidor local descartável, sem consumir o projeto Cloud. Requer o executável oficial em `release/livekit-local/livekit-server.exe` ou `LIVEKIT_SERVER_PATH`. A validação utilizou [LiveKit v1.13.10](https://github.com/livekit/livekit/releases/tag/v1.13.10), pacote Windows amd64 com SHA-256 `fd4b7c2c3c1e4c71adaa4f6a046ad1c0abaaaf1e09fae904b35bf231ffae11d2`. O processo usa portas locais, chave de teste e configuração temporária, e é encerrado pelo teste. Resultado em `release/local-community-voice/result.json`.
+Veja [implantação Meteor/Coolify](meteor-voice.md) para variáveis, portas, manutenção e testes. O HQ conserva todos os membros como coproprietários. O teste isolado usa outro servidor lógico para validar negações sem modificar essa política.

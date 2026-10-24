@@ -34,7 +34,7 @@ O documento também descreve recursos específicos do ecossistema Discord: impul
 
 ## Autoridade e sincronização
 
-No modo legado, presença e mensagens usam transporte LiveKit entre clientes, e o cliente participa da emissão dos tokens de sala. Esconder botões não transforma esse transporte em uma autoridade confiável. No modo central, operações, destinatários e capacidades são validados no serviço que entrega mensagens, autorizações de arquivos, tokens de voz e mudanças administrativas. As restrições de canal impedem a entrega a destinatários sem acesso; a migração das credenciais legadas continua necessária para proteger a voz contra clientes antigos alterados.
+A comunicação atual usa WebSocket autenticado e SFU mediasoup. O backend aplica permissões de canal e encerra publicações/sessões ao revogar acesso; o teste isolado com quatro clientes verifica esse comportamento. Detalhes e limites de validação em [Meteor Cloud](meteor-voice.md).
 
 Para o HQ, a política atual de copropriedade permite administrar a estrutura sem escolher um dono arbitrário. Essa exceção não deve ser utilizada como prova de que servidores com propriedade restrita já estão seguros. A migração deve manter histórico, IDs dos canais e preferências existentes, registrar alterações administrativas e sobreviver à reconexão e a clientes com dados antigos.
 
@@ -46,6 +46,6 @@ Estado atual: o cálculo e os comandos foram ligados a um serviço HTTP autentic
 
 Os downloads novos podem ser vinculados à autoridade da comunidade: o serviço de arquivos revalida o acesso tanto ao emitir o link quanto ao entregar o conteúdo. Os testes HTTP cobrem revogação, links já emitidos, compartilhamento direto e tentativa de republicar um arquivo privado sem acesso. Arquivos legados preservam sua política anterior; esse comportamento não equivale à migração dos arquivos existentes.
 
-O teste com o LiveKit oficial executado localmente também passou: publicação de microfone sintético, interrupção ao revogar Falar, recusa de republicação, desconexão ao revogar Conectar e recusa de novo token. É uma validação com SFU real, isolado da produção. O projeto Cloud atual recusou novas conexões com HTTP 429 e `connection minutes limit exceeded`; essa restrição externa permanece.
+A comunicação atual usa WebSocket autenticado e SFU mediasoup. O backend aplica permissões de canal e encerra publicações/sessões ao revogar acesso; o teste isolado com quatro clientes verifica esse comportamento. Detalhes e limites de validação em [Meteor Cloud](meteor-voice.md).
 
 O usuário escolheu hospedar o serviço em uma VPS e informar o endereço posteriormente. O [pacote de implantação](community-vps.md) prepara configuração e chaves sem exigir o endereço, conserva os dados em volume e oferece proxy HTTPS. No aplicativo, a engrenagem do servidor permite configurar essa conexão posteriormente. Permanecem pendentes a implantação na VPS, a migração das credenciais de voz distribuídas nos clientes anteriores e a ativação em produção. O login real da conta Telegram ainda precisa ser configurado. Recursos de plataforma inexistentes permanecem identificados como indisponíveis; não foram simuladas integrações verificadas, assinaturas ou impulsionamentos. Consulte [a execução e validação do serviço](community-service.md).

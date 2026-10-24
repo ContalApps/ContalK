@@ -21,7 +21,7 @@ function fixture({ audioFailure = false, publicationFailure = false } = {}) {
     },
   }
   const api = loadTypescript('src/media/screenShare.ts', {
-    'livekit-client': { Track: { Source: { ScreenShare: 'screen', ScreenShareAudio: 'screen-audio' } }, AudioPresets: { musicStereo: {} } },
+    './realtime': { Track: { Source: { ScreenShare: 'screen', ScreenShareAudio: 'screen-audio' } }, AudioPresets: { musicStereo: {} } },
     './isolatedAudio': { captureIsolatedAudio: async (_id, onError) => { failed = onError; if (audioFailure) throw new Error('Isolated audio unavailable'); return { track: tracks[1], stop: async () => { audioStopped = true; tracks[1].stop() } } } },
   }, { window: { contalkDesktop: {} }, navigator: { mediaDevices: { getUserMedia: async constraints => { captureConstraints = constraints; return stream } } } })
   return { ...api, room, source, tracks, get audioStopped() { return audioStopped }, get constraints() { return captureConstraints }, fail: message => failed(message) }

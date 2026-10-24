@@ -1,0 +1,40 @@
+name: contalk-turn
+services:
+  turn:
+    image: coturn/coturn:4.7.0
+    restart: unless-stopped
+    environment:
+      CONTALK_TURN_SECRET: ${CONTALK_TURN_SECRET:?Set a new TURN secret}
+      CONTALK_MEDIA_PUBLIC_IP: ${CONTALK_MEDIA_PUBLIC_IP:?Set the public IPv4}
+    entrypoint: [/bin/sh, -ec]
+    command:
+      - >-
+        exec turnserver -n --no-cli --no-tls --no-dtls --fingerprint --pidfile=/tmp/turnserver.pid
+        --use-auth-secret --static-auth-secret="$$CONTALK_TURN_SECRET"
+        --realm=contalapps.com.br --external-ip="$$CONTALK_MEDIA_PUBLIC_IP"
+        --listening-port=3478 --min-port=49160 --max-port=49200
+        --total-quota=32 --user-quota=8 --no-multicast-peers
+        --denied-peer-ip=0.0.0.0-255.255.255.255
+        --allowed-peer-ip="$$CONTALK_MEDIA_PUBLIC_IP" --log-file=stdout --simple-log
+    ports:
+      - "3478:3478/tcp"
+      - "3478:3478/udp"
+      - "49160-49200:49160-49200/udp"
+    mem_limit: 256m
+    cpus: 0.5
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    read_only: true
+    tmpfs: [/tmp]
+    stop_grace_period: 30s
+    healthcheck:
+      test: [CMD-SHELL, "kill -0 1 && grep -qi ':0D96 ' /proc/net/udp"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    logging:
+      driver: json-file
+      options:
+        max-size: 10m
+        max-file: "3"

@@ -1,7 +1,7 @@
 import { create } from 'zustand'
-import { Room, RoomEvent } from 'livekit-client'
+import { Room, RoomEvent } from '../media/realtime'
 import { useAppStore } from './useAppStore'
-import { getLiveKitToken, useVoiceStore } from './useVoiceStore'
+import { useVoiceStore } from './useVoiceStore'
 import type { Attachment, MessageOptions } from './useAppStore'
 import type { User } from './useAuthStore'
 import { useFriendStore } from './useFriendStore'
@@ -27,7 +27,7 @@ export const useCommunityStore = create<{ members: Member[]; status: string; pro
     get().disconnect()
     const version = generation
     set({status:'connecting',profileError:null})
-    const connection = new Room({ adaptiveStream: false, dynacast: false })
+    const connection = new Room({ presence: true, tokenProvider: () => centralPresenceToken(user.display_name) })
     room = connection
     useFriendStore.getState().activate(user.username, async (username, packet) => {
       if(room !== connection || connection.state !== 'connected' || !connection.remoteParticipants.has(username)) throw new Error('Pessoa offline')
@@ -130,9 +130,10 @@ export const useCommunityStore = create<{ members: Member[]; status: string; pro
       if(version!==generation)return
       if(local) set({members:[...new Map([...get().members,...local.map(m=>({...m,online:false}))].map(m=>[m.username,m])).values()]})
       const authority=await centralPresenceToken(user.display_name)
-      const token=authority?.token||await getLiveKitToken('contalk-community-presence-v1',user.username,user.display_name)
+      if(!authority)throw new Error('Configure sua conexão com a comunidade.')
+      const token=authority.token
       if(version!==generation)return
-      await connection.connect(authority?.url||'wss://contalk-vwlfqz0q.livekit.cloud',token,{autoSubscribe:false})
+      await connection.connect(authority.url,token)
       if(version!==generation){await connection.disconnect();return}
       set({status:'online'});refresh()
       friendRetry = setInterval(() => { void useFriendStore.getState().flush(); void get().broadcastChannels().catch(()=>{}) }, 10000)

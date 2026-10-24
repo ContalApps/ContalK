@@ -7,7 +7,7 @@ function fixture(label='Microphone (USB Headset)') {
  const old={mediaStreamTrack:{label:'Old USB Microphone',readyState:'live'},async mute(){},async unmute(){}}
  let publication={track:old}
  const room={localParticipant:{getTrackPublication:()=>publication,async unpublishTrack(){removed++;publication=undefined},async publishTrack(t){published++;publication={track:t}}}}
- const api=loadTypescript('src/media/microphone.ts',{'livekit-client':{Track:{Source:{Microphone:'microphone'}},AudioPresets:{speech:{}},createLocalAudioTrack:async constraints=>{options=constraints;return track}}})
+ const api=loadTypescript('src/media/microphone.ts',{'./realtime':{Track:{Source:{Microphone:'microphone'}},AudioPresets:{speech:{}},createLocalAudioTrack:async constraints=>{options=constraints;return track}}})
  return {api,room,track,setLabel:value=>track.mediaStreamTrack.label=value,get stopped(){return stopped},get muted(){return muted},get published(){return published},get removed(){return removed},get options(){return options}}
 }
 test('recognizes known loopback inputs without rejecting physical microphones',()=>{

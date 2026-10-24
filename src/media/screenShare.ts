@@ -1,4 +1,4 @@
-import { Room, Track, AudioPresets } from 'livekit-client'
+import { Room, Track, AudioPresets } from './realtime'
 import { captureIsolatedAudio, type IsolatedAudio } from './isolatedAudio'
 
 export interface ShareOptions { audio: boolean; fps: number; resolution: string }

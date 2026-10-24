@@ -1,129 +1,25 @@
-# ConTALK 🎙️
+# ConTALK
 
-Detalhes da [tipografia variável, grade de transmissões e notificações de atualização](docs/interface-and-streams.md).
-Veja também a [barra de título com navegação e atalhos](docs/title-bar.md).
+Aplicativo Windows de comunicação para uma comunidade privada, com React/TypeScript, Electron, mensagens e cargos centrais e WebRTC auto-hospedado.
 
-Um aplicativo desktop de comunicação por voz e vídeo estilo Discord, construído com **Rust + Tauri + React** e usando **LiveKit** como SFU open-source.
+## Arquitetura e execução
 
-## Arquitetura
+O backend Node 24 mantém mensagens/cargos via HTTP e SSE, presença/dados via WebSocket autenticado e mídia via um worker mediasoup. O cliente usa mediasoup-client e captura nativa do navegador/Electron. Coturn fornece STUN/TURN com credenciais temporárias. Não há dependência de serviço de mídia Cloud, emissor anônimo de tokens ou segredo de servidor no aplicativo.
 
-- **Frontend:** React 19 + TypeScript + Tailwind CSS v4 + Vite
-- **Backend/Desktop:** Rust + Tauri v2
-- **Mídia (Voz/Vídeo/Stream):** LiveKit Server (SFU) via Docker
-- **Estado:** Zustand
-- **Protocolo:** WebRTC (via LiveKit SDK)
+Instale dependências com `npm ci`, valide com `npm run verify` e inicie com `npm run dev`. O cliente suportado para comunidade é Electron. O código Tauri legado conserva autenticação local, mas ainda não implementa a ponte de comunidade e não deve ser publicado como cliente equivalente.
 
-## Pré-requisitos
+Para preparar um backend de teste, execute `npm run community:setup -- --member seu_username`, configure o arquivo privado gerado conforme [.env.example](.env.example) e execute `npm run community:start`. Para teste local, use `CONTALK_REALTIME_URL=ws://127.0.0.1:8789/realtime` e IP de mídia 127.0.0.1. No aplicativo, conecte a comunidade com endereço HTTP loopback e a chave individual do username correspondente. Nenhuma conta demo é criada.
 
-- [Rust](https://rustup.rs/) (1.99+)
-- [Node.js](https://nodejs.org/) (20+)
-- [Docker Desktop](https://www.docker.com/products/docker-desktop/) (para o LiveKit Server)
+Instalação de produção, DNS, portas, preservação de volumes, rollback e aceite com quatro usuários: [Meteor Cloud / Coolify](docs/meteor-voice.md). Não use o Compose de produção sem identificar primeiro o volume já existente. `npm run build:electron` gera o instalador Windows; a publicação segue o fluxo abaixo.
 
-## Como Rodar
+## Validação
 
-### 1. Iniciar o LiveKit Server (SFU)
+- `npm run verify`: tipos e testes de permissões, mensagens, persistência, sessões WebSocket e controles.
+- `node tests/run-community-voice-smoke.mjs`: quatro clientes Electron isolados, worker real, mídia sintética, reconexão e revogação no servidor; sem contas/arquivos de produção.
+- `node scripts/verify-community-vps.mjs`: saúde pública; com `CONTALK_VERIFY_TOKEN`, identidade, snapshot e autenticação WebSocket. Não testa mídia da VPS.
 
-```bash
-docker compose up -d
-```
+Interface: [tipografia e transmissões](docs/interface-and-streams.md), [barra de título](docs/title-bar.md), [serviço de comunidade](docs/community-service.md).
 
-Isso sobe dois containers:
-- `contalspeak-livekit` — SFU na porta `7880`
-- `contalspeak-token-server` — Gerador de tokens JWT na porta `3001`
-
-### 2. Instalar dependências do frontend
-
-```bash
-npm install
-```
-
-### 3. Rodar em modo desenvolvimento
-
-**Opção A: App Desktop Completo (Tauri v2 + WebView2)**
-```bash
-npm run tauri dev
-```
-*(ou `npx tauri dev` / `cargo tauri dev` se você tiver o CLI global instalado)*
-
-**Opção B: Modo Web / Preview no Navegador**
-```bash
-npm run dev
-```
-Acesse `http://localhost:5173`. O app funciona tanto no desktop quanto diretamente no navegador com fallback de autenticação e conexão WebRTC LiveKit!
-
-### 4. Build de produção
-
-```bash
-npm run tauri build
-```
-
-O instalador `.exe` será gerado em `src-tauri/target/release/bundle/`.
-
-## Contas
-
-Crie sua conta na tela de cadastro. Não são criadas contas de demonstração.
-
-## Estrutura do Projeto
-
-```
-contalspeak/
-├── src/                    # Frontend React/TypeScript
-│   ├── App.tsx             # Layout principal estilo Discord
-│   ├── main.tsx            # Entry point do React
-│   └── index.css           # Tailwind CSS v4 + tema Discord
-├── src-tauri/              # Backend Rust/Tauri
-│   ├── src/main.rs         # Entry point do Tauri
-│   ├── tauri.conf.json     # Configuração do app
-│   └── icons/              # Ícones do app
-├── crates/
-│   └── contalspeak-core/   # Lógica de negócios compartilhada
-├── scripts/
-│   └── token-server.mjs    # Servidor de tokens JWT para dev
-├── docker-compose.yml      # LiveKit Server + Token Server
-├── livekit.yaml            # Configuração do LiveKit
-├── Cargo.toml              # Workspace Rust
-├── package.json            # Dependências do frontend
-└── vite.config.ts          # Configuração do Vite
-```
-
-## Endpoints de Desenvolvimento
-
-| Serviço | URL | Descrição |
-|---------|-----|-----------|
-| LiveKit SFU | `ws://localhost:7880` | WebSocket do SFU |
-| Token Server | `http://localhost:3001/token?room=geral&identity=user1` | Gera token JWT |
-| Health Check | `http://localhost:3001/health` | Status do token server |
-| Vite Dev | `http://localhost:5173` | Frontend em dev mode |
-
-## Credenciais de Desenvolvimento
-
-As credenciais padrão estão no `livekit.yaml` e `token-server.mjs`:
-- **API Key:** `devkey`
-- **API Secret:** `secret`
-
-⚠️ **Nunca use estas credenciais em produção.**
-
-## Funcionalidades Implementadas
-
-- [x] Autenticação SQLite local no Tauri v2 com hashing bcrypt e tokens JWT
-- [x] Fallback transparente para execução no navegador (`npm run dev`)
-- [x] Integração completa com LiveKit SFU WebRTC (`useVoiceStore`)
-- [x] Canais de voz em tempo real com indicador visual de fala (green ring)
-- [x] Controles de chamada: Mutar/Desmutar microfone, Ensurdecer, Câmera e Compartilhamento de Tela
-- [x] Palco de voz (`VoiceStage`) estilo Discord com grade de participantes
-- [x] Canais de texto interativos com envio de mensagens, cores de usuário e rolagem automática
-- [x] Servidor de tokens JWT com suporte assíncrono corrigido no LiveKit Server SDK
-- [x] Contas de teste pré-semeadas (`seed_users.py`)
-
-## Próximos Passos
-
-- [ ] Persistência de mensagens de chat em SQLite
-- [ ] Configurar servidor STUN/TURN público para conexões fora da rede local
-- [ ] Empacotamento final com instalador assinado (.msi/.exe)
-
-## Licença
-
-MIT
 ## Atualizações do Electron (Windows)
 
 O instalador Electron usa `electron-updater` com GitHub Releases. A verificação ocorre ao iniciar, a cada cinco minutos e ao focar a janela. O sino mostra a versão disponível e suas notas. Ao autorizar a atualização, o aplicativo baixa, instala silenciosamente e reabre; esse processo encerra chamadas e transmissões. A distribuição das atualizações usa o GitHub, independentemente do serviço de comunidade.
@@ -140,52 +36,13 @@ O empacotamento requer Windows x64, Visual Studio C++ Build Tools e Windows SDK 
 
 ## Áudio das transmissões
 
-O Electron captura vídeo sem áudio global. O helper `native/audio-capture/main.cpp` usa WASAPI process loopback para capturar somente a árvore do processo selecionado. Para monitores, enumera janelas visíveis no monitor predominante e atualiza a seleção a cada segundo, excluindo o processo do ConTALK e seus filhos. Janelas minimizadas não entram nessa seleção. O áudio capturado vai para uma faixa LiveKit separada, sem ser reproduzido localmente.
+O Electron captura vídeo sem áudio global. O helper `native/audio-capture/main.cpp` usa WASAPI process loopback para capturar somente a árvore do processo selecionado. Para monitores, enumera janelas visíveis no monitor predominante e atualiza a seleção a cada segundo, excluindo o processo do ConTALK e seus filhos. Janelas minimizadas não entram nessa seleção. O áudio capturado vai para uma faixa WebRTC separada, sem ser reproduzido localmente.
 
 É necessário Windows 10 build 20348 ou Windows 11. Janelas/abas do mesmo processo não podem ser isoladas umas das outras por esse método. Use compartilhamento de aba no navegador para áudio exclusivo de uma aba. Nunca há fallback para o som geral do computador; uma falha de captura aparece no seletor ou no palco de voz.
 
 `npm run verify` verifica tipos do frontend e do Electron, o buffer de áudio e a inicialização nativa. O teste nativo usa apenas o próprio processo do teste. Para validação em chamada real, teste dois participantes e duas telas: voz da chamada, som de um aplicativo na tela compartilhada e som de outro aplicativo na outra tela; verifique também mover/fechar janelas, iniciar/parar/reiniciar a transmissão e ensurdecer durante uma nova assinatura de áudio.
 
-## Perfis, presença e canais (0.1.3)
 
-A sala LiveKit `contalk-community-presence-v1` mantém a presença dos clientes autenticados sem abrir o microfone. Nome, avatar e descrição são compartilhados por metadados; canais e mensagens usam mensagens confiáveis de dados. Avatares são recortados no navegador para 160 × 160 e compactados em JPEG antes de serem salvos. O menu de botão direito nos ocupantes da barra esquerda controla o volume recebido e o silenciamento local.
+## Licença
 
-Não existe cadastro central de contas. Contas são armazenadas no computador; o diretório combina contas locais e pessoas conhecidas na presença. Clientes offline não recebem mensagens novas nem alterações imediatamente. Canais e histórico são persistidos no armazenamento local, e canais conhecidos são compartilhados ao conectar. Todos devem atualizar para a 0.1.3 para participar dessa sincronização. Um backend persistente ainda é necessário para cadastro global, histórico central, autenticação entre dispositivos e permissões de administração.
-
-Validação manual recomendada: conectar três contas em computadores diferentes; alterar foto e nome durante uma chamada; verificar entrada/saída e reconexão; criar um canal, abrir no outro computador e entrar em voz; usar o botão direito para ajustar o volume; reiniciar e confirmar que foto e canais continuam salvos.
-
-## Entrada do microfone (0.1.4)
-
-Use a engrenagem na barra inferior esquerda para selecionar o microfone físico. O botão de teste usa apenas uma captura local e um medidor; não conecta o áudio aos alto-falantes nem publica a captura no LiveKit. A captura de voz é independente da captura de tela, com mono, supressão de ruído, cancelamento de eco e ganho automático desativado. As entradas de loopback conhecidas são rejeitadas pelo nome antes da publicação. Essa detecção não substitui a escolha correta do dispositivo e não garante rejeição de todo mixer virtual existente.
-
-Para investigar vazamento do Discord sem transmissão: com fones, fique em silêncio enquanto outra pessoa fala no Discord e observe o medidor. Se ele reagir na entrada física correta, verifique o mixer/driver e o cabo/adaptador do headset. Não é possível separar com garantia vozes já misturadas pelo hardware na mesma entrada. O teste no equipamento afetado permanece necessário.
-
-## Regressões de conexão (0.1.5)
-
-Tokens de sala concedem `canUpdateOwnMetadata` por meio de `shared/livekit-grant.mjs` (Electron, navegador e servidor local); o Tauri usa o mesmo campo no JWT Rust. Não são concedidas permissões de administração. Atualizações de perfil não fazem parte do caminho crítico da conexão de voz/presença. Tentativas canceladas são descartadas por geração e conexões com falha são encerradas explicitamente.
-
-`node tests/run-live-smoke.mjs` executa um diagnóstico opt-in no LiveKit configurado, em sala temporária isolada: confirma conexão, nome/metadados, envio de dados, publicação/remoção de uma faixa de áudio silenciosa gerada e desconexão. Não abre microfone nem câmera, não entra na sala de presença e remove a sala temporária ao terminar. Requer acesso de rede e o runtime Electron instalado. Os testes sem rede estão em `npm run verify`.
-
-## Atualização silenciosa (0.1.6)
-
-O botão de atualizar autoriza o ciclo completo: baixar, instalar silenciosamente (`quitAndInstall(true, true)`) e reabrir. A janela Electron exibe progresso real durante o download. Antes de sair, o aplicativo copia o helper Win32 e a logo para uma pasta temporária, inicia a janela independente e salva um marcador de versão/evento no diretório de dados do usuário. A nova versão sinaliza a conclusão somente após carregar a janela principal. A instalação tem barra animada, pois NSIS não expõe uma porcentagem real ao atualizador.
-
-O hook `build/installer.nsh` converte apenas instalações `--updated` para silenciosas. Ele também mostra um indicador de instalação para clientes antigos que ainda chamam o instalador em modo interativo. Instalações manuais continuam com escolha de diretório. O helper usa evento nomeado e não instala arquivos; o instalador verificado pelo electron-updater continua responsável pela instalação. A ausência de confirmação após três minutos produz uma mensagem para verificar o aplicativo.
-
-O build nativo (`npm run build:audio`) compila os helpers de áudio e atualização. Os testes verificam as flags de instalação, o início automático após download, recuperação de falhas e o encerramento da janela independente por evento. A atualização completa sobre uma instalação existente não é executada automaticamente pelos testes.
-
-## Amizades e áudio da transmissão (0.1.7)
-
-`useFriendStore` mantém relações e uma fila de eventos por nome de usuário no armazenamento local. Solicitações só entram na lista de amigos após aceitar (solicitações simultâneas contam como aceitação mútua). Eventos usam IDs, confirmação de recebimento, deduplicação e ordem por destinatário; a presença LiveKit envia somente ao destinatário e fornece a identidade do remetente. O receptor persiste antes de confirmar. Pedidos sem confirmação são reenviados a cada dez segundos, na entrada de um participante e na reconexão. Não existe entrega com o aplicativo do remetente fechado nem sincronização entre dispositivos; ambos precisam estar em clientes 0.1.7+. `friendPeople` e `directPeople` mantêm membros do servidor separados das listas pessoais.
-
-Voz e transmissão usam controles locais independentes, com preferências separadas. Apenas publicações `ScreenShareAudio` recebem o volume da transmissão. `webAudioMix` ativa os ganhos Web Audio necessários para valores acima de 100%; ensurdecer aplica ganho zero às duas fontes e restaura as preferências ao sair. A prévia de vídeo fica sempre sem áudio para evitar reprodução duplicada. O áudio remoto é reproduzido apenas pelas faixas de áudio anexadas pela store.
-
-Diagnósticos opt-in: após `npm run build`, `node tests/run-ui-smoke.mjs` abre uma janela Electron oculta com dados temporários e confere listas, solicitações e controles da transmissão. As capturas ficam em `release/ui-smoke/`. `node tests/run-friend-live-smoke.mjs` abre dois clientes sem mídia em uma sala LiveKit isolada e temporária, verifica solicitação, aceitação, remoção e confirmação reais, e remove a sala ao terminar. Nenhum diagnóstico usa as contas ou chamadas atuais.
-
-## Preferências pessoais e exclusão de canais (0.1.9)
-
-A engrenagem abre `SettingsView`, com Aparência, Voz e áudio, Minha conta e Sobre. `usePreferencesStore` salva tema, movimento reduzido e escala do texto em `contalk-preferences-v1:<username>`. Preferências são carregadas antes de pintar a aplicação e aplicadas por atributos na raiz; não são enviadas pela presença. O tema Vice City usa uma ilustração SVG própria e uma paleta fosca de litoral ao entardecer, mantendo o tema clássico disponível.
-
-`removeChannel` remove o canal e o histórico local correspondente, registra uma exclusão persistente e seleciona outro canal ou um estado vazio. A confirmação de exclusão existe na interface; o modelo colaborativo de criação/remoção de canais continua sem funções de administração. Registros de exclusão são compartilhados em `community-channel-deletions-v1` antes dos anúncios de canais e reenviados a cada dez segundos, na entrada de participantes e na reconexão. Clientes novos recusam anúncios e mensagens para IDs excluídos e saem da chamada afetada. Clientes anteriores à 0.1.9 não tratam a exclusão; todos devem atualizar. A entrega depende de algum cliente com os dados salvos permanecer ou voltar online. Pacotes são divididos pelo tamanho UTF-8 para respeitar o limite do transporte confiável.
-
-O teste de interface também cobre configurações e exclusão do último canal. O diagnóstico LiveKit opt-in também verifica criação e exclusão entre clientes isolados, além das amizades. A correção do painel de volume recolhido da 0.1.8 permanece ativa.
+MIT
