@@ -1,6 +1,6 @@
 # Serviço de comunidade e cargos
 
-O serviço está implementado e validado localmente. No aplicativo configurado para a comunidade central, canais e mensagens usam a autoridade HTTP, a voz solicita tokens ao serviço e os arquivos novos podem usar autorização por canal. Clientes anteriores continuam no transporte legado até a migração. A ativação para todos ainda depende da hospedagem e da preparação das credenciais e serviços de produção.
+O serviço está implementado e validado localmente. No aplicativo configurado para a comunidade central, canais e mensagens usam a autoridade HTTP, a voz solicita tokens ao serviço e os arquivos novos podem usar autorização por canal. Clientes anteriores continuam no transporte legado até a migração. A hospedagem escolhida é uma VPS, com endereço a ser informado depois. O [pacote de implantação](community-vps.md) prepara o serviço sem exigir esse endereço agora; a ativação pública depende da implantação e da configuração posterior no aplicativo.
 
 ## Execução local
 
@@ -15,7 +15,7 @@ CONTALK_COMMUNITY_TOKENS='{"chave_aleatoria_individual_com_pelo_menos_32_caracte
 
 Gere uma chave aleatória diferente para cada pessoa com `node -e "console.log(require('node:crypto').randomBytes(32).toString('hex'))"`. As chaves identificam contas provisionadas pelo administrador; não há inscrição automática baseada apenas no nome informado por um cliente. Mais de uma chave pode apontar para a mesma conta, permitindo a transição entre dispositivos.
 
-Execute `npm run community:start`. Por padrão, o serviço só escuta neste computador. O serviço público deverá usar HTTPS e permanecer disponível para todos os participantes. Não foi escolhido ou implantado um provedor. Não inclua tokens, arquivos de dados ou credenciais privadas nos instaladores.
+Execute `npm run community:start`. Por padrão, o serviço só escuta neste computador. O serviço público deverá usar HTTPS e permanecer disponível para todos os participantes. Para preparar a VPS com chaves geradas, use `npm run community:setup -- --member username` e siga [o guia da VPS](community-vps.md). Nenhuma VPS foi acessada ou implantada nesta etapa. Não inclua tokens, arquivos de dados ou credenciais privadas nos instaladores.
 
 O arquivo `community.json` conserva cargos, atribuições, canais, regras, mensagens e auditoria. Cada operação exige a revisão atual; alterações concorrentes recebem conflito e devem ser recarregadas. A substituição do arquivo termina antes da publicação da nova revisão. SSE envia a cada cliente um retrato filtrado por suas próprias permissões. Canais privados, suas exceções e seu histórico não são entregues a membros sem acesso. O HQ começa com todos os membros provisionados como coproprietários, conforme a decisão do usuário; outras comunidades podem ter proprietários específicos.
 

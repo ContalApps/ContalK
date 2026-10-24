@@ -1,0 +1,14 @@
+**
+!package.json
+!package-lock.json
+!scripts/
+scripts/**
+!scripts/community-server.mjs
+!scripts/community/
+!scripts/community/**
+!src/
+src/**
+!src/roles/
+src/roles/**
+!src/roles/permissions.ts
+!src/roles/commands.ts

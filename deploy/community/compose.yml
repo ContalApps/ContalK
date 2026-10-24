@@ -1,0 +1,57 @@
+name: contalk-community
+
+services:
+  community:
+    build:
+      context: ../..
+      dockerfile: deploy/community/Dockerfile
+    init: true
+    restart: unless-stopped
+    env_file: ../../.community-deploy/.env
+    environment:
+      CONTALK_COMMUNITY_HOST: 0.0.0.0
+      CONTALK_COMMUNITY_PORT: "8789"
+      CONTALK_COMMUNITY_DATA: /app/data
+    ports:
+      - "127.0.0.1:8789:8789"
+    volumes:
+      - community_data:/app/data
+    read_only: true
+    tmpfs:
+      - /tmp
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    stop_grace_period: 30s
+    logging:
+      driver: json-file
+      options:
+        max-size: 10m
+        max-file: "3"
+
+  proxy:
+    image: caddy:2-alpine
+    profiles: [public]
+    restart: unless-stopped
+    environment:
+      CONTALK_COMMUNITY_DOMAIN: ${CONTALK_COMMUNITY_DOMAIN:-}
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      community:
+        condition: service_healthy
+    logging:
+      driver: json-file
+      options:
+        max-size: 10m
+        max-file: "3"
+
+volumes:
+  community_data:
+  caddy_data:
+  caddy_config:

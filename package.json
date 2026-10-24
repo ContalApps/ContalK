@@ -1,7 +1,7 @@
 {
   "name": "contalk",
   "private": true,
-  "version": "0.1.14",
+  "version": "0.1.15",
   "type": "module",
   "main": "dist-electron/main.js",
   "scripts": {
@@ -17,7 +17,8 @@
     "publish:electron": "node scripts/publish-electron.mjs",
     "storage:login": "node --env-file=.env.storage scripts/telegram-storage-server.mjs login",
     "storage:start": "node --env-file=.env.storage scripts/telegram-storage-server.mjs",
-    "community:start": "node --env-file=.env.community scripts/community-server.mjs"
+    "community:start": "node --env-file=.env.community scripts/community-server.mjs",
+    "community:setup": "node scripts/community-setup.mjs"
   },
   "build": {
     "appId": "com.contalk.app",

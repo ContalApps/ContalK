@@ -240,6 +240,7 @@ export function createCommunityService({ tokens, storage, initialState, voice, f
       const authorization = request.headers.authorization || ''
       const token = authorization.startsWith('Bearer ') ? authorization.slice(7) : ''
       const url = new URL(request.url, 'http://localhost')
+      if(request.method==='GET'&&url.pathname==='/health'){json(response,200,{service:'ConTALK Community',status:'ok'});return}
       if(request.method==='POST'&&url.pathname==='/internal/files/authorize'){
         requireValue(validInternalToken(token,internalToken),'Origem interna inválida.',401)
         const {username,storageId}=await readBody(request)

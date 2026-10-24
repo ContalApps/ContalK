@@ -8,6 +8,7 @@ interface RoleState {
   serverId:string|null
   configured:boolean
   url:string
+  connectionVersion:number
   status:'off'|'loading'|'connected'|'error'
   snapshot:CommunitySnapshot|null
   error:string
@@ -24,7 +25,7 @@ interface RoleState {
 let generation=0
 let unsubscribe:(()=>void)|undefined
 export const useRoleStore=create<RoleState>((set,get)=>({
-  owner:null,serverId:null,configured:false,url:'',status:'off',snapshot:null,error:'',busy:false,olderMessages:{},historyMore:{},historyBusy:false,
+  owner:null,serverId:null,configured:false,url:'',connectionVersion:0,status:'off',snapshot:null,error:'',busy:false,olderMessages:{},historyMore:{},historyBusy:false,
   activate:async(owner,serverId='srv-1')=>{
     const current=get()
     if(owner===current.owner&&serverId===current.serverId)return
@@ -57,7 +58,7 @@ export const useRoleStore=create<RoleState>((set,get)=>({
     if(!owner)throw new Error('Entre no ConTALK.')
     await bridge.configureCommunity(value)
     if(version!==generation)return
-    set({owner:null,serverId:null})
+    set({owner:null,serverId:null,connectionVersion:get().connectionVersion+1})
     await get().activate(owner,serverId||'srv-1')
   },
   command:async action=>{
