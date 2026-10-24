@@ -8,7 +8,7 @@ const host = process.env.CONTALK_COMMUNITY_HOST || '127.0.0.1'
 const port = Number(process.env.CONTALK_COMMUNITY_PORT || 8789)
 if (!Number.isInteger(port) || port < 1 || port > 65535) throw new Error('Porta do serviço inválida.')
 const tokens = JSON.parse(process.env.CONTALK_COMMUNITY_TOKENS || '{}')
-const voice = process.env.CONTALK_REALTIME_URL ? createCommunityVoice({ url:process.env.CONTALK_REALTIME_URL, announcedAddress:process.env.CONTALK_MEDIA_PUBLIC_IP, mediaPort:Number(process.env.CONTALK_MEDIA_PORT || 40000), turnUrls:(process.env.CONTALK_TURN_URLS || '').split(',').filter(Boolean), turnSecret:process.env.CONTALK_TURN_SECRET }) : undefined
+const voice = process.env.CONTALK_REALTIME_URL ? createCommunityVoice({ url:process.env.CONTALK_REALTIME_URL, announcedAddress:process.env.CONTALK_MEDIA_PUBLIC_IP, mediaPort:Number(process.env.CONTALK_MEDIA_PORT || 40000), turnUrls:(process.env.CONTALK_TURN_URLS || '').split(',').filter(Boolean), turnSecret:process.env.CONTALK_TURN_SECRET, exposeInternalIp:process.env.CONTALK_MEDIA_EXPOSE_INTERNAL_IP === 'true' }) : undefined
 const internalToken=process.env.CONTALK_COMMUNITY_INTERNAL_TOKEN
 const files=process.env.CONTALK_COMMUNITY_STORAGE_URL?createFileReferenceClient({url:process.env.CONTALK_COMMUNITY_STORAGE_URL,token:internalToken}):undefined
 const service = createCommunityService({

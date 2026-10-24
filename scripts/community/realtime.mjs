@@ -1,5 +1,6 @@
 import { randomBytes, createHmac } from 'node:crypto'
 import { isIP } from 'node:net'
+import { networkInterfaces } from 'node:os'
 import { WebSocketServer } from 'ws'
 import { createWorker } from 'mediasoup'
 import { can } from '../../src/roles/permissions.ts'
@@ -9,7 +10,12 @@ export function voicePermissions(policy, actor, channel) {
   const connect = can(policy, actor, 'VIEW_CHANNEL', channel) && can(policy, actor, 'CONNECT', channel)
   return { canSubscribe: connect, canPublishSources: connect ? sources.filter(source => can(policy, actor, source === 'microphone' ? 'SPEAK' : 'STREAM', channel)) : [] }
 }
-export function createCommunityVoice({ url, announcedAddress = '127.0.0.1', mediaPort = 40000, turnUrls = [], turnSecret, createMediaWorker = createWorker }) {
+export function mediaListenInfos({ announcedAddress, mediaPort, exposeInternalIp = false, interfaces = networkInterfaces() }) {
+  const ip = exposeInternalIp ? Object.values(interfaces).flat().find(info => info?.family === 'IPv4' && !info.internal)?.address : '0.0.0.0'
+  if (!ip) throw new Error('Nenhum endereço IPv4 interno disponível para a mídia.')
+  return ['udp', 'tcp'].map(protocol => ({ protocol, ip, announcedAddress, exposeInternalIp, port: mediaPort }))
+}
+export function createCommunityVoice({ url, announcedAddress = '127.0.0.1', mediaPort = 40000, turnUrls = [], turnSecret, exposeInternalIp = false, createMediaWorker = createWorker }) {
   const endpoint = new URL(url)
   if (!['wss:', 'ws:'].includes(endpoint.protocol) || endpoint.protocol === 'ws:' && !['127.0.0.1', 'localhost', '[::1]'].includes(endpoint.hostname) || endpoint.username || endpoint.password || endpoint.search || endpoint.hash) throw new Error('Use um endereço WSS público para a sinalização.')
   if (!Number.isInteger(mediaPort) || mediaPort < 1024 || mediaPort > 65535) throw new Error('Porta de mídia inválida.')
@@ -51,7 +57,7 @@ export function createCommunityVoice({ url, announcedAddress = '127.0.0.1', medi
     if (!workerPromise) workerPromise = (async () => {
       worker = await createMediaWorker({ logLevel: 'warn' })
       worker.on('died', () => { for (const session of sessions) session.socket.close(1011, 'Media unavailable'); workerPromise = undefined; worker = undefined; rtcServer = undefined; rooms.clear() })
-      rtcServer = await worker.createWebRtcServer({ listenInfos: ['udp', 'tcp'].map(protocol => ({ protocol, ip: '0.0.0.0', announcedAddress, port: mediaPort })) })
+      rtcServer = await worker.createWebRtcServer({ listenInfos: mediaListenInfos({ announcedAddress, mediaPort, exposeInternalIp }) })
     })().catch(error => { worker?.close(); workerPromise = undefined; throw error })
     await workerPromise
     if (!rooms.has(name) && !roomPromises.has(name)) roomPromises.set(name, (async () => {

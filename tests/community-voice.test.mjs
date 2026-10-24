@@ -2,7 +2,7 @@ import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { once } from 'node:events'
 import { WebSocket } from 'ws'
-import { createCommunityVoice, voicePermissions } from '../scripts/community/realtime.mjs'
+import { createCommunityVoice, voicePermissions, mediaListenInfos } from '../scripts/community/realtime.mjs'
 import { createCommunityService, createCommunityState } from '../scripts/community/service.mjs'
 import { initialPolicy, mask } from '../src/roles/permissions.ts'
 
@@ -18,6 +18,13 @@ test('sources are granted independently and unknown identities cannot connect', 
 
 test('insecure remote signaling URLs are rejected', () => {
   for (const url of ['ws://remote.invalid/realtime','wss://user:pass@remote.invalid/realtime','wss://remote.invalid/realtime?secret=x']) assert.throws(() => createCommunityVoice({url}),/WSS/)
+})
+
+test('private relay candidates use a real IPv4 interface while retaining the public announcement', () => {
+  const config = { announcedAddress:'203.0.113.10',mediaPort:40000,interfaces:{lo:[{family:'IPv4',internal:true,address:'127.0.0.1'}],eth0:[{family:'IPv6',internal:false,address:'::1'},{family:'IPv4',internal:false,address:'10.0.1.3'}]} }
+  assert.ok(mediaListenInfos(config).every(info=>info.ip==='0.0.0.0'&&!info.exposeInternalIp))
+  assert.ok(mediaListenInfos({...config,exposeInternalIp:true}).every(info=>info.ip==='10.0.1.3'&&info.announcedAddress==='203.0.113.10'&&info.exposeInternalIp))
+  assert.throws(()=>mediaListenInfos({...config,interfaces:{},exposeInternalIp:true}),/IPv4 interno/)
 })
 
 test('real WebSocket tickets are single use, enforce identity, four-person limit, targeted data and CONNECT revocation', async t => {
