@@ -1,11 +1,13 @@
-# ConTALK 0.1.15
+# ConTALK 0.1.16
 
-- A engrenagem do servidor permite acessar os cargos e configurar a comunidade mesmo antes de informar o endereço da VPS.
-- Tela de conexão com estado de configuração pendente. O endereço HTTPS e a chave individual podem ser informados posteriormente, sem recompilar o aplicativo.
-- Ao configurar ou trocar a conexão da comunidade, a presença é reconectada e a chamada anterior é encerrada para aplicar o acesso central. Alterações comuns de cargos não encerram a chamada.
-- Preparação da VPS com geração de chaves individuais, proteção contra substituição de configurações existentes e endereço inicialmente opcional.
-- Pacote de implantação com Docker Compose, volume persistente para cargos e histórico, verificação de saúde e proxy HTTPS. Inclui guia de configuração, backup e atualização.
+- Comunicação de voz, câmera e compartilhamento migrada para WebRTC auto-hospedado com mediasoup. Removidos LiveKit Cloud, SDKs e credenciais privadas do aplicativo.
+- Sessões autenticadas pela comunidade com tickets temporários de uso único, limite de quatro participantes e permissões de mídia aplicadas no servidor.
+- Reconexão com novos tickets e transportes; sair durante a recuperação encerra a captura do microfone.
+- Preservados controles compactos, áudio isolado das transmissões, mensagens, cargos e política de coproprietários do HQ.
+- Configuração Coolify com preservação explícita do volume existente, coturn, documentação de portas, implantação, testes e rollback.
 
-O ConTALK HQ mantém todos os participantes provisionados como coproprietários nesta fase. A publicação não implanta nem ativa a VPS automaticamente: o endereço, as credenciais privadas de voz e os serviços opcionais de arquivos serão configurados posteriormente.
+Esta versão exige o backend de comunidade atualizado e as novas configurações de mídia da VPS. Clientes antigos não são compatíveis com o novo protocolo; atualize os quatro clientes junto do backend. A release do aplicativo não configura automaticamente Coolify, firewall, TURN ou armazenamento de anexos.
 
-Validação: tipos, 113 testes automatizados, build de produção e testes de interface no Electron. O serviço real foi iniciado a partir da configuração gerada, recebeu alterações de duas contas e preservou cargos, atribuições e auditoria após reiniciar. O fluxo sem endereço e a conexão pelo painel de cargos também foram validados. A execução do contêiner e a emissão de certificado serão conferidas na implantação da VPS.
+As contas, senhas com hash e perfis ainda são locais ao computador. Mensagens dos canais e cargos persistem no volume da comunidade; anexos dependem do serviço separado de arquivos/Telegram já previsto. Não há migração para contas centrais nesta versão.
+
+Validação: tipos e build aprovados; 109 testes aprovados e 3 ignorados; quatro clientes Electron com worker real, mídia sintética, RTP, reconexão, permissões e encerramento da captura; interface Electron aprovada. Rede externa, TURN, áudio físico e volumes reais da VPS ainda precisam de validação no ambiente publicado. Credenciais antigas expostas precisam ser revogadas pelo responsável.

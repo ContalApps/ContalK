@@ -67,7 +67,7 @@ No painel, confirmar nos dois recursos Git: GitHub App instalada, repositório C
 
 O workflow release.yml preserva Windows/Node 24, tipos/testes, helpers, instalador, blockmap e latest.yml. electron-updater continua usando GitHub Releases. A nova arquitetura muda o protocolo de mídia: clientes antigos não são compatíveis; atualize backend e os quatro clientes em uma janela coordenada. Push em main não publica o instalador.
 
-Este trabalho abre PR para revisão: não inclui merge, tag ou release. Na próxima publicação estável, incrementar consistentemente package/package-lock, Cargo workspace/lock e Tauri, escrever notas e publicar tag no commit integrado à main. Confirmar instalador, blockmap e latest.yml públicos/latest antes de dizer que há atualização disponível. Nunca substituir instalador publicado.
+Após a autorização posterior do usuário, esta entrega prepara a versão estável 0.1.16 com versões consistentes, notas, merge, tag e release Windows. Publicar a tag no commit integrado à main. Confirmar instalador, blockmap e latest.yml públicos/latest antes de dizer que há atualização disponível. Nunca substituir instalador publicado.
 
 Rollback: selecionar imagem/commit anterior saudável no Coolify preservando EXATAMENTE a montagem e as variáveis atuais; reverter worker/backend junto com cliente compatível. Salas e tickets são efêmeros, mensagens/cargos ficam no volume. Não usar down -v, prune ou reinstalação que remova volume. Restaurar backup somente com destino confirmado e serviço parado. Reverter ao cliente com assinatura exposta reintroduziria a falha de segurança; prefira nova versão corretiva. Não alterar histórico Git nem revogar credenciais sem aprovação.
 

@@ -26,6 +26,6 @@ Os tickets e chaves dos testes são aleatórios e isolados, armazenados somente 
 - Acesso privado ao Coolify/SSH e autenticação real de produção: nenhuma credencial disponível nesta sessão. GitHub App, webhooks, portas, volumes e rollback da VPS não foram inspecionados ou modificados.
 - Mídia externa e relay TURN/NAT na Meteor; TLS e Upgrade WebSocket em produção; quatro computadores/redes reais; microfones, alto-falantes, câmera e áudio isolado WASAPI físicos.
 - Build Rust/Tauri: Cargo indisponível; Tauri não implementa a ponte de comunidade usada pelo cliente Electron. Removida apenas a assinatura privada antiga.
-- Instalador Windows, merge, tag e release: não solicitados para execução nesta etapa de PR para revisão. A versão continua 0.1.15, sem substituir ou publicar artefatos dessa versão. A próxima publicação exige incremento e validação completos conforme AGENTS.md.
+- Publicação Windows 0.1.16 autorizada posteriormente pelo usuário: instalador, merge, tag e release serão validados pelo workflow de release. Não substituir artefatos 0.1.15. A aprovação local não confirma a conclusão dessa publicação.
 
 Procedimentos para concluir essas etapas, variáveis, portas, rollback e teste com quatro pessoas estão em [Meteor Cloud](meteor-voice.md). A correção local não significa que a VPS ou uma atualização do aplicativo já foram publicadas.
