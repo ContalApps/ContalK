@@ -39,4 +39,4 @@ services:
 volumes:
   community_data:
     external: true
-    name: ${CONTALK_EXISTING_COMMUNITY_VOLUME:?Exact existing volume name required}
+    name: ${CONTALK_EXISTING_COMMUNITY_VOLUME}

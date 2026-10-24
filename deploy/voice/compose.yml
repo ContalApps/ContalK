@@ -4,11 +4,13 @@ services:
     image: coturn/coturn:4.7.0
     restart: unless-stopped
     environment:
-      CONTALK_TURN_SECRET: ${CONTALK_TURN_SECRET:?Set a new TURN secret}
+      # Runtime-only: Compose also evaluates this file while preparing the deployment.
+      CONTALK_TURN_SECRET: ${CONTALK_TURN_SECRET:-}
       CONTALK_MEDIA_PUBLIC_IP: ${CONTALK_MEDIA_PUBLIC_IP:?Set the public IPv4}
     entrypoint: [/bin/sh, -ec]
     command:
       - >-
+        test -n "$$CONTALK_TURN_SECRET" &&
         exec turnserver -n --no-cli --no-tls --no-dtls --fingerprint --pidfile=/tmp/turnserver.pid
         --use-auth-secret --static-auth-secret="$$CONTALK_TURN_SECRET"
         --realm=contalapps.com.br --external-ip="$$CONTALK_MEDIA_PUBLIC_IP"
