@@ -1,13 +1,11 @@
-# ConTALK 0.1.16
+# ConTALK 0.1.17
 
-- Comunicação de voz, câmera e compartilhamento migrada para WebRTC auto-hospedado com mediasoup. Removidos LiveKit Cloud, SDKs e credenciais privadas do aplicativo.
-- Sessões autenticadas pela comunidade com tickets temporários de uso único, limite de quatro participantes e permissões de mídia aplicadas no servidor.
-- Reconexão com novos tickets e transportes; sair durante a recuperação encerra a captura do microfone.
-- Preservados controles compactos, áudio isolado das transmissões, mensagens, cargos e política de coproprietários do HQ.
-- Configuração Coolify com preservação explícita do volume existente, coturn, documentação de portas, implantação, testes e rollback.
+- Corrigida a implantação na VPS com mediasoup e coturn, incluindo a rede privada de mídia e a seleção da interface do relay.
+- Ajustada a configuração Compose do Coolify para preservar o volume existente da comunidade e carregar as variáveis de implantação corretamente.
+- Mantida a autenticação de mídia por tickets temporários e credenciais TURN geradas pelo servidor.
 
-Esta versão exige o backend de comunidade atualizado e as novas configurações de mídia da VPS. Clientes antigos não são compatíveis com o novo protocolo; atualize os quatro clientes junto do backend. A release do aplicativo não configura automaticamente Coolify, firewall, TURN ou armazenamento de anexos.
+O protocolo do aplicativo permanece compatível com a versão 0.1.16. Esta publicação acompanha as correções de infraestrutura; o instalador sozinho não configura a VPS.
 
 As contas, senhas com hash e perfis ainda são locais ao computador. Mensagens dos canais e cargos persistem no volume da comunidade; anexos dependem do serviço separado de arquivos/Telegram já previsto. Não há migração para contas centrais nesta versão.
 
-Validação: tipos e build aprovados; 109 testes aprovados e 3 ignorados; quatro clientes Electron com worker real, mídia sintética, RTP, reconexão, permissões e encerramento da captura; interface Electron aprovada. Rede externa, TURN, áudio físico e volumes reais da VPS ainda precisam de validação no ambiente publicado. Credenciais antigas expostas precisam ser revogadas pelo responsável.
+Validação: tipos, 111 testes aprovados (três ignorados) e build frontend/Electron aprovados. Na VPS, quatro clientes Electron trocaram mídia sintética por conexão direta e relay TURN forçado, em UDP e TCP, com reconexão. O volume existente foi preservado. Microfones físicos, captura WASAPI e quatro redes independentes ainda precisam de teste com os participantes. O instalador Windows é gerado pelo workflow de release.

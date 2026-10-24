@@ -1,6 +1,20 @@
 # Relatório de validação — 24/10/2026
 
-Branch de correção: `codex/corrigir-comunicacao-vps`, criada conforme autorização posterior do usuário. Base: `b821d90`; árvore inicialmente limpa e branches remotas `main`/`dev/caliari` no mesmo commit.
+Branch de trabalho final: `dev/caliari`, conforme as regras atuais do projeto. A migração inicial partiu de `b821d90` em uma branch temporária autorizada anteriormente.
+
+## Validação posterior na VPS — 24/10/2026
+
+Esta seção atualiza as pendências do relatório inicial abaixo.
+
+- MCP Coolify autenticado, inclusive leitura de logs após atualização do token. Comunidade e TURN implantados pelo GitHub App, com webhook para `main` e healthchecks saudáveis.
+- A mesma aplicação da comunidade usa Compose com o volume externo `contalk-community-data` em `/app/data`. Comparação autenticada antes/depois: revisão 0, mesmos sete IDs de canais, mesmo hash da política/cargos, um cargo e zero mensagens. Os testes de mídia não alteraram esses dados.
+- HTTPS e autenticação HTTP/WebSocket de produção aprovados. Quatro identidades já provisionadas foram usadas em renderers Electron isolados, conectados à VPS pública.
+- Mediasoup direto por UDP e TCP aprovado. Coturn com relay forçado por UDP e por TCP aprovado: quatro clientes, microfones sintéticos, câmera, tela com áudio, RTP recebido, mute/unmute e reconexão.
+- Coturn compartilha a rede privada da comunidade, permite peers somente nos endereços configurados e seleciona a interface dessa rede para o relay. O Chromium pode reportar o endereço privado do relay como `prflx`: o diagnóstico correlaciona porta/protocolo com a alocação TURN e exige `iceTransportPolicy: relay` e RTP recebido.
+- Tipos aprovados; 114 testes, 111 aprovados e três ignorados. Build frontend/Electron aprovado, com o aviso existente de chunk acima de 500 kB.
+- Release 0.1.16 já publicada. A versão 0.1.17 acompanha as correções de implantação; confirmar a publicação e os três artefatos pelo workflow antes de anunciar atualização disponível.
+
+Ainda pendentes: teste humano com quatro computadores/redes, microfone/câmera físicos e captura WASAPI. TURN usa 3478 UDP/TCP, sem TLS em 443; redes que bloqueiam também essa porta podem precisar de uma extensão de infraestrutura. As contas e perfis continuam locais; esta entrega não centraliza contas nem cria armazenamento de anexos. Build Rust/Tauri não foi executado localmente por ausência de Cargo.
 
 ## Executado nesta sessão
 
