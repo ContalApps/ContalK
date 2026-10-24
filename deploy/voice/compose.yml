@@ -7,6 +7,9 @@ services:
       # Runtime-only: Compose also evaluates this file while preparing the deployment.
       CONTALK_TURN_SECRET: ${CONTALK_TURN_SECRET:-}
       CONTALK_MEDIA_PUBLIC_IP: ${CONTALK_MEDIA_PUBLIC_IP:?Set the public IPv4}
+      # Restrict this to the dedicated SFU Docker subnet when hairpin NAT uses
+      # its private address. Without it, only the public SFU IPv4 is allowed.
+      CONTALK_TURN_PRIVATE_PEER_RANGE: ${CONTALK_TURN_PRIVATE_PEER_RANGE:-${CONTALK_MEDIA_PUBLIC_IP}}
     entrypoint: [/bin/sh, -ec]
     command:
       - >-
@@ -17,7 +20,8 @@ services:
         --listening-port=3478 --min-port=49160 --max-port=49200
         --total-quota=32 --user-quota=8 --no-multicast-peers
         --denied-peer-ip=0.0.0.0-255.255.255.255
-        --allowed-peer-ip="$$CONTALK_MEDIA_PUBLIC_IP" --log-file=stdout --simple-log
+        --allowed-peer-ip="$$CONTALK_MEDIA_PUBLIC_IP"
+        --allowed-peer-ip="$$CONTALK_TURN_PRIVATE_PEER_RANGE" --log-file=stdout --simple-log
     ports:
       - "3478:3478/tcp"
       - "3478:3478/udp"
