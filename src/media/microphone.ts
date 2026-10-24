@@ -1,4 +1,4 @@
-import { AudioPresets, createLocalAudioTrack, Room, Track, type AudioCaptureOptions } from 'livekit-client'
+import { AudioPresets, createLocalAudioTrack, Room, Track, type AudioCaptureOptions } from './realtime'
 
 // These are loopback/mixer outputs, not physical microphone inputs.
 export function isLoopbackInput(label: string): boolean {

@@ -1,0 +1,42 @@
+# Migration only: retain the EXISTING volume by exact name, never create an empty replacement.
+services:
+  community:
+    build:
+      context: ../..
+      dockerfile: deploy/community/Dockerfile
+    init: true
+    restart: unless-stopped
+    environment:
+      CONTALK_COMMUNITY_HOST: 0.0.0.0
+      CONTALK_COMMUNITY_PORT: "8789"
+      CONTALK_COMMUNITY_DATA: /app/data
+      CONTALK_COMMUNITY_TOKENS: ${CONTALK_COMMUNITY_TOKENS:?Preserve the current personal keys}
+      CONTALK_COMMUNITY_INTERNAL_TOKEN: ${CONTALK_COMMUNITY_INTERNAL_TOKEN:-}
+      CONTALK_COMMUNITY_STORAGE_URL: ${CONTALK_COMMUNITY_STORAGE_URL:-}
+      CONTALK_REALTIME_URL: ${CONTALK_REALTIME_URL:?Set public WSS /realtime}
+      CONTALK_MEDIA_PUBLIC_IP: ${CONTALK_MEDIA_PUBLIC_IP:?Set VPS public IPv4}
+      CONTALK_MEDIA_PORT: "40000"
+      CONTALK_TURN_URLS: ${CONTALK_TURN_URLS:-}
+      CONTALK_TURN_SECRET: ${CONTALK_TURN_SECRET:-}
+    expose: ["8789"]
+    ports:
+      - "40000:40000/tcp"
+      - "40000:40000/udp"
+    volumes:
+      - community_data:/app/data
+    read_only: true
+    tmpfs: [/tmp]
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    mem_limit: 1536m
+    cpus: 1.5
+    stop_grace_period: 30s
+    logging:
+      driver: json-file
+      options:
+        max-size: 10m
+        max-file: "3"
+volumes:
+  community_data:
+    external: true
+    name: ${CONTALK_EXISTING_COMMUNITY_VOLUME:?Exact existing volume name required}

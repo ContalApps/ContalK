@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { useVoiceStore, VoiceParticipant } from '../store/useVoiceStore'
 import { useAuthStore } from '../store/useAuthStore'
 import { useCommunityStore } from '../store/useCommunityStore'
-import { Track } from 'livekit-client'
+import { Track } from '../media/realtime'
 import { ControlIcon } from './ControlIcon'
 import { FriendButton } from './FriendButton'
 import { RoleName } from './RoleName'
@@ -402,7 +402,7 @@ export function VoiceStage({
           <div className="text-center text-purple-300/70 space-y-3 m-auto">
             <div className="text-5xl animate-bounce">🎧</div>
             <p className="text-white font-medium text-base">Conectando à sala de voz...</p>
-            <p className="text-xs text-purple-400/60">Estabelecendo túnel WebRTC com LiveKit Cloud</p>
+            <p className="text-xs text-purple-400/60">Conectando à chamada</p>
           </div>
         ) : connectionStatus === 'disconnected' || error ? (
           <div className="text-center space-y-4 max-w-sm p-6 bg-[#151124] rounded-3xl border border-purple-900/40 shadow-2xl m-auto">

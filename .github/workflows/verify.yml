@@ -1,0 +1,24 @@
+name: Verify communication
+on:
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  verify:
+    runs-on: windows-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+      - run: npm ci
+      - name: Prepare native media worker
+        run: npm rebuild mediasoup --foreground-scripts
+      - run: npm run verify
+      - run: npm run build
+      - name: Four-client WebRTC integration
+        run: node tests/run-community-voice-smoke.mjs

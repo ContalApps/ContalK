@@ -296,6 +296,7 @@ export function createCommunityService({ tokens, storage, initialState, voice, f
     }
   }
   const server=http.createServer({ requestTimeout: 30000, headersTimeout: 10000, maxHeaderSize: 8192 }, handler)
+  voice?.attach?.(server, snapshot)
   scheduleTimeouts()
   server.once('close',()=>{closed=true;clearTimeout(timeoutWake);for(const timer of voiceRetries.values())clearTimeout(timer);voiceRetries.clear()})
   return { server, snapshot, commit }

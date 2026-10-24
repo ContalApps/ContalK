@@ -1,6 +1,5 @@
-import { roomGrant } from '../../shared/livekit-grant.mjs'
 import { create } from 'zustand'
-import { microphoneOptions, publishSafeMicrophone, setSafeMicrophoneEnabled } from '../media/microphone'
+import { publishSafeMicrophone, setSafeMicrophoneEnabled } from '../media/microphone'
 import { centralAllows, centralEnabled, centralOccupants, centralVoiceToken } from '../roles/transport'
 import { startScreenShare, stopScreenShare } from '../media/screenShare'
 import {
@@ -10,7 +9,7 @@ import {
   RemoteTrack,
   Participant,
   ParticipantEvent,
-} from 'livekit-client'
+} from '../media/realtime'
 
 function readAvatar(metadata?: string) { try { const value = JSON.parse(metadata || '{}').avatar; return typeof value === 'string' && value.length < 50000 && /^data:image\/jpeg;base64,[A-Za-z0-9+/=]+$/.test(value) ? value : undefined } catch { return undefined } }
 
@@ -68,59 +67,6 @@ interface VoiceState {
     source: any,
     options: { audio: boolean; fps: number; resolution: string }
   ) => Promise<void>
-}
-
-// Conexão direta com o LiveKit Cloud do ConTALK
-const LIVEKIT_URL = 'wss://contalk-vwlfqz0q.livekit.cloud'
-const LIVEKIT_API_KEY = 'APIoDkLmBTDG5T5'
-const LIVEKIT_API_SECRET = 'ahn9v2PgmEIJCxM1QQARYd1j39r76pq4bWrVx7KFcnD'
-
-export async function getLiveKitToken(room: string, identity: string, name: string): Promise<string> {
-  // 1. Tentar via Electron Desktop (Arquitetura Discord)
-  const electron = (window as any).contalkDesktop
-  if (electron?.getLiveKitToken) {
-    try {
-      const token = await electron.getLiveKitToken({ room, identity, name })
-      if (token && typeof token === 'string') {
-        return token
-      }
-    } catch (err) {
-      console.warn('Electron getLiveKitToken falhou, tentando fallback:', err)
-    }
-  }
-
-  // 2. Tentar nativamente via comando Rust do Tauri
-  const tauri = (window as any).__TAURI__
-  if (tauri && tauri.core) {
-    try {
-      const token = await tauri.core.invoke('get_livekit_token', { room, identity, name })
-      if (token && typeof token === 'string') {
-        return token
-      }
-    } catch (err) {
-      console.warn('Tauri get_livekit_token falhou, tentando fallback client:', err)
-    }
-  }
-
-  // 2. Fallback via livekit-server-sdk no cliente
-  try {
-    const { AccessToken } = await import('livekit-server-sdk')
-    const tokenObj = new AccessToken(LIVEKIT_API_KEY, LIVEKIT_API_SECRET, {
-      identity,
-      name,
-      ttl: 3600 * 24,
-    })
-    tokenObj.addGrant(roomGrant(room))
-    return await tokenObj.toJwt()
-  } catch (err) {
-    console.warn('Fallback token client falhou:', err)
-  }
-
-  // 3. Fallback servidor local se estiver ativo
-  const tokenUrl = `http://127.0.0.1:3001/token?room=${encodeURIComponent(room)}&identity=${encodeURIComponent(identity)}&name=${encodeURIComponent(name)}`
-  const res = await fetch(tokenUrl)
-  const data = await res.json()
-  return data.token
 }
 
 function getAudioContainer(): HTMLElement {
@@ -211,51 +157,12 @@ export const useVoiceStore = create<VoiceState>((set, get) => ({
     })
   },
 
-  fetchChannelOccupants: async (channels: Array<{ id: string; name: string }>) => {
+  fetchChannelOccupants: async () => {
     if(centralEnabled()){
       try{const occupants=await centralOccupants();set({channelOccupants:{...occupants,...(get().activeChannelId?{[get().activeChannelId!]:get().participants}:{})}})}catch{set({channelOccupants:get().activeChannelId?{[get().activeChannelId!]:get().participants}:{}})}
       return
     }
-    const request = ++occupantsGeneration
-    try {
-      const { RoomServiceClient } = await import('livekit-server-sdk')
-      const client = new RoomServiceClient('https://contalk-vwlfqz0q.livekit.cloud', LIVEKIT_API_KEY, LIVEKIT_API_SECRET)
-      const activeRooms = await client.listRooms()
-      const newOccupants: Record<string, VoiceParticipant[]> = {}
-
-      for (const ch of channels) {
-        const roomFound = activeRooms.find((r) => r.name === ch.id)
-        if (roomFound && roomFound.numParticipants > 0) {
-          try {
-            const parts = await client.listParticipants(roomFound.name)
-            newOccupants[ch.id] = parts.map((p) => ({
-              identity: p.identity,
-              name: p.name || p.identity,
-              avatar: readAvatar(p.metadata),
-              isLocal: false,
-              isSpeaking: false,
-              isAudioEnabled: p.tracks.some((track) => track.type === 0 && !track.muted),
-              isVideoEnabled: p.tracks?.some((t: any) => t.source === 1) || false,
-              isScreenShareEnabled: p.tracks?.some((t: any) => t.source === 3) || false,
-            }))
-          } catch { newOccupants[ch.id] = [] }
-        } else {
-          newOccupants[ch.id] = []
-        }
-      }
-
-      if (request !== occupantsGeneration) return
-      set((state) => {
-        const currentActive = state.activeChannelId
-        const merged = { ...state.channelOccupants, ...newOccupants }
-        if (currentActive && state.participants.length > 0) {
-          merged[currentActive] = state.participants
-        }
-        return { channelOccupants: merged }
-      })
-    } catch {
-      if (request === occupantsGeneration) set({channelOccupants: get().activeChannelId ? {[get().activeChannelId!]: get().participants} : {}})
-    }
+    set({channelOccupants:get().activeChannelId?{[get().activeChannelId!]:get().participants}:{}})
   },
 
   renameActiveChannel:(id,name)=>{if(get().activeChannelId===id)set({activeChannelName:name})},
@@ -350,20 +257,18 @@ export const useVoiceStore = create<VoiceState>((set, get) => ({
 
     let room: Room | undefined
     try {
-      // 1. Obter token JWT do LiveKit
+      // 1. Obter ticket de sessão autenticado.
       const authority=await centralVoiceToken(channelId)
-      const token = authority?.token||await getLiveKitToken(channelId, user.username, user.display_name)
+      if (!authority) throw new Error('Configure sua conexão com a comunidade para entrar na chamada.')
+      const token = authority.token
       if (!token || typeof token !== 'string') {
         throw new Error('Não foi possível gerar um token de acesso para a sala.')
       }
 
       if (attempt !== connectionGeneration) return false
-      // 2. Instanciar LiveKit Room com opções otimizadas para localhost WebRTC
+      // 2. Preparar os transportes WebRTC do servidor.
       const connection = new Room({
-        adaptiveStream: true,
-        dynacast: true,
-        webAudioMix: true,
-        audioCaptureDefaults: microphoneOptions(get().microphoneDeviceId),
+        tokenProvider: () => centralVoiceToken(channelId),
       })
 
       room = connection
@@ -466,8 +371,8 @@ export const useVoiceStore = create<VoiceState>((set, get) => ({
         }))
       })
 
-      // 4. Conectar ao SFU LiveKit
-      await connection.connect(authority?.url||LIVEKIT_URL, token)
+      // 4. Conectar à sinalização e ao SFU da comunidade.
+      await connection.connect(authority.url, token)
       if (attempt !== connectionGeneration) { await connection.disconnect(); return false }
       if (connection.state !== 'connected') throw new Error('A conexão de voz foi encerrada. Tente novamente.')
       try { await connection.localParticipant.setMetadata(JSON.stringify({ avatar: user.avatar || '' })) }
@@ -498,13 +403,12 @@ export const useVoiceStore = create<VoiceState>((set, get) => ({
       if (pendingRoom === room) pendingRoom = null
       if (attempt !== connectionGeneration) return false
       getAudioContainer().innerHTML = ''
-      console.error('Erro ao conectar na sala de voz:', err)
       set({
         currentRoom: null,
         connectionStatus: 'disconnected',
         participants: [], isScreenSharing: false, isCameraOn: false, isMicMuted: true,
         channelOccupants: Object.fromEntries(Object.entries(get().channelOccupants).map(([id, users]) => [id, users.filter(p => p.identity !== user.username)])),
-        error: err.message || 'Falha ao conectar no LiveKit SFU',
+        error: /websocket|signal|connection refused/i.test(err?.message || '') ? 'Não foi possível conectar ao servidor de voz. Verifique o domínio de voz, HTTPS e WebSocket no Coolify.' : /ICE|peer connection/i.test(err?.message || '') ? 'O transporte de mídia falhou. Verifique as portas UDP/TCP e TURN da VPS.' : String(err?.message || 'Falha ao conectar ao servidor de voz.').replace(/eyJ[\w-]+\.[\w-]+\.[\w-]+/g, '[token removido]'),
       })
       return false
     }

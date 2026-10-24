@@ -1,10 +1,8 @@
-import { roomGrant } from '../shared/livekit-grant.mjs'
 import { app, BrowserWindow, ipcMain, desktopCapturer, shell, screen } from 'electron'
 import path from 'node:path'
 import fs from 'node:fs'
 import { randomUUID } from 'node:crypto'
 import { fileURLToPath } from 'node:url'
-import { AccessToken } from 'livekit-server-sdk'
 import bcrypt from 'bcryptjs'
 import { setupSingleInstance, showMainWindow } from './single-instance'
 import { setupStorage } from './storage'
@@ -35,9 +33,6 @@ process.env.VITE_PUBLIC = app.isPackaged ? RENDERER_DIST : path.join(process.env
 let win: BrowserWindow | null = null
 const isPrimaryInstance=setupSingleInstance(()=>win)
 
-const LIVEKIT_URL = 'wss://contalk-vwlfqz0q.livekit.cloud'
-const LIVEKIT_API_KEY = 'APIoDkLmBTDG5T5'
-const LIVEKIT_API_SECRET = 'ahn9v2PgmEIJCxM1QQARYd1j39r76pq4bWrVx7KFcnD'
 
 // Database local de usuários (armazenado em AppData/ConTALK/users.json)
 function getUsersFilePath(): string {
@@ -178,22 +173,6 @@ ipcMain.handle('get-desktop-sources', async () => {
   } catch (err: any) {
     console.error('Falha ao obter desktop sources:', err)
     return []
-  }
-})
-
-// ─── IPC: Token do LiveKit Cloud ────────────────────────────────────
-ipcMain.handle('get-livekit-token', async (_event, { room, identity, name }) => {
-  try {
-    const at = new AccessToken(LIVEKIT_API_KEY, LIVEKIT_API_SECRET, {
-      identity,
-      name,
-      ttl: 3600 * 24,
-    })
-    at.addGrant(roomGrant(room))
-    return await at.toJwt()
-  } catch (err: any) {
-    console.error('Erro ao gerar token LiveKit:', err)
-    throw new Error(err?.message || 'Falha ao gerar token')
   }
 })
 
