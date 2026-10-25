@@ -17,7 +17,7 @@ test('the voice authority checks current membership without copying or exposing 
  Object.defineProperty(server,'messages',{get(){reads++;return {}},enumerable:true,configurable:true})
  const service=createCommunityService({tokens:{['a'.repeat(40)]:'alice'},initialState:state,voice:{attach:(_server,callback)=>{authority=callback}}})
  reads=0
- for(let i=0;i<100;i++){const grant=authority('alice','srv-1');assert.deepEqual(Object.keys(grant).sort(),['channels','nicknames','policy']);assert.equal(grant.policy.ownership,'all-members')}
+ for(let i=0;i<100;i++){const grant=authority('alice','srv-1');assert.deepEqual(Object.keys(grant).sort(),['channels','expressions','nicknames','policy']);assert.equal(grant.policy.ownership,'all-members')}
  assert.equal(reads,0);assert.throws(()=>authority('unknown','srv-1'),/pertence/);service.server.close()
 })
 

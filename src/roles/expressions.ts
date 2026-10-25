@@ -1,7 +1,7 @@
 import {can,type RolePolicy} from './permissions.ts'
 import type {Attachment} from '../store/useAppStore'
-export type ExpressionKind='emoji'|'sticker'
-export interface CommunityExpression{id:string;serverId:string;kind:ExpressionKind;name:string;creator:string;createdAt:number;updatedAt:number;attachment:Attachment}
+export type ExpressionKind='emoji'|'sticker'|'sound'
+export interface CommunityExpression{id:string;serverId:string;kind:ExpressionKind;name:string;creator:string;createdAt:number;updatedAt:number;durationMs?:number;attachment:Attachment}
 export interface ExpressionReference{serverId:string;id:string}
 export interface ExpressionLibrary{serverId:string;name:string;revision:number;canCreate:boolean;items:Array<CommunityExpression&{canManage:boolean}>}
 export const canManageExpression=(policy:RolePolicy,actor:string,item:CommunityExpression)=>can(policy,actor,'MANAGE_GUILD_EXPRESSIONS')||item.creator===actor&&can(policy,actor,'CREATE_GUILD_EXPRESSIONS')

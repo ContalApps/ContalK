@@ -29,7 +29,7 @@ export interface CommunitySnapshot {
   audit:Array<{id:string;actor:string;event:string;target?:string;targetName?:string;member?:string;reason?:string;timestamp:number}>
 }
 export type CommunityAction =
-  | {type:'expression-create';id:string;kind:import('./expressions').ExpressionKind;name:string;attachment:import('../store/useAppStore').Attachment}
+  | {type:'expression-create';id:string;kind:import('./expressions').ExpressionKind;name:string;durationMs?:number;attachment:import('../store/useAppStore').Attachment}
   | {type:'expression-edit';id:string;updatedAt:number;name:string}
   | {type:'expression-delete';id:string;updatedAt:number}
   | {type:'event-create';id:string;draft:import('./events').EventDraft}

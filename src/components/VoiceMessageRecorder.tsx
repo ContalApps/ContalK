@@ -6,7 +6,7 @@ import {useNotificationStore} from '../store/useNotificationStore'
 import {centralAllows} from '../roles/transport'
 import {isLoopbackInput,microphoneOptions} from '../media/microphone'
 
-function RecordingPreview({src}:{src:string}){
+export function RecordingPreview({src}:{src:string}){
  const player=useRef<HTMLAudioElement>(null),voice=useVoiceStore(),[ready,setReady]=useState(false),[error,setError]=useState('')
  useEffect(()=>{let active=true;const audio=player.current;setReady(false);setError('');audio?.pause();if(!audio)return;const apply=async()=>{try{if('setSinkId'in audio)await (audio as HTMLAudioElement&{setSinkId:(id:string)=>Promise<void>}).setSinkId(voice.outputDeviceId);else if(voice.outputDeviceId!=='default')throw new Error('Saída indisponível.');if(active)setReady(true)}catch{if(active)setError('Não foi possível usar a saída de áudio escolhida.')}};void apply();return()=>{active=false;audio.pause()}},[src,voice.outputDeviceId,voice.isDeafened,voice.isServerDeafened])
  return <><audio ref={player} controls={ready&&!voice.isDeafened&&!voice.isServerDeafened} preload="metadata" src={src} aria-label="Ouvir gravação antes de enviar"/>{error&&<p role="alert">{error}</p>}</>

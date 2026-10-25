@@ -17,6 +17,7 @@ const desktop: DesktopBridge = {
     if(!Number.isInteger(percent)||percent<80||percent>120)throw new Error('Escala inválida.')
     webFrame.setZoomFactor(percent/100)
   },
+  readSelectedStorageAudio:(id:string)=>ipcRenderer.invoke('storage-selected-audio',id),
   readStorageAudio:(id:string)=>ipcRenderer.invoke('storage-audio',id),
   uploadInlineAttachment:attachment=>ipcRenderer.invoke('storage-inline',attachment),
   claimMessageView:id=>ipcRenderer.invoke('storage-view',id),

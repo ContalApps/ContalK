@@ -1,4 +1,4 @@
-import { randomBytes, createHmac } from 'node:crypto'
+import { randomBytes, randomUUID, createHmac } from 'node:crypto'
 import { isIP } from 'node:net'
 import { networkInterfaces } from 'node:os'
 import { WebSocketServer } from 'ws'
@@ -9,7 +9,7 @@ const sources = ['microphone', 'camera', 'screen_share', 'screen_share_audio']
 export function voicePermissions(policy, actor, channel) {
   const connect = can(policy, actor, 'VIEW_CHANNEL', channel) && can(policy, actor, 'CONNECT', channel)
   const serverMuted=policy.voiceRestrictions?.[actor]?.muted===true,serverDeafened=policy.voiceRestrictions?.[actor]?.deafened===true
-  return { canPrioritySpeaker:connect&&!serverMuted&&!serverDeafened&&can(policy,actor,'SPEAK',channel)&&can(policy,actor,'PRIORITY_SPEAKER',channel),canUseVoiceActivity:connect&&can(policy,actor,'USE_VAD',channel),canSubscribe:connect,canReceiveAudio:connect&&!serverDeafened,serverMuted,serverDeafened,canPublishSources:connect?sources.filter(source=>can(policy,actor,source==='microphone'?'SPEAK':'STREAM',channel)&&(source!=='microphone'||!serverMuted&&!serverDeafened)):[] }
+  return { canUseSoundboard:connect&&!serverMuted&&!serverDeafened&&can(policy,actor,'SPEAK',channel)&&can(policy,actor,'USE_SOUNDBOARD',channel),canUseExternalSounds:connect&&can(policy,actor,'USE_EXTERNAL_SOUNDS',channel),canPrioritySpeaker:connect&&!serverMuted&&!serverDeafened&&can(policy,actor,'SPEAK',channel)&&can(policy,actor,'PRIORITY_SPEAKER',channel),canUseVoiceActivity:connect&&can(policy,actor,'USE_VAD',channel),canSubscribe:connect,canReceiveAudio:connect&&!serverDeafened,serverMuted,serverDeafened,canPublishSources:connect?sources.filter(source=>can(policy,actor,source==='microphone'?'SPEAK':'STREAM',channel)&&(source!=='microphone'||!serverMuted&&!serverDeafened)):[] }
 }
 export function mediaListenInfos({ announcedAddress, mediaPort, exposeInternalIp = false, interfaces = networkInterfaces() }) {
   const ip = exposeInternalIp ? Object.values(interfaces).flat().find(info => info?.family === 'IPv4' && !info.internal)?.address : '0.0.0.0'
@@ -22,7 +22,7 @@ export function createCommunityVoice({ url, announcedAddress = '127.0.0.1', medi
   if (!Number.isInteger(mediaPort) || mediaPort < 1024 || mediaPort > 65535) throw new Error('Porta de mídia inválida.')
   if (isIP(announcedAddress) !== 4 || announcedAddress === '0.0.0.0' || endpoint.protocol === 'wss:' && announcedAddress.startsWith('127.')) throw new Error('Configure o IPv4 público anunciado para mídia.')
   if (!Array.isArray(turnUrls) || turnUrls.some(value => typeof value !== 'string' || !/^turns?:[^\s]+$/.test(value)) || turnUrls.length && (typeof turnSecret !== 'string' || turnSecret.length < 32)) throw new Error('Configure URLs TURN e um segredo privado de pelo menos 32 caracteres.')
-  const tickets = new Map(), rooms = new Map(), roomPromises = new Map(), sessions = new Set()
+  const tickets = new Map(), rooms = new Map(), roomPromises = new Map(), sessions = new Set(), soundPlays=new Map(), recentSounds=new Map()
   let worker, rtcServer, workerPromise, wss, snapshotFor
   const issue = (actor, room, name = actor, reserved = false) => {
     for (const [key, value] of tickets) if (value.expires < Date.now()) tickets.delete(key)
@@ -39,7 +39,7 @@ export function createCommunityVoice({ url, announcedAddress = '127.0.0.1', medi
   const event = (session, name, data) => send(session, { event: name, data })
   const roomMembers = session => [...sessions].filter(peer => peer.room === session.room)
   const broadcast = (session, name, data) => roomMembers(session).forEach(peer => event(peer, name, data))
-  const moderation = session => {const grant=permission(session);return {serverMuted:!!grant.serverMuted,serverDeafened:!!grant.serverDeafened,canPublishMicrophone:grant.canPublishSources.includes('microphone'),canUseVoiceActivity:!!grant.canUseVoiceActivity,canPrioritySpeaker:!!grant.canPrioritySpeaker}}
+  const moderation = session => {const grant=permission(session),policy=session.room==='presence'?null:snapshotFor(session.actor,session.serverId).policy;return {canCreateExpressions:!!policy&&can(policy,session.actor,'CREATE_GUILD_EXPRESSIONS'),canManageExpressions:!!policy&&can(policy,session.actor,'MANAGE_GUILD_EXPRESSIONS'),serverMuted:!!grant.serverMuted,serverDeafened:!!grant.serverDeafened,canPublishMicrophone:grant.canPublishSources.includes('microphone'),canUseVoiceActivity:!!grant.canUseVoiceActivity,canPrioritySpeaker:!!grant.canPrioritySpeaker,canUseSoundboard:!!grant.canUseSoundboard,canUseExternalSounds:!!grant.canUseExternalSounds}}
   const profile = session => ({ identity: session.actor, name:session.name,serverNickname:session.room==='presence'?null:snapshotFor(session.actor,session.serverId).nicknames?.[session.actor]||null, metadata: session.metadata || '',...moderation(session) })
   const permission = session => session.room === 'presence' ? { canSubscribe: true, canPublishSources: [] } : voicePermissions(snapshotFor(session.actor, session.serverId).policy, session.actor, session.channelId)
   const microphoneAllowed=session=>permission(session).canPublishSources.includes('microphone')&&(session.inputMode==='push-to-talk'?session.holdUntil>Date.now():permission(session).canUseVoiceActivity)
@@ -50,14 +50,23 @@ export function createCommunityVoice({ url, announcedAddress = '127.0.0.1', medi
     session.producers.delete(producer.id); producer.close();if(producer.appData.source==='microphone')broadcastPriority(session)
     broadcast(session, 'producerClosed', { producerId: producer.id, identity: session.actor })
   }
+  const stopSound=room=>{const play=soundPlays.get(room);if(!play)return;clearTimeout(play.timer);soundPlays.delete(room);for(const peer of play.recipients)if(sessions.has(peer))event(peer,'soundboardStop',{id:play.data.id})}
+  const soundAsset=(session,sourceServerId,soundId)=>{
+    if(session.room==='presence'||!sessions.has(session)||!permission(session).canPublishSources.includes('microphone'))throw new Error('Entre em um canal de voz e confira suas permissões.')
+    const current=snapshotFor(session.actor,session.serverId),origin=snapshotFor(session.actor,sourceServerId),asset=Object.hasOwn(origin.expressions||{},soundId)?origin.expressions[soundId]:null
+    if(!can(current.policy,session.actor,'USE_SOUNDBOARD',session.channelId)||sourceServerId!==session.serverId&&!can(current.policy,session.actor,'USE_EXTERNAL_SOUNDS',session.channelId)||asset?.kind!=='sound')throw new Error('Você não pode usar este som neste canal.')
+    return asset
+  }
   const cleanup = session => {
     if (!sessions.delete(session)) return
+    for(const [room,play]of soundPlays){if(play.source===session)stopSound(room);else play.recipients.delete(session)}
     clearTimeout(session.holdTimer);session.holdUntil=0
     if(session.pendingMove){tickets.delete(session.pendingMove);session.pendingMove=undefined}
     for (const producer of [...session.producers.values()]) closeProducer(session, producer)
     for (const transport of session.transports.values()) transport.close()
     broadcast(session, 'left', { identity: session.actor });broadcastPriority(session)
     if (session.room !== 'presence' && !roomMembers(session).length) {
+      recentSounds.delete(session.room)
       const room = rooms.get(session.room); room?.router.close(); rooms.delete(session.room)
     }
   }
@@ -89,6 +98,16 @@ export function createCommunityVoice({ url, announcedAddress = '127.0.0.1', medi
   }
   const rpc = async (session, method, data = {}) => {
     if (!permission(session).canSubscribe) throw new Error('Você não pode entrar neste canal.')
+    if(method==='soundboard-play'){
+      if(typeof data.serverId!=='string'||typeof data.id!=='string'||!/^[-\w:]{1,100}$/.test(data.serverId)||!/^[-\w:]{1,100}$/.test(data.id))throw new Error('Som inválido.')
+      const asset=soundAsset(session,data.serverId,data.id),now=Date.now()
+      if(now-(session.lastSoundAt||0)<3000||now-(recentSounds.get(session.room)||0)<500)throw new Error('Aguarde antes de reproduzir outro som.')
+      stopSound(session.room);session.lastSoundAt=now;recentSounds.set(session.room,now)
+      const packet={id:randomUUID(),actor:session.actor,name:asset.name,channelId:session.channelId,serverId:session.serverId,sourceServerId:data.serverId,soundId:asset.id,storageId:asset.attachment.storageId,durationMs:asset.durationMs,startedAt:now,expiresAt:now+15000}
+      const recipients=new Set(roomMembers(session).filter(peer=>permission(peer).canReceiveAudio)),play={source:session,recipients,data:packet};play.timer=setTimeout(()=>stopSound(session.room),15000);soundPlays.set(session.room,play)
+      for(const peer of recipients)event(peer,'soundboard',packet)
+      return {id:packet.id}
+    }
     if (method === 'profile') {
       if (typeof data.name === 'string' && data.name.trim() && data.name.length <= 40) session.name = data.name.trim()
       if (typeof data.metadata === 'string' && data.metadata.length <= 55000) session.metadata = data.metadata
@@ -182,6 +201,7 @@ export function createCommunityVoice({ url, announcedAddress = '127.0.0.1', medi
     throw new Error('Operação inválida.')
   }
   return {
+    canReadSound(actor,storageId){for(const play of soundPlays.values())if(play.data.storageId===storageId&&play.data.expiresAt>Date.now()){try{soundAsset(play.source,play.data.sourceServerId,play.data.soundId)}catch{continue}if([...play.recipients].some(peer=>sessions.has(peer)&&peer.actor===actor&&permission(peer).canReceiveAudio))return true}return false},
     hasParticipant(serverId,member,channelId){return [...sessions].some(peer=>peer.serverId===serverId&&peer.channelId===channelId&&peer.actor===member&&peer.socket.readyState===1)},
     prepareMove({serverId,member,fromChannelId,destinationId,destinationName}){
       const source=[...sessions].find(peer=>peer.serverId===serverId&&peer.actor===member&&peer.channelId===fromChannelId&&peer.socket.readyState===1)
@@ -214,6 +234,7 @@ export function createCommunityVoice({ url, announcedAddress = '127.0.0.1', medi
       return Object.fromEntries(server.channels.filter(channel => channel.type === 'voice' && can(server.policy, actor, 'VIEW_CHANNEL', channel.id)).map(channel => [channel.id, [...sessions].filter(peer => peer.room === `${server.id}/${channel.id}`&&server.policy.members.includes(peer.actor)).map(peer => ({ ...profile(peer), isLocal: peer.actor === actor, isSpeaking: false, isAudioEnabled: [...peer.producers.values()].some(producer => producer.appData.source === 'microphone' && !producer.paused), isVideoEnabled: [...peer.producers.values()].some(producer => producer.appData.source === 'camera'), isScreenShareEnabled: [...peer.producers.values()].some(producer => producer.appData.source === 'screen_share') }))]))
     },
     async reconcile(previous, current) {
+      for(const [room,play]of soundPlays)try{soundAsset(play.source,play.data.sourceServerId,play.data.soundId)}catch{stopSound(room)}
       for (const session of sessions) if (session.serverId === current.id) {
         const grant = voicePermissions(current.policy, session.actor, session.channelId)
         if (!current.channels.some(channel => channel.id === session.channelId && channel.type === 'voice') || !grant.canSubscribe) { cleanup(session); session.socket.close(4003, 'Access revoked'); continue }
@@ -273,8 +294,8 @@ export function createCommunityVoice({ url, announcedAddress = '127.0.0.1', medi
       })
       const heartbeat = setInterval(() => { for (const socket of wss.clients) { if (socket.alive === false) socket.terminate(); else { socket.alive = false; socket.ping() } } }, 15000)
       wss.on('connection', socket => { socket.alive = true; socket.on('pong', () => { socket.alive = true }) })
-      server.once('close', () => { clearInterval(heartbeat); for (const socket of wss.clients) socket.terminate(); wss.close(); worker?.close() })
+      server.once('close', () => { clearInterval(heartbeat);for(const room of [...soundPlays.keys()])stopSound(room); for (const socket of wss.clients) socket.terminate(); wss.close(); worker?.close() })
     },
-    close() { for (const session of sessions) session.socket.terminate(); worker?.close() },
+    close() { for(const room of [...soundPlays.keys()])stopSound(room); for (const session of sessions) session.socket.terminate(); worker?.close() },
   }
 }

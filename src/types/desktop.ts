@@ -36,6 +36,7 @@ export interface DesktopBridge {
   listAccounts: () => Promise<import('../store/useAuthStore').User[]>
   updateProfile: (profile: {display_name: string; bio: string; avatar: string}) => Promise<import('../store/useAuthStore').User>
   logout: () => Promise<void>
+  readSelectedStorageAudio:(id:string)=>Promise<string>
   readStorageAudio:(id:string)=>Promise<string>
   uploadInlineAttachment:(attachment:import('../store/useAppStore').Attachment)=>Promise<import('../store/useAppStore').Attachment>
   claimMessageView:(id:string)=>Promise<boolean>

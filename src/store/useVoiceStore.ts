@@ -317,6 +317,7 @@ export const useVoiceStore = create<VoiceState>((set, get) => ({
       if (attempt !== connectionGeneration) return false
       // 2. Preparar os transportes WebRTC do servidor.
       const connection = new Room({
+        serverId:authority.serverId,
         tokenProvider: () => centralVoiceToken(channelId,authority.serverId),
         inputMode:get().inputMode,prioritySpeaker:get().prioritySpeaker,
       })

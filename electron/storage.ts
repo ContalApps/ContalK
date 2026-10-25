@@ -78,6 +78,13 @@ export function setupStorage(window:BrowserWindow,getUsername:()=>string|null) {
       if(response.status===404){const identity=await fetch(new URL('/identity',url),{headers:{Authorization:'Bearer '+token},signal:AbortSignal.timeout(10000)});if(identity.ok&&(await identity.json()).version===undefined)return}
       if(!response.ok)throw new Error('Não foi possível autorizar o destinatário do arquivo.')
     },
+    'storage-selected-audio':(_event,id:string)=>{
+      const entry=selected.get(id)
+      if(!entry||entry.owner!==getUsername()||mime(entry.file)!=='audio/webm;codecs=opus'||statSync(entry.file).size>1048576)throw new Error('Selecione um arquivo WebM de até 1 MB nesta conta.')
+      const data=readFileSync(entry.file)
+      if(data.length<4||data.length>1048576||data.readUInt32BE(0)!==0x1a45dfa3)throw new Error('Arquivo WebM inválido.')
+      return 'data:audio/webm;codecs=opus;base64,'+data.toString('base64')
+    },
     'storage-audio':async(_event,id:string)=>{
       if(typeof id!=='string'||!/^[-0-9a-f]{36}$/.test(id))throw new Error('Arquivo inválido.')
       const owner=getUsername(),{url,token}=config(),signal=AbortSignal.timeout(15000)

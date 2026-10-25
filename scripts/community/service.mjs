@@ -193,14 +193,16 @@ export function createCommunityService({ tokens, storage, initialState, voice, f
           if(action.type==='expression-create'){
             requirePermission(server,actor,'CREATE_GUILD_EXPRESSIONS')
             requireValue(!existing&&!server.deletedExpressions?.includes(action.id),'Identificador de expressão já utilizado.')
-            requireValue(['emoji','sticker'].includes(action.kind),'Tipo de expressão inválido.')
+            requireValue(['emoji','sticker','sound'].includes(action.kind),'Tipo de expressão inválido.')
             requireValue(Object.values(server.expressions).filter(item=>item.kind===action.kind).length<100,'Limite de 100 expressões de cada tipo atingido.')
-            const file=action.attachment
-            requireValue(file&&validFileId(file.storageId)&&Number.isSafeInteger(file.size)&&file.size>0&&file.size<=1048576&&['image/png','image/jpeg','image/gif','image/webp'].includes(file.type)&&typeof file.thumbnail==='string'&&file.thumbnail.length<=12000&&/^[A-Za-z0-9+/=]+$/.test(file.thumbnail),'Use uma imagem PNG, JPEG, GIF ou WebP de até 1 MB com prévia válida.')
+            const file=action.attachment,sound=action.kind==='sound'
+            requireValue(file&&validFileId(file.storageId)&&Number.isSafeInteger(file.size)&&file.size>0&&file.size<=1048576,'Use um arquivo autorizado de até 1 MB.')
+            if(sound)requireValue(file.type==='audio/webm;codecs=opus'&&Number.isInteger(action.durationMs)&&action.durationMs>=100&&action.durationMs<=5000,'Use áudio Opus WebM de até cinco segundos.')
+            else requireValue(['image/png','image/jpeg','image/gif','image/webp'].includes(file.type)&&typeof file.thumbnail==='string'&&file.thumbnail.length<=12000&&/^[A-Za-z0-9+/=]+$/.test(file.thumbnail),'Use PNG, JPEG, GIF ou WebP com prévia válida.')
             requireValue(files,'O armazenamento de arquivos ainda não foi configurado.',503);let authorized;try{authorized=await files.canReference(actor,file.storageId)}catch{throw new CommunityError(503,'Não foi possível autorizar a imagem.')}requireValue(authorized,'Você não pode usar esta imagem.',403)
             let name;try{name=expressionName(action.name)}catch(error){throw new CommunityError(400,error.message)}
             requireValue(!Object.values(server.expressions).some(item=>item.kind===action.kind&&item.name.toLocaleLowerCase()===name.toLocaleLowerCase()),'Já existe uma expressão desse tipo com esse nome.')
-            server.expressions[action.id]={id:action.id,serverId:id,kind:action.kind,name,creator:actor,createdAt:Date.now(),updatedAt:Date.now(),attachment:{storageId:file.storageId,name:text(file.name,200),type:file.type,size:file.size,data:'',thumbnail:file.thumbnail}}
+            server.expressions[action.id]={id:action.id,serverId:id,kind:action.kind,name,creator:actor,createdAt:Date.now(),updatedAt:Date.now(),...(sound?{durationMs:action.durationMs}:{}),attachment:{storageId:file.storageId,name:text(file.name,200),type:file.type,size:file.size,data:'',...(!sound?{thumbnail:file.thumbnail}:{})}}
           }else{
             requireValue(existing,'Expressão não encontrada.',404);requireValue(canManageExpression(policy,actor,existing),'Você não pode alterar expressões de outro membro.',403)
             requireValue(action.updatedAt===existing.updatedAt,'Esta expressão mudou em outro cliente. Carregue a versão atual antes de salvar.',409)
@@ -481,7 +483,7 @@ export function createCommunityService({ tokens, storage, initialState, voice, f
           let expression,sourceAttachment=action.attachment
           if(action.expression!==undefined){
             const reference=action.expression;requireValue(reference&&identifier(reference.id)&&identifier(reference.serverId),'Expressão inválida.')
-            const origin=serverFor(actor,reference.serverId),item=origin.expressions?.[reference.id];requireValue(item,'Expressão não encontrada.',404)
+            const origin=serverFor(actor,reference.serverId),item=origin.expressions?.[reference.id];requireValue(item&&item.kind!=='sound','Emoji ou figurinha não encontrado.',404)
             requireValue(!action.attachment&&!action.tts&&!action.poll&&!action.voice&&!action.once,'Expressões não podem ser combinadas com anexos, leitura em voz, enquete, gravação ou visualização única.')
             if(reference.serverId!==id)requirePermission(server,actor,item.kind==='emoji'?'USE_EXTERNAL_EMOJIS':'USE_EXTERNAL_STICKERS',channel.id)
             expression={serverId:item.serverId,id:item.id,name:item.name,kind:item.kind};sourceAttachment=item.attachment
@@ -541,7 +543,7 @@ export function createCommunityService({ tokens, storage, initialState, voice, f
       state = next
       if(action.poll||action.type.startsWith('event-')||action.type.startsWith('thread-')||action.type==='message-send'&&policy.threads?.[action.channel]||['poll-close','message-delete','channel-delete'].includes(action.type))indexPolls(id)
       movePlan?.commit()
-      const syncVoice=voice&&(action.type==='role'||action.type==='channel-delete'||action.type==='member-kick'||action.type==='member-ban'||action.type==='voice-mute'||action.type==='voice-deafen'||action.type==='member-nickname')
+      const syncVoice=voice&&(action.type==='role'||action.type==='channel-delete'||action.type==='member-kick'||action.type==='member-ban'||action.type==='voice-mute'||action.type==='voice-deafen'||action.type==='member-nickname'||action.type==='expression-delete')
       if(syncVoice)pendingVoice.set(id,pendingVoice.get(id)||previous)
       changes.emit(id,{message:liveMessage,messageChange})
       // Revoke/update connected participants as soon as permissions change.
@@ -629,7 +631,7 @@ export function createCommunityService({ tokens, storage, initialState, voice, f
         requireValue(validInternalToken(token,internalToken),'Origem interna inválida.',401)
         const {username,storageId}=await readBody(request)
         requireValue(identifier(username)&&validFileId(storageId),'Usuário ou arquivo inválido.')
-        const allowed=[...credentials.values()].includes(username)&&Object.values(state.servers).some(server=>server.policy.members.includes(username)&&(Object.values(server.expressions||{}).some(item=>item.attachment.storageId===storageId)||Object.entries(server.messages).some(([channel,list])=>can(server.policy,username,'VIEW_CHANNEL',channel)&&list.some(message=>message.attachment?.storageId===storageId&&(can(server.policy,username,'READ_MESSAGE_HISTORY',channel)||server.fileDeliveries?.[message.id]?.includes(username))))))
+        const allowed=[...credentials.values()].includes(username)&&(voice?.canReadSound?.(username,storageId)||Object.values(state.servers).some(server=>server.policy.members.includes(username)&&(Object.values(server.expressions||{}).some(item=>item.attachment.storageId===storageId)||Object.entries(server.messages).some(([channel,list])=>can(server.policy,username,'VIEW_CHANNEL',channel)&&list.some(message=>message.attachment?.storageId===storageId&&(can(server.policy,username,'READ_MESSAGE_HISTORY',channel)||server.fileDeliveries?.[message.id]?.includes(username)))))))
         json(response,200,{allowed});return
       }
       requireValue(token.length >= 32 && token.length <= 512, 'Entre com sua chave individual.', 401)
@@ -715,7 +717,7 @@ export function createCommunityService({ tokens, storage, initialState, voice, f
     }
   }
   const server=http.createServer({ requestTimeout: 30000, headersTimeout: 10000, maxHeaderSize: 8192 }, handler)
-  voice?.attach?.(server,(actor,id)=>{const current=serverFor(actor,id);return {policy:current.policy,channels:current.channels,nicknames:current.nicknames||{}}})
+  voice?.attach?.(server,(actor,id)=>{const current=serverFor(actor,id);return {policy:current.policy,channels:current.channels,nicknames:current.nicknames||{},expressions:current.expressions||{}}})
   scheduleTimeouts()
   for(const id of Object.keys(state.servers))indexPolls(id)
   server.once('close',()=>{closed=true;clearTimeout(timeoutWake);clearTimeout(pollWake);for(const timer of voiceRetries.values())clearTimeout(timer);voiceRetries.clear()})

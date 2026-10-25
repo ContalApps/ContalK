@@ -74,3 +74,5 @@ test('role mention preferences persist independently from general notifications 
  state().activate('bob');assert.equal(state().roleMentionNotifications,true)
  state().activate('alice');assert.equal(state().roleMentionNotifications,false)
 })
+
+test('soundboard volume is separate per account and accepts only an integer percentage',()=>{const f=fixture(),get=f.store.getState;get().activate('alice');assert.equal(get().soundboardVolume,50);get().update({soundboardVolume:20});get().activate('bob');assert.equal(get().soundboardVolume,50);get().activate('alice');assert.equal(get().soundboardVolume,20);for(const value of [-1,101,1.5,'20'])assert.throws(()=>get().update({soundboardVolume:value}))})

@@ -101,3 +101,7 @@ Gerenciar webhooks possui painel no canal, criação com chave mostrada uma vez,
 ### Emojis e figurinhas
 
 Criar expressões, Gerenciar expressões, Usar emojis externos e Usar figurinhas externas possuem operações reais. Há biblioteca por servidor, imagem no armazenamento configurado, seleção e envio no compositor, manutenção própria/de terceiros, limites, conflitos e exclusão confirmada. Prévia estática, sem cobrança. Consulte [funcionamento e evidências](community-expressions.md). O catálogo passa a 45 de 52 permissões disponíveis; sons, aplicativos, atividades e pedir fala continuam pendentes. Monetização permanece excluída.
+
+### Painel de sons
+
+Usar painel de sons e Usar sons externos possuem comandos na sessão real de voz, cadastro Opus na biblioteca e reprodução autorizada nos clientes presentes. Permissões, bloqueios do servidor, origem, limites, acesso temporário ao arquivo, saída e volume são efetivos. Consulte [escopo e validação](community-soundboard.md). O catálogo passa a 47 de 52 permissões disponíveis. Aplicativos, comandos, atividades e pedido de fala continuam pendentes; monetização está excluída desta entrega.

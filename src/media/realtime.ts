@@ -10,7 +10,7 @@ class Events {
   emit(event: string, ...args: any[]) { this.handlers.get(event)?.forEach(callback => callback(...args)) }
   removeAllListeners() { this.handlers.clear() }
 }
-export const RoomEvent = Object.fromEntries(['Connected','Disconnected','Reconnecting','Reconnected','ParticipantConnected','ParticipantDisconnected','ParticipantMetadataChanged','ParticipantNameChanged','DataReceived','TrackPublished','TrackUnpublished','LocalTrackPublished','LocalTrackUnpublished','TrackSubscribed','TrackUnsubscribed','TrackMuted','TrackUnmuted','ActiveSpeakersChanged','ServerModerationChanged','ServerMoved','ServerVoiceDisconnected','PrioritySpeakersChanged'].map(name => [name,name]))
+export const RoomEvent = Object.fromEntries(['Connected','Disconnected','Reconnecting','Reconnected','ParticipantConnected','ParticipantDisconnected','ParticipantMetadataChanged','ParticipantNameChanged','DataReceived','TrackPublished','TrackUnpublished','LocalTrackPublished','LocalTrackUnpublished','TrackSubscribed','TrackUnsubscribed','TrackMuted','TrackUnmuted','ActiveSpeakersChanged','ServerModerationChanged','ServerMoved','ServerVoiceDisconnected','PrioritySpeakersChanged','Soundboard','SoundboardStopped'].map(name => [name,name]))
 export type RoomEvent = string
 export const ParticipantEvent = { IsSpeakingChanged: 'IsSpeakingChanged' }
 export type AudioCaptureOptions = MediaTrackConstraints
@@ -54,7 +54,7 @@ type Publication = { source: string; track: Track; audioTrack?: Track; isMuted: 
 export class Participant extends Events {
   identity = ''; name = ''; metadata = ''; isSpeaking = false
   serverNickname?:string|null
-  serverMuted=false; serverDeafened=false; canPublishMicrophone?:boolean; canUseVoiceActivity?:boolean;canPrioritySpeaker?:boolean
+  serverMuted=false; serverDeafened=false; canPublishMicrophone?:boolean; canUseVoiceActivity?:boolean;canPrioritySpeaker?:boolean;canUseSoundboard?:boolean;canUseExternalSounds?:boolean;canCreateExpressions?:boolean;canManageExpressions?:boolean
   trackPublications = new Map<string, Publication>()
   get audioTrackPublications() { return new Map([...this.trackPublications].filter(([,pub]) => pub.track.kind === 'audio')) }
   getTrackPublication(source: string) { return [...this.trackPublications.values()].find(pub => pub.source === source) }
@@ -78,6 +78,7 @@ class LocalParticipant extends Participant {
 }
 type Authority = { url: string; token: string }
 export class Room extends Events {
+  serverId:string|null=null
   state = 'disconnected'
   localParticipant = new LocalParticipant(this)
   remoteParticipants = new Map<string, Participant>()
@@ -100,7 +101,7 @@ export class Room extends Events {
   private pttHeld=false
   prioritySpeakers=new Set<string>()
   prioritySpeaker=false
-  constructor(private options: { presence?: boolean; tokenProvider?: () => Promise<Authority | null>;inputMode?:VoiceInputMode;prioritySpeaker?:boolean } = {}) { super();this.desiredInputMode=options.inputMode||'voice-activity';this.prioritySpeaker=options.prioritySpeaker===true }
+  constructor(private options: { serverId?:string;presence?: boolean; tokenProvider?: () => Promise<Authority | null>;inputMode?:VoiceInputMode;prioritySpeaker?:boolean } = {}) { super();this.serverId=options.serverId||null;this.desiredInputMode=options.inputMode||'voice-activity';this.prioritySpeaker=options.prioritySpeaker===true }
   async setInputMode(mode:VoiceInputMode){
     await this.setPushToTalk(false).catch(()=>{})
     this.desiredInputMode=mode
@@ -108,6 +109,7 @@ export class Room extends Events {
     if(this.localParticipant.canUseVoiceActivity===undefined){if(effective==='push-to-talk')throw new Error('Atualize o serviço da comunidade para usar Pressionar para falar.');this.inputMode=effective;return}
     await this.request('input-mode',{mode:effective});this.inputMode=effective
   }
+  async playSoundboard(serverId:string,id:string){return this.request('soundboard-play',{serverId,id})}
   async setPushToTalk(pressed:boolean){
     this.pttHeld=pressed
     const pub=this.localParticipant.getTrackPublication(Track.Source.Microphone)
@@ -178,6 +180,8 @@ export class Room extends Events {
   }
   private addPeer(data: any) { let peer = this.remoteParticipants.get(data.identity); if (!peer) { peer = new Participant(); this.remoteParticipants.set(data.identity,peer) }; Object.assign(peer,data); this.emit(RoomEvent.ParticipantConnected,peer); return peer }
   private async handle(event: string, data: any) {
+    if(event==='soundboard')this.emit(RoomEvent.Soundboard,data)
+    if(event==='soundboardStop')this.emit(RoomEvent.SoundboardStopped,data)
     if(event==='prioritySpeakers'){this.prioritySpeakers=new Set(Array.isArray(data)?data.filter(value=>typeof value==='string'&&(value===this.localParticipant.identity||this.remoteParticipants.has(value))):[]);this.emit(RoomEvent.PrioritySpeakersChanged)}
     if(event==='moderation'){Object.assign(this.localParticipant,data);if(data.serverMuted||data.serverDeafened||data.canPublishMicrophone===false||data.canUseVoiceActivity===false&&this.inputMode!=='push-to-talk'||data.canUseVoiceActivity===true&&this.inputMode!==this.desiredInputMode){await this.setPushToTalk(false).catch(()=>{});if(data.canUseVoiceActivity!==undefined)await this.setInputMode(this.desiredInputMode).catch(()=>{})}this.emit(RoomEvent.ServerModerationChanged,data)}
     if(event==='moved'){this.emit(RoomEvent.ServerMoved,data);await this.disconnect()}

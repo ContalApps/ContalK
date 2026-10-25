@@ -8,6 +8,7 @@ import './title-bar.css'
 import './experience.css'
 import { useVoiceStore } from './store/useVoiceStore'
 import { setupTraySpeaking } from './media/traySpeaking'
+import {setupSoundboardPlayback} from './store/useSoundboardStore'
 import { setupSpeechPlayback } from './store/useSpeechStore'
 import { setupVoiceInput } from './media/push-to-talk'
 import { setupTrayControls } from './media/trayControls'
@@ -19,6 +20,8 @@ const stopTraySpeaking=setupTraySpeaking(useVoiceStore,speaking=>window.contalkD
 const stopNotifications=setupActivityNotifications()
 const stopCommunity=setupCentralCommunity()
 const stopVoiceInput=setupVoiceInput()
+const stopSoundboardPlayback=setupSoundboardPlayback()
+if(import.meta.hot)import.meta.hot.dispose(stopSoundboardPlayback)
 const stopSpeechPlayback=setupSpeechPlayback()
 if(import.meta.hot)import.meta.hot.dispose(stopSpeechPlayback)
 if(import.meta.hot)import.meta.hot.dispose(stopVoiceInput)
