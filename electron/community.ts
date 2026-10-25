@@ -118,7 +118,7 @@ export function setupCommunity(window:BrowserWindow,getUsername:()=>string|null)
       for(const id of fileIds)selectedAiFiles.delete(id)
       return result
     },
-    'community-ai-stop':(serverId:string,channelId:string)=>{if(!validId(serverId)||!validId(channelId))throw new Error('Conversa inválida.');return request(`/servers/${serverId}/ai-runs/${channelId}/stop`,{})},
+    'community-ai-stop':(serverId:string,channelId:string,runId?:string)=>{if(!validId(serverId)||!validId(channelId)||(runId&&!validId(runId)))throw new Error('Execução inválida.');return request(`/servers/${serverId}/ai-runs/${channelId}/stop`,runId?{runId}:{})},
     'community-ai-subscribe':(serverId:string,channelId:string)=>{if(!validId(serverId)||!validId(channelId))throw new Error('Conversa inválida.');config();aiStream?.abort();aiStream=new AbortController();void subscribeAi(serverId,channelId,getUsername()!,aiStream)},
     'community-ai-unsubscribe':()=>{aiStream?.abort();aiStream=undefined},
     'community-configure':async(value:{url:string;token:string})=>{

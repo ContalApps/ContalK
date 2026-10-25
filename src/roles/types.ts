@@ -35,6 +35,7 @@ export type CommunityAction =
   | {type:'project-model';id:string;model:string|null}
   | {type:'project-rename';id:string;name:string}
   | {type:'project-delete';id:string}
+  | {type:'project-restore';id:string}
   | {type:'channel-voice-mode';channelId:string;mode:'conversation'|'stage'}
   | {type:'stage-request';channelId:string;enabled:boolean}
   | {type:'stage-invite'|'stage-decline'|'stage-audience';channelId:string;member:string}

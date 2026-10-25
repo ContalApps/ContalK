@@ -4,6 +4,7 @@ import {once} from 'node:events'
 import {createCommunityService,createCommunityState} from '../scripts/community/service.mjs'
 import {can} from '../src/roles/permissions.ts'
 import {openAiProvider,validateAiFiles} from '../scripts/community/ai.mjs'
+import {zipSync} from 'fflate'
 
 const keys={alice:'a'.repeat(40),bob:'b'.repeat(40),carol:'c'.repeat(40)}
 async function fixture(t,provider,storage){
@@ -43,6 +44,9 @@ test('HQ co-owners cannot see private AI projects; readers get complete history 
   assert.equal((await f.command('alice',{type:'project-member',id:'project-1',member:'bob',access:'collaborator'})).status,200)
   assert.equal((await f.command('bob',{type:'message-send',id:'reply',channel:'project-1',content:'Agora posso colaborar'})).status,200)
   assert.equal((await f.command('bob',{type:'project-member',id:'project-1',member:'carol',access:'reader'})).status,403)
+  assert.equal((await f.command('alice',{type:'project-member',id:'project-1',member:'bob',access:'manager'})).status,200)
+  assert.equal((await f.command('bob',{type:'project-member',id:'project-1',member:'carol',access:'reader'})).status,200)
+  assert.equal(can((await f.request('carol','/servers/srv-1')).data.policy,'carol','SEND_MESSAGES','project-1'),false)
   assert.equal((await f.command('alice',{type:'project-member',id:'project-1',member:'bob',access:null})).status,200)
   assert.equal(JSON.stringify((await f.request('bob','/servers/srv-1')).data).includes('Projeto secreto'),false)
 })
@@ -69,6 +73,8 @@ test('AI runs stream to authorized members and finish with usage, without persis
 test('file validation rejects unsupported data and archived projects do not allow AI invocations',async t=>{
   assert.throws(()=>validateAiFiles([{name:'archive.zip',size:1,data:'YQ=='}]),/não pode ser interpretado/)
   assert.throws(()=>validateAiFiles([{name:'bad.pdf',size:1,data:'YQ=='}]),/PDF/)
+  assert.throws(()=>validateAiFiles([{name:'bad.gif',size:1,data:'YQ=='}]),/GIF/)
+  assert.throws(()=>validateAiFiles([{name:'bad.docx',size:1,data:'YQ=='}]),/documento/)
   const f=await fixture(t,provider)
   await f.command('alice',{type:'ai-channel-model',channelId:'ch-general',model:'model-alpha'})
   await f.command('alice',{type:'project-create',id:'project-1',parentId:'ch-general',name:'Projeto'})
@@ -77,6 +83,49 @@ test('file validation rejects unsupported data and archived projects do not allo
   assert.equal((await f.command('alice',{type:'project-member',id:'project-1',member:'bob',access:null})).status,200)
   const snapshot=(await f.request('alice','/servers/srv-1')).data
   assert.equal(snapshot.policy.projects['project-1'].ownerId,'alice')
+})
+
+test('unavailable model records an actionable failure without generating or retaining the key',async t=>{
+  let generated=false,saved
+  const unavailable={...provider,count:async()=>{throw Error('O modelo escolhido não está disponível para esta chave.')},generate:async()=>{generated=true;throw Error('should not run')}}
+  const f=await fixture(t,unavailable,{load:()=>saved||null,save:value=>{saved=structuredClone(value)}})
+  await f.command('alice',{type:'ai-channel-model',channelId:'ch-general',model:'model-alpha'})
+  const started=await f.request('alice','/servers/srv-1/ai-runs',prompt('ch-general'))
+  assert.equal(started.status,202)
+  const failed=await f.until(async()=>{const snapshot=(await f.request('alice','/servers/srv-1')).data;return snapshot.messages['ch-general']?.find(item=>item.ai?.id===started.data.runId&&item.ai.status==='failed')})
+  assert.match(failed.ai.error,/não está disponível/);assert.equal(generated,false)
+  assert.equal(JSON.stringify(saved).includes('p'.repeat(40)),false)
+})
+
+test('an archived project stays readable and only an existing manager can restore it',async t=>{
+  const initial=createCommunityState(['alice','bob'])
+  const server=initial.servers['srv-1']
+  server.channels.find(item=>item.id==='ch-general').aiModel='model-alpha'
+  server.channels.push({id:'project-1',serverId:'srv-1',type:'text',name:'Projeto',parentId:'ch-general',project:true})
+  server.policy.projects={'project-1':{parentId:'ch-general',ownerId:'alice',members:{alice:'manager',bob:'reader'},createdAt:Date.now(),archived:true}}
+  server.messages['project-1']=[]
+  const f=await fixture(t,provider,{load:()=>initial,save:()=>{}})
+  const bob=(await f.request('bob','/servers/srv-1')).data
+  assert.equal(can(bob.policy,'bob','READ_MESSAGE_HISTORY','project-1'),true)
+  assert.equal(can((await f.request('alice','/servers/srv-1')).data.policy,'alice','SEND_MESSAGES','project-1'),false)
+  assert.equal((await f.command('bob',{type:'project-restore',id:'project-1'})).status,403)
+  assert.equal((await f.command('alice',{type:'project-member',id:'project-1',member:'carol',access:'reader'})).status,403)
+  assert.equal((await f.command('alice',{type:'project-restore',id:'project-1'})).status,200)
+  assert.equal(can((await f.request('alice','/servers/srv-1')).data.policy,'alice','SEND_MESSAGES','project-1'),true)
+})
+
+test('losing the last manager credential archives a project without inviting another owner',async t=>{
+  const initial=createCommunityState(['alice','bob']),server=initial.servers['srv-1']
+  server.channels.push({id:'project-1',serverId:'srv-1',type:'text',name:'Projeto',parentId:'ch-general',project:true})
+  server.policy.projects={'project-1':{parentId:'ch-general',ownerId:'alice',members:{alice:'manager',bob:'reader'},createdAt:Date.now()}}
+  server.messages['project-1']=[]
+  const service=createCommunityService({tokens:{[keys.bob]:'bob'},initialState:initial,aiProvider:provider})
+  service.server.listen(0,'127.0.0.1');await once(service.server,'listening')
+  t.after(async()=>{service.server.closeAllConnections();await new Promise(resolve=>service.server.close(resolve))})
+  const snapshot=service.snapshot('bob','srv-1')
+  assert.equal(snapshot.policy.projects['project-1'].archived,true)
+  assert.deepEqual(snapshot.policy.projects['project-1'].members,{alice:'manager',bob:'reader'})
+  assert.equal(can(snapshot.policy,'bob','SEND_MESSAGES','project-1'),false)
 })
 
 test('cancellation marks a partial response as cancelled and allows a later request',async t=>{
@@ -91,13 +140,40 @@ test('cancellation marks a partial response as cancelled and allows a later requ
   const first=await f.request('alice','/servers/srv-1/ai-runs',prompt('ch-general'))
   assert.equal(first.status,202)
   await f.until(async()=>started===1)
-  assert.equal((await f.request('bob','/servers/srv-1/ai-runs',prompt('ch-general'))).status,409)
+  const queued=await f.request('bob','/servers/srv-1/ai-runs',prompt('ch-general'))
+  assert.equal(queued.status,202);assert.equal(queued.data.queued,true)
+  assert.equal((await f.request('bob','/servers/srv-1/ai-runs/ch-general/stop',{runId:queued.data.runId})).status,200)
+  await f.until(async()=>{const snapshot=(await f.request('bob','/servers/srv-1')).data;return snapshot.messages['ch-general']?.find(item=>item.ai?.id===queued.data.runId&&item.ai.status==='cancelled')})
   assert.equal((await f.request('bob','/servers/srv-1/ai-runs/ch-general/stop',{})).status,200)
   await f.until(async()=>{const snapshot=(await f.request('alice','/servers/srv-1')).data;return snapshot.messages['ch-general']?.find(item=>item.ai?.id===first.data.runId&&item.ai.status==='cancelled')})
   const second=await f.request('alice','/servers/srv-1/ai-runs',prompt('ch-general'))
   assert.equal(second.status,202)
   const answer=await f.until(async()=>{const snapshot=(await f.request('alice','/servers/srv-1')).data;return snapshot.messages['ch-general']?.find(item=>item.ai?.id===second.data.runId&&item.ai.status==='completed')})
   assert.equal(answer.content,'Resposta retomada')
+})
+
+test('multiple requests wait in one conversation and execute in submission order',async t=>{
+  let releaseFirst,started=0
+  const ordered={...provider,generate:async({onDelta})=>{
+    started++
+    if(started===1)await new Promise(resolve=>{releaseFirst=resolve})
+    const text='Resposta '+started;onDelta(text)
+    return {text,usage:{input_tokens:10,output_tokens:3}}
+  }}
+  const f=await fixture(t,ordered)
+  await f.command('alice',{type:'ai-channel-model',channelId:'ch-general',model:'model-alpha'})
+  const first=await f.request('alice','/servers/srv-1/ai-runs',prompt('ch-general'))
+  await f.until(async()=>!!releaseFirst)
+  const second=await f.request('bob','/servers/srv-1/ai-runs',prompt('ch-general'))
+  assert.equal(second.status,202);assert.equal(second.data.queued,true)
+  const waiting=(await f.request('bob','/servers/srv-1')).data.messages['ch-general'].find(item=>item.ai?.id===second.data.runId)
+  assert.equal(waiting.ai.status,'queued');assert.equal(started,1)
+  releaseFirst()
+  const finished=await f.until(async()=>{const snapshot=(await f.request('bob','/servers/srv-1')).data;return snapshot.messages['ch-general']?.find(item=>item.ai?.id===second.data.runId&&item.ai.status==='completed')})
+  assert.equal(finished.content,'Resposta 2')
+  assert.equal(started,2)
+  const earlier=(await f.request('alice','/servers/srv-1')).data.messages['ch-general'].find(item=>item.ai?.id===first.data.runId)
+  assert.equal(earlier.ai.status,'completed')
 })
 
 test('provider counts input and streams across CRLF chunk boundaries without storing state',async()=>{
@@ -117,6 +193,20 @@ test('provider counts input and streams across CRLF chunk boundaries without sto
   assert.equal(requests[1].store,false);assert.equal(requests[1].stream,true)
 })
 
+test('Office documents and spreadsheets are converted to counted text before generation',async()=>{
+  const doc=Buffer.from(zipSync({'word/document.xml':new TextEncoder().encode('<w:document><w:p><w:t>Plano &amp; projeto</w:t></w:p></w:document>')}))
+  const sheet=Buffer.from(zipSync({'xl/sharedStrings.xml':new TextEncoder().encode('<sst><si><t>Receita</t></si></sst>'),'xl/worksheets/sheet1.xml':new TextEncoder().encode('<worksheet><row><c t="s"><v>0</v></c><c><v>42</v></c></row></worksheet>')}))
+  const files=validateAiFiles([{name:'plano.docx',size:doc.length,data:doc.toString('base64')},{name:'dados.xlsx',size:sheet.length,data:sheet.toString('base64')}])
+  assert.match(files[0].extracted,/Plano & projeto/)
+  assert.match(files[1].extracted,/Receita \| 42/)
+  let input
+  const ai=openAiProvider({fetcher:async(_url,options)=>{input=JSON.parse(options.body).input;return new Response(JSON.stringify({input_tokens:42}),{status:200})}})
+  assert.equal(await ai.count({key:'secret',model:'model-alpha',messages:[{userName:'alice',content:'Explique'}],summary:'',files}),42)
+  assert.equal(input[0].content[1].type,'input_text')
+  assert.equal(input[0].content[2].type,'input_text')
+  assert.equal(JSON.stringify(input).includes(doc.toString('base64')),false)
+})
+
 test('an invitation revocation closes the AI event stream and hides project metadata',async t=>{
   const f=await fixture(t,provider)
   await f.command('alice',{type:'ai-channel-model',channelId:'ch-general',model:'model-alpha'})
@@ -134,12 +224,13 @@ test('an invitation revocation closes the AI event stream and hides project meta
 
 test('service restart marks a running answer as interrupted without presenting partial output as complete',async t=>{
   const initial=createCommunityState(Object.keys(keys))
-  initial.servers['srv-1'].messages['ch-general']=[{id:'old-run',channelId:'ch-general',userId:'ai:old-run',userName:'IA',content:'rascunho',timestamp:Date.now(),ai:{id:'old-run',channelId:'ch-general',actor:'alice',model:'model-alpha',status:'running'}}]
+  initial.servers['srv-1'].messages['ch-general']=[{id:'old-run',channelId:'ch-general',userId:'ai:old-run',userName:'IA',content:'rascunho',timestamp:Date.now(),ai:{id:'old-run',channelId:'ch-general',actor:'alice',model:'model-alpha',status:'running'}},{id:'queued-run',channelId:'ch-general',userId:'ai:queued-run',userName:'IA',content:'',timestamp:Date.now()+1,ai:{id:'queued-run',channelId:'ch-general',actor:'bob',model:'model-alpha',status:'queued'}}]
   let saved=structuredClone(initial)
   const f=await fixture(t,provider,{load:()=>saved,save:value=>{saved=structuredClone(value)}})
   const message=(await f.request('alice','/servers/srv-1')).data.messages['ch-general'].find(item=>item.id==='old-run')
   assert.equal(message.ai.status,'interrupted')
   assert.equal(saved.servers['srv-1'].messages['ch-general'].find(item=>item.id==='old-run').ai.status,'interrupted')
+  assert.equal(saved.servers['srv-1'].messages['ch-general'].find(item=>item.id==='queued-run').ai.status,'interrupted')
 })
 
 test('old messages are summarized while recent messages remain available to the model',async t=>{

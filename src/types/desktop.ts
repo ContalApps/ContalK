@@ -22,7 +22,7 @@ export interface DesktopBridge {
   communityAiRemove:()=>Promise<void>
   communityAiSelectFiles:()=>Promise<Array<{id:string;name:string;size:number;type:string}>>
   communityAiStart:(serverId:string,channelId:string,text:string,fileIds:string[],limits?:{contextTokens:number;maxOutputTokens:number})=>Promise<{runId:string;promptId:string;model:string}>
-  communityAiStop:(serverId:string,channelId:string)=>Promise<{stopping:boolean;runId:string}>
+  communityAiStop:(serverId:string,channelId:string,runId?:string)=>Promise<{stopping:boolean;runId:string}>
   communityAiSubscribe:(serverId:string,channelId:string)=>Promise<void>
   communityAiUnsubscribe:()=>Promise<void>
   onCommunityAiEvent:(listener:(event:import('../roles/ai').AiEvent)=>void)=>()=>void

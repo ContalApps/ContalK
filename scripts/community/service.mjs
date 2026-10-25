@@ -78,7 +78,7 @@ export function createCommunityService({ tokens, storage, initialState, voice, f
   const aiChanges = new EventEmitter(); aiChanges.setMaxListeners(1000)
   let state = storage?.load() || initialState || createCommunityState([...new Set(credentials.values())])
   let interrupted=false
-  for(const server of Object.values(state.servers||{}))for(const list of Object.values(server.messages||{}))for(const message of list)if(message.ai?.status==='running'){message.ai.status='interrupted';message.ai.error='O serviço foi reiniciado durante a geração.';interrupted=true}
+  for(const server of Object.values(state.servers||{}))for(const list of Object.values(server.messages||{}))for(const message of list)if(['running','queued'].includes(message.ai?.status)){message.ai.status='interrupted';message.ai.error='O serviço foi reiniciado antes da conclusão da geração.';interrupted=true}
   if(interrupted)storage?.save(state)
   requireValue(state.schemaVersion === 1 && state.servers && own(state.servers, 'srv-1'), 'Dados do serviço incompatíveis.')
   const channelIds=new Set()
@@ -104,8 +104,14 @@ export function createCommunityService({ tokens, storage, initialState, voice, f
     storage?.save(next)
     state = next
   }
+  let archivedProjects=false
+  for(const server of Object.values(state.servers))for(const project of Object.values(server.policy.projects||{}))if(!project.archived&&!Object.entries(project.members).some(([member,access])=>access==='manager'&&server.policy.members.includes(member)&&provisioned.includes(member))){
+    project.archived=true;archivedProjects=true
+  }
+  if(archivedProjects)storage?.save(state)
   let queue = Promise.resolve()
-  const pendingVoice = new Map(), voiceRetries = new Map(), streams = new Map(), subscriptions = new Map(), liveContexts=new Set(), activeAi=new Map()
+  const pendingVoice = new Map(), voiceRetries = new Map(), streams = new Map(), subscriptions = new Map(), liveContexts=new Set(), activeAi=new Map(), pendingAi=new Map()
+  let pendingAiBytes=0
   let timeoutWake,pollWake, closed=false
   const reconcileVoice = async (id, previous) => {
     if (!voice) return
@@ -217,11 +223,15 @@ export function createCommunityService({ tokens, storage, initialState, voice, f
           server.channels.push({id:action.id,name:text(action.name,60),type:'text',serverId:id,parentId:parent.id,project:true,slowmodeSeconds:parent.slowmodeSeconds||0});server.messages[action.id]=[]
           target=action.id;event=action.type;auditThread={parentId:action.id,private:true};break
         }
-        case 'project-member':case 'project-model':case 'project-rename':case 'project-delete':{
+        case 'project-member':case 'project-model':case 'project-rename':case 'project-delete':case 'project-restore':{
           const project=policy.projects?.[action.id],channel=server.channels.find(item=>item.id===action.id&&item.project)
           requireValue(project&&channel,'Projeto não encontrado.',404)
-          requireValue(can(policy,actor,'VIEW_CHANNEL',action.id)&&project.members[actor]==='manager'&&activeProject(project,policy.members),'Somente o criador ou um delegado ativo pode gerir este projeto.',403)
+          requireValue(can(policy,actor,'VIEW_CHANNEL',action.id)&&project.members[actor]==='manager'&&(action.type==='project-restore'||activeProject(project,policy.members)),'Somente o criador ou um delegado ativo pode gerir este projeto.',403)
           auditThread={parentId:action.id,private:true}
+          if(action.type==='project-restore'){
+            requireValue(project.archived,'Este projeto já está ativo.',409)
+            project.archived=false;target=action.id;event=action.type;break
+          }
           if(action.type==='project-member'){
             requireValue(identifier(action.member)&&policy.members.includes(action.member)&&action.member!==project.ownerId,'Participante inválido ou criador protegido.')
             requireValue(can(policy,action.member,'VIEW_CHANNEL',project.parentId),'A pessoa precisa ter acesso ao canal principal.',403)
@@ -665,6 +675,7 @@ export function createCommunityService({ tokens, storage, initialState, voice, f
       aiChanges.emit(aiKey(id,channel),{type:'done',runId:run.id,status,content:message.content,usage:message.ai,error})
     });queue=task.catch(()=>{});return task
   }
+  let drainAi
   const executeAi=async({id,channel,actor,key,model,run,text,files,contextTokens,maxOutputTokens,controller})=>{
     let content='',usage={inputTokens:0,outputTokens:0},status='completed',error
     try{
@@ -701,9 +712,35 @@ export function createCommunityService({ tokens, storage, initialState, voice, f
         content+=delta;activeAi.get(aiKey(id,channel))&&(activeAi.get(aiKey(id,channel)).partial=content)
         aiChanges.emit(aiKey(id,channel),{type:'delta',runId:run.id,delta})
       }})
+      if(controller.signal.aborted)throw new Error('Execução interrompida.')
       content=result.text;usage.inputTokens+=result.usage.input_tokens||0;usage.outputTokens+=result.usage.output_tokens||0
     }catch(failure){status=controller.signal.aborted?'cancelled':'failed';error=controller.signal.aborted?'Execução interrompida.':failure instanceof Error?failure.message:'A IA não concluiu a resposta.'}
-    try{await finishAi(id,channel,run,content,status,error,usage)}finally{if(activeAi.get(aiKey(id,channel))?.id===run.id)activeAi.delete(aiKey(id,channel))}
+    try{await finishAi(id,channel,run,content,status,error,usage)}finally{if(activeAi.get(aiKey(id,channel))?.id===run.id)activeAi.delete(aiKey(id,channel));drainAi(id,channel)}
+  }
+  drainAi=(id,channel)=>{
+    const key=aiKey(id,channel)
+    if(closed||activeAi.has(key))return
+    const pending=pendingAi.get(key),job=pending?.shift()
+    if(!job)return
+    pendingAiBytes-=job.files.reduce((total,file)=>total+file.size,0)
+    if(!pending.length)pendingAi.delete(key)
+    const controller=new AbortController()
+    activeAi.set(key,{...job.run,promptId:job.run.promptId,controller,partial:''})
+    const task=queue.then(async()=>{
+      const previous=state.servers[id],answer=previous?.messages[channel]?.find(item=>item.ai?.id===job.run.id)
+      if(!answer||!previous.channels.some(item=>item.id===channel)||!can(previous.policy,job.actor,'SEND_MESSAGES',channel)||previous.policy.projects?.[channel]&&!activeProject(previous.policy.projects[channel],previous.policy.members))return false
+      const server=copy(previous),message=server.messages[channel].find(item=>item.id===answer.id)
+      message.ai.status='running';server.revision++
+      const next={...state,servers:{...state.servers,[id]:server}}
+      await storage?.save(next);state=next
+      changes.emit(id,{messageChange:{id:message.id,channelId:channel,deleted:false,ai:message.ai}})
+      return true
+    });queue=task.catch(()=>{})
+    void task.then(allowed=>{
+      if(!allowed){void finishAi(id,channel,job.run,'','cancelled','O autor perdeu acesso antes de iniciar a resposta.',{}).finally(()=>{activeAi.delete(key);drainAi(id,channel)});return}
+      aiChanges.emit(key,{type:'started',runId:job.run.id,actor:job.actor,model:job.model})
+      void executeAi({...job,controller}).catch(()=>{})
+    }).catch(()=>{activeAi.delete(key);drainAi(id,channel)})
   }
   const startAi=(actor,id,body)=>{
     requireValue(body&&typeof body==='object'&&typeof body.key==='string'&&body.key.length>=20&&body.key.length<=512,'Configure sua chave pessoal da OpenAI.',400)
@@ -718,29 +755,36 @@ export function createCommunityService({ tokens, storage, initialState, voice, f
       requireValue(!project||activeProject(project,previous.policy.members),'Projeto arquivado.',409)
       const model=project?.model||previous.channels.find(item=>item.id===(project?.parentId||channel.id))?.aiModel
       requireValue(validAiModel(model),'Configure um modelo de IA nesta conversa.',409)
-      requireValue(!activeAi.has(aiKey(id,channel.id)),'Aguarde a resposta atual antes de chamar a IA novamente.',409)
+      const runKey=aiKey(id,channel.id),waiting=activeAi.has(runKey)||(pendingAi.get(runKey)?.length||0)>0
+      requireValue((pendingAi.get(runKey)?.length||0)<3,'A fila desta conversa está cheia. Aguarde uma resposta.',409)
+      if(waiting)requireValue(pendingAiBytes+files.reduce((total,file)=>total+file.size,0)<=100*1024*1024,'A fila de anexos da IA está cheia. Aguarde uma resposta.',429)
       const server=copy(previous),promptId=randomUUID(),runId=randomUUID(),now=Date.now()
       const deadline=can(previous.policy,actor,'BYPASS_SLOWMODE',channel.id)?0:slowmodeDeadline(channel.slowmodeSeconds,lastSent(previous,channel.id,actor))
       requireValue(deadline<=now,'Modo lento: aguarde '+Math.ceil((deadline-now)/1000)+' segundos.',429)
       const prompt={id:promptId,channelId:channel.id,userId:actor,userName:actor,content:body.text.trim(),timestamp:now,preview:false}
-      const run={id:runId,channelId:channel.id,actor,model,status:'running',files:files.map(({name,size,type})=>({name,size,type}))}
+      const run={id:runId,promptId,channelId:channel.id,actor,model,status:waiting?'queued':'running',files:files.map(({name,size,type})=>({name,size,type}))}
       const answer={id:runId,channelId:channel.id,userId:'ai:'+runId,userName:'IA · '+model,content:'',timestamp:now+1,preview:false,ai:run}
       server.messages[channel.id]=[...(server.messages[channel.id]||[]),prompt,answer]
       server.slowmodeLastSent||={};server.slowmodeLastSent[channel.id]||={};server.slowmodeLastSent[channel.id][actor]=now
       server.revision++
       const next={...state,servers:{...state.servers,[id]:server}}
       await storage?.save(next);state=next
-      const controller=new AbortController();activeAi.set(aiKey(id,channel.id),{...run,promptId,controller,partial:''})
-      changes.emit(id,{message:prompt});aiChanges.emit(aiKey(id,channel.id),{type:'started',runId,actor,model})
-      queueMicrotask(()=>void executeAi({id,channel:channel.id,actor,key:body.key,model,run:{...run,promptId},text:body.text,files,contextTokens:body.contextTokens,maxOutputTokens:body.maxOutputTokens,controller}).catch(()=>{}))
-      return {runId,promptId,model}
+      const job={id,channel:channel.id,actor,key:body.key,model,run,text:body.text,files,contextTokens:body.contextTokens,maxOutputTokens:body.maxOutputTokens}
+      if(waiting){const pending=pendingAi.get(runKey)||[];pending.push(job);pendingAi.set(runKey,pending);pendingAiBytes+=files.reduce((total,file)=>total+file.size,0)}
+      else{const controller=new AbortController();activeAi.set(runKey,{...run,controller,partial:''});queueMicrotask(()=>void executeAi({...job,controller}).catch(()=>{}))}
+      changes.emit(id,{message:prompt});if(!waiting)aiChanges.emit(runKey,{type:'started',runId,actor,model})
+      return {runId,promptId,model,queued:waiting}
     });queue=task.catch(()=>{});return task
   }
-  const stopAi=(actor,id,channel)=>{
-    const current=serverFor(actor,id),run=activeAi.get(aiKey(id,channel)),project=current.policy.projects?.[channel]
-    requireValue(run&&can(current.policy,actor,'VIEW_CHANNEL',channel),'Execução não encontrada.',404)
+  const stopAi=async(actor,id,channel,runId)=>{
+    const current=serverFor(actor,id),key=aiKey(id,channel),active=activeAi.get(key),pending=pendingAi.get(key)
+    const queued=runId?pending?.find(item=>item.run.id===runId):undefined
+    const run=queued?.run||active
+    requireValue(run&&(!runId||run.id===runId)&&can(current.policy,actor,'VIEW_CHANNEL',channel),'Execução não encontrada.',404)
+    const project=current.policy.projects?.[channel]
     requireValue(run.actor===actor||project?.members[actor]==='manager'||!project&&can(current.policy,actor,'MANAGE_CHANNELS',channel),'Você não pode interromper esta resposta.',403)
-    run.controller.abort();return {stopping:true,runId:run.id}
+    if(queued){pending.splice(pending.indexOf(queued),1);pendingAiBytes-=queued.files.reduce((total,file)=>total+file.size,0);if(!pending.length)pendingAi.delete(key);await finishAi(id,channel,run,'','cancelled','Pedido retirado da fila.',{});return {stopping:false,runId:run.id}}
+    active.controller.abort();return {stopping:true,runId:run.id}
   }
   const json = (response, status, value) => { response.writeHead(status, { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store' }); response.end(JSON.stringify(value)) }
   const lookupInvite=(code,requireActive=true)=>{
@@ -819,7 +863,7 @@ export function createCommunityService({ tokens, storage, initialState, voice, f
       const aiStart=/^\/servers\/([\w:-]{1,100})\/ai-runs$/.exec(url.pathname)
       if(request.method==='POST'&&aiStart){const body=await readAiBody(request);json(response,202,await startAi(actor,aiStart[1],body));return}
       const aiStop=/^\/servers\/([\w:-]{1,100})\/ai-runs\/([\w:-]{1,100})\/stop$/.exec(url.pathname)
-      if(request.method==='POST'&&aiStop){await readBody(request);json(response,200,stopAi(actor,aiStop[1],aiStop[2]));return}
+      if(request.method==='POST'&&aiStop){const body=await readBody(request);requireValue(body&&typeof body==='object'&&(!body.runId||identifier(body.runId)),'Execução inválida.');json(response,200,await stopAi(actor,aiStop[1],aiStop[2],body.runId));return}
       const aiStream=/^\/servers\/([\w:-]{1,100})\/ai-events\/([\w:-]{1,100})$/.exec(url.pathname)
       if(request.method==='GET'&&aiStream){
         const [,serverId,channelId]=aiStream,current=serverFor(actor,serverId)
