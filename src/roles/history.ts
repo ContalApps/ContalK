@@ -5,6 +5,7 @@ import type { Message } from '../store/useAppStore'
 export function applyMessageChange(message:Message,change:NonNullable<CommunitySnapshot['messageChanges']>[number]):Message{
   const result={...message}
   if(change.content!==undefined)result.content=change.content
+  if(change.ai!==undefined)result.ai=change.ai
   if(change.editedAt!==undefined)result.editedAt=change.editedAt
   if(change.roleMentions!==undefined)result.roleMentions=change.roleMentions
   if(change.mentionsEveryone!==undefined)result.mentionsEveryone=change.mentionsEveryone??undefined

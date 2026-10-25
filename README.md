@@ -18,7 +18,7 @@ Instalação de produção, DNS, portas, preservação de volumes, rollback e ac
 - `node tests/run-community-voice-smoke.mjs`: quatro clientes Electron isolados, worker real, mídia sintética, reconexão e revogação no servidor; sem contas/arquivos de produção.
 - `node scripts/verify-community-vps.mjs`: saúde pública; com `CONTALK_VERIFY_TOKEN`, identidade, snapshot e autenticação WebSocket. Não testa mídia da VPS.
 
-Interface: [tipografia e transmissões](docs/interface-and-streams.md), [barra de título](docs/title-bar.md), [serviço de comunidade](docs/community-service.md).
+Interface: [tipografia e transmissões](docs/interface-and-streams.md), [barra de título](docs/title-bar.md), [serviço de comunidade](docs/community-service.md), [IA compartilhada e projetos privados](docs/ai-projects.md).
 
 ## Atualizações do Electron (Windows)
 

@@ -7,6 +7,15 @@ function subscribe<T>(channel: string, listener: (event: T) => void) {
   return () => ipcRenderer.removeListener(channel, handler)
 }
 const desktop: DesktopBridge = {
+  communityAiStatus:()=>ipcRenderer.invoke('community-ai-status'),
+  communityAiConfigure:value=>ipcRenderer.invoke('community-ai-configure',value),
+  communityAiRemove:()=>ipcRenderer.invoke('community-ai-remove'),
+  communityAiSelectFiles:()=>ipcRenderer.invoke('community-ai-select-files'),
+  communityAiStart:(serverId,channelId,text,fileIds)=>ipcRenderer.invoke('community-ai-start',serverId,channelId,text,fileIds),
+  communityAiStop:(serverId,channelId)=>ipcRenderer.invoke('community-ai-stop',serverId,channelId),
+  communityAiSubscribe:(serverId,channelId)=>ipcRenderer.invoke('community-ai-subscribe',serverId,channelId),
+  communityAiUnsubscribe:()=>ipcRenderer.invoke('community-ai-unsubscribe'),
+  onCommunityAiEvent:listener=>subscribe('community-ai-event',listener),
   getSession: token => ipcRenderer.invoke('auth-session', token),
   listAccounts: () => ipcRenderer.invoke('auth-accounts'),
   updateProfile: profile => ipcRenderer.invoke('auth-profile', profile),
