@@ -1,3 +1,5 @@
+import type {StageView} from '../roles/stages'
+import type { VoiceInputMode } from './voice-input'
 import { Device } from 'mediasoup-client'
 import type { types } from 'mediasoup-client'
 
@@ -9,7 +11,7 @@ class Events {
   emit(event: string, ...args: any[]) { this.handlers.get(event)?.forEach(callback => callback(...args)) }
   removeAllListeners() { this.handlers.clear() }
 }
-export const RoomEvent = Object.fromEntries(['Connected','Disconnected','Reconnecting','Reconnected','ParticipantConnected','ParticipantDisconnected','ParticipantMetadataChanged','ParticipantNameChanged','DataReceived','TrackPublished','TrackUnpublished','LocalTrackPublished','LocalTrackUnpublished','TrackSubscribed','TrackUnsubscribed','TrackMuted','TrackUnmuted','ActiveSpeakersChanged'].map(name => [name,name]))
+export const RoomEvent = Object.fromEntries(['Connected','Disconnected','Reconnecting','Reconnected','ParticipantConnected','ParticipantDisconnected','ParticipantMetadataChanged','ParticipantNameChanged','DataReceived','TrackPublished','TrackUnpublished','LocalTrackPublished','LocalTrackUnpublished','TrackSubscribed','TrackUnsubscribed','TrackMuted','TrackUnmuted','ActiveSpeakersChanged','ServerModerationChanged','ServerMoved','ServerVoiceDisconnected','PrioritySpeakersChanged','Soundboard','SoundboardStopped','StageChanged'].map(name => [name,name]))
 export type RoomEvent = string
 export const ParticipantEvent = { IsSpeakingChanged: 'IsSpeakingChanged' }
 export type AudioCaptureOptions = MediaTrackConstraints
@@ -44,7 +46,7 @@ export class Track {
   }
   detach(element?: HTMLMediaElement) { const list = element ? [element] : [...this.elements]; for (const el of list) { el.srcObject = null; this.elements.delete(el) }; return list }
   setVolume(volume: number) { this.volume = Math.max(0,Math.min(2,volume)); if (this.gain) this.gain.gain.value = this.volume }
-  async mute() { await this.onMute?.(true); this.isMuted = true; this.mediaStreamTrack.enabled = false }
+  async mute() { this.isMuted = true; this.mediaStreamTrack.enabled = false; await this.onMute?.(true) }
   async unmute() { await this.onMute?.(false); this.isMuted = false; this.mediaStreamTrack.enabled = true }
   stop() { this.detach().forEach(element => element.remove()); this.mediaStreamTrack.stop(); void this.context?.close(); this.context = undefined }
 }
@@ -52,6 +54,8 @@ export type RemoteTrack = Track
 type Publication = { source: string; track: Track; audioTrack?: Track; isMuted: boolean; producerId: string; options?: any }
 export class Participant extends Events {
   identity = ''; name = ''; metadata = ''; isSpeaking = false
+  serverNickname?:string|null
+  serverMuted=false; serverDeafened=false; canStream?:boolean;canPublishMicrophone?:boolean; canUseVoiceActivity?:boolean;canPrioritySpeaker?:boolean;canUseSoundboard?:boolean;canUseExternalSounds?:boolean;canCreateExpressions?:boolean;canManageExpressions?:boolean
   trackPublications = new Map<string, Publication>()
   get audioTrackPublications() { return new Map([...this.trackPublications].filter(([,pub]) => pub.track.kind === 'audio')) }
   getTrackPublication(source: string) { return [...this.trackPublications.values()].find(pub => pub.source === source) }
@@ -75,6 +79,8 @@ class LocalParticipant extends Participant {
 }
 type Authority = { url: string; token: string }
 export class Room extends Events {
+  stage:StageView|null=null
+  serverId:string|null=null
   state = 'disconnected'
   localParticipant = new LocalParticipant(this)
   remoteParticipants = new Map<string, Participant>()
@@ -92,7 +98,28 @@ export class Room extends Events {
   private reconnectTracks: Publication[] = []
   private outputDevice = 'default'
   private authority?: Authority
-  constructor(private options: { presence?: boolean; tokenProvider?: () => Promise<Authority | null> } = {}) { super() }
+  inputMode:VoiceInputMode='voice-activity'
+  private desiredInputMode:VoiceInputMode='voice-activity'
+  private pttHeld=false
+  prioritySpeakers=new Set<string>()
+  prioritySpeaker=false
+  constructor(private options: { serverId?:string;presence?: boolean; tokenProvider?: () => Promise<Authority | null>;inputMode?:VoiceInputMode;prioritySpeaker?:boolean } = {}) { super();this.serverId=options.serverId||null;this.desiredInputMode=options.inputMode||'voice-activity';this.prioritySpeaker=options.prioritySpeaker===true }
+  async setInputMode(mode:VoiceInputMode){
+    await this.setPushToTalk(false).catch(()=>{})
+    this.desiredInputMode=mode
+    const effective=this.localParticipant.canUseVoiceActivity===false?'push-to-talk':mode
+    if(this.localParticipant.canUseVoiceActivity===undefined){if(effective==='push-to-talk')throw new Error('Atualize o serviço da comunidade para usar Pressionar para falar.');this.inputMode=effective;return}
+    await this.request('input-mode',{mode:effective});this.inputMode=effective
+  }
+  async playSoundboard(serverId:string,id:string){return this.request('soundboard-play',{serverId,id})}
+  async setPushToTalk(pressed:boolean){
+    this.pttHeld=pressed
+    const pub=this.localParticipant.getTrackPublication(Track.Source.Microphone)
+    if(!pressed&&pub){pub.track.mediaStreamTrack.enabled=false;pub.track.isMuted=true;pub.isMuted=true;this.producers.get(pub.producerId)?.pause();this.emit(RoomEvent.TrackMuted)}
+    if(this.inputMode!=='push-to-talk')return
+    await this.request('input-press',{pressed,priority:pressed&&this.prioritySpeaker&&this.localParticipant.canPrioritySpeaker===true})
+    if(pressed&&this.pttHeld&&pub&&!this.localParticipant.serverMuted&&!this.localParticipant.serverDeafened&&this.localParticipant.canPublishMicrophone!==false){pub.track.mediaStreamTrack.enabled=true;pub.track.isMuted=false;pub.isMuted=false;this.producers.get(pub.producerId)?.resume();this.emit(RoomEvent.TrackUnmuted)}
+  }
   request(method: string, data?: unknown): Promise<any> {
     return new Promise((resolve,reject) => {
       if (this.socket?.readyState !== WebSocket.OPEN) { reject(new Error('A sinalização está desconectada.')); return }
@@ -132,8 +159,11 @@ export class Room extends Events {
     }
     // Auth uses the first frame; no tickets appear in URLs/proxy access logs.
     const id = ++this.sequence
-    const auth = await new Promise<any>((resolve,reject) => { const timer = setTimeout(() => { this.pending.delete(id); reject(new Error('Autenticação não respondeu.')) },10000); this.pending.set(id,{resolve,reject,timer}); socket.send(JSON.stringify({id,method:'auth',token:authority.token})) })
+    const auth = await new Promise<any>((resolve,reject) => { const timer = setTimeout(() => { this.pending.delete(id); reject(new Error('Autenticação não respondeu.')) },10000); this.pending.set(id,{resolve,reject,timer}); socket.send(JSON.stringify({id,method:'auth',token:authority.token,features:['voice-move-v1']})) })
     Object.assign(this.localParticipant, auth.self)
+    this.stage=auth.stage||null;this.emit(RoomEvent.StageChanged)
+    this.pttHeld=false
+    if(!this.options.presence)await this.setInputMode(this.desiredInputMode)
     for (const peer of auth.peers) this.addPeer(peer)
     if (!this.options.presence) {
       const capabilities = await this.request('capabilities')
@@ -153,6 +183,13 @@ export class Room extends Events {
   }
   private addPeer(data: any) { let peer = this.remoteParticipants.get(data.identity); if (!peer) { peer = new Participant(); this.remoteParticipants.set(data.identity,peer) }; Object.assign(peer,data); this.emit(RoomEvent.ParticipantConnected,peer); return peer }
   private async handle(event: string, data: any) {
+    if(event==='stage'){this.stage=data||null;this.emit(RoomEvent.StageChanged)}
+    if(event==='soundboard')this.emit(RoomEvent.Soundboard,data)
+    if(event==='soundboardStop')this.emit(RoomEvent.SoundboardStopped,data)
+    if(event==='prioritySpeakers'){this.prioritySpeakers=new Set(Array.isArray(data)?data.filter(value=>typeof value==='string'&&(value===this.localParticipant.identity||this.remoteParticipants.has(value))):[]);this.emit(RoomEvent.PrioritySpeakersChanged)}
+    if(event==='moderation'){Object.assign(this.localParticipant,data);if(data.serverMuted||data.serverDeafened||data.canPublishMicrophone===false||data.canUseVoiceActivity===false&&this.inputMode!=='push-to-talk'||data.canUseVoiceActivity===true&&this.inputMode!==this.desiredInputMode){await this.setPushToTalk(false).catch(()=>{});if(data.canUseVoiceActivity!==undefined)await this.setInputMode(this.desiredInputMode).catch(()=>{})}this.emit(RoomEvent.ServerModerationChanged,data)}
+    if(event==='moved'){this.emit(RoomEvent.ServerMoved,data);await this.disconnect()}
+    if(event==='moderatorDisconnected'){this.emit(RoomEvent.ServerVoiceDisconnected);await this.disconnect()}
     if (event === 'joined' && data.identity !== this.localParticipant.identity) this.addPeer(data)
     if (event === 'left') { const peer = this.remoteParticipants.get(data.identity); if (peer) for (const pub of peer.trackPublications.values()) { pub.track.stop(); this.emit(RoomEvent.TrackUnsubscribed,pub.track) }; this.remoteParticipants.delete(data.identity); this.emit(RoomEvent.ParticipantDisconnected,peer) }
     if (event === 'profile') { const peer = data.identity === this.localParticipant.identity ? this.localParticipant : this.remoteParticipants.get(data.identity); if (peer) Object.assign(peer,data); this.emit(RoomEvent.ParticipantMetadataChanged); this.emit(RoomEvent.ParticipantNameChanged) }
@@ -165,7 +202,7 @@ export class Room extends Events {
       this.emit(RoomEvent.TrackUnpublished)
     }
     if (event === 'consumerClosed') { this.consumers.get(data.consumerId)?.close(); this.consumers.delete(data.consumerId) }
-    if (event === 'producerPaused') { for (const peer of [this.localParticipant,...this.remoteParticipants.values()]) { const pub = peer.trackPublications.get(data.producerId); if (pub) pub.isMuted = data.paused }; this.emit(data.paused ? RoomEvent.TrackMuted : RoomEvent.TrackUnmuted) }
+    if (event === 'producerPaused') { for (const peer of [this.localParticipant,...this.remoteParticipants.values()]) { const pub = peer.trackPublications.get(data.producerId); if (pub) {pub.isMuted = data.paused;if(peer===this.localParticipant&&pub.source===Track.Source.Microphone&&this.inputMode==='push-to-talk'&&data.paused){if(data.reason!=='key-release')this.pttHeld=false;pub.track.isMuted=true;pub.track.mediaStreamTrack.enabled=false;this.producers.get(pub.producerId)?.pause()}} }; this.emit(data.paused ? RoomEvent.TrackMuted : RoomEvent.TrackUnmuted) }
     if (event === 'speakers') {
       for (const peer of [this.localParticipant,...this.remoteParticipants.values()]) { const speaking = data.includes(peer.identity); if (peer.isSpeaking !== speaking) { peer.isSpeaking = speaking; peer.emit(ParticipantEvent.IsSpeakingChanged,speaking) } }
       this.emit(RoomEvent.ActiveSpeakersChanged,[this.localParticipant,...this.remoteParticipants.values()].filter(peer => peer.isSpeaking))
@@ -188,8 +225,10 @@ export class Room extends Events {
   }
   async publish(track: Track, options: any) {
     if (!this.sendTransport) throw new Error('O transporte de mídia não está conectado.')
+    if(options.source===Track.Source.Microphone&&this.inputMode==='push-to-talk'){track.isMuted=true;track.mediaStreamTrack.enabled=false}
     const encoding = options.screenShareEncoding || options.audioPreset
     const producer = await this.sendTransport.produce({ track:track.mediaStreamTrack, stopTracks:false, appData:{source:options.source,paused:track.isMuted}, ...(encoding?{encodings:[encoding]}:{}), ...(track.kind === 'audio'?{codecOptions:{opusStereo:options.forceStereo?true:false,opusDtx:!!options.dtx}}:{}) })
+    if(options.source===Track.Source.Microphone&&(this.localParticipant.serverMuted||this.localParticipant.serverDeafened||this.localParticipant.canPublishMicrophone===false)){producer.close();track.stop();await this.request('producerControl',{producerId:producer.id,action:'close'}).catch(()=>{});throw new Error('Seu microfone está bloqueado pelo servidor.')}
     this.producers.set(producer.id,producer)
     const pub: Publication = {source:options.source,track,producerId:producer.id,isMuted:track.isMuted,options}
     if (track.isMuted) producer.pause()
@@ -199,9 +238,10 @@ export class Room extends Events {
   }
   async unpublish(pub: Publication, stop: boolean) { this.producers.get(pub.producerId)?.close(); this.producers.delete(pub.producerId); this.localParticipant.trackPublications.delete(pub.producerId); if (stop) pub.track.stop(); if (this.socket?.readyState === WebSocket.OPEN) await this.request('producerControl',{producerId:pub.producerId,action:'close'}).catch(() => {}); this.emit(RoomEvent.LocalTrackUnpublished,pub) }
   async switchActiveDevice(_kind: string, deviceId: string) { this.outputDevice = deviceId; const audio = document.querySelectorAll<HTMLAudioElement>('#contalk-audio-tracks audio'); for (const el of audio) if ('setSinkId' in el) await (el as HTMLAudioElement & {setSinkId:(id:string)=>Promise<void>}).setSinkId(deviceId); return true }
-  private clearRemote() { for (const peer of this.remoteParticipants.values()) for (const pub of peer.trackPublications.values()) { pub.track.stop(); this.emit(RoomEvent.TrackUnsubscribed,pub.track) }; this.remoteParticipants.clear(); this.sendTransport?.close(); this.recvTransport?.close(); this.producers.clear(); this.consumers.clear(); this.consuming.clear() }
+  private clearRemote() { for (const peer of this.remoteParticipants.values()) for (const pub of peer.trackPublications.values()) { pub.track.stop(); this.emit(RoomEvent.TrackUnsubscribed,pub.track) }; this.remoteParticipants.clear(); this.sendTransport?.close(); this.recvTransport?.close(); this.producers.clear(); this.consumers.clear(); this.consuming.clear();this.stage=null;this.emit(RoomEvent.StageChanged);this.prioritySpeakers.clear();this.emit(RoomEvent.PrioritySpeakersChanged) }
   private async reconnect() {
     if (this.ended || this.reconnecting) return
+    this.pttHeld=false;for(const pub of this.localParticipant.trackPublications.values())if(pub.source===Track.Source.Microphone&&this.inputMode==='push-to-talk'){pub.track.isMuted=true;pub.track.mediaStreamTrack.enabled=false;pub.isMuted=true}
     this.reconnecting = true; this.state = 'reconnecting'; this.emit(RoomEvent.Reconnecting)
     const tracks = [...this.localParticipant.trackPublications.values()]; this.reconnectTracks = tracks; this.localParticipant.trackPublications.clear(); this.clearRemote()
     const metadata = this.localParticipant.metadata, name = this.localParticipant.name

@@ -1,0 +1,59 @@
+// Three real Electron voice stores, synthetic devices and a real mediasoup worker.
+import fs from 'node:fs'
+import path from 'node:path'
+import net from 'node:net'
+import {once} from 'node:events'
+import {spawn} from 'node:child_process'
+import {randomBytes} from 'node:crypto'
+import {createRequire} from 'node:module'
+import {build} from 'esbuild'
+import {createCommunityVoice} from '../scripts/community/realtime.mjs'
+import {createCommunityService,createCommunityState} from '../scripts/community/service.mjs'
+import {initialPolicy,mask} from '../src/roles/permissions.ts'
+
+const require=createRequire(import.meta.url),folder=path.resolve('release/priority-voice-smoke'),electron=process.env.ELECTRON_PATH||require('electron')
+fs.mkdirSync(folder,{recursive:true})
+const freePort=async()=>{const server=net.createServer();server.listen(0,'127.0.0.1');await once(server,'listening');const port=server.address().port;await new Promise(resolve=>server.close(resolve));return port},port=await freePort(),mediaPort=await freePort(),base='http://127.0.0.1:'+port
+const actors=['alice','bob','carol'],keys=Object.fromEntries(actors.map(actor=>[actor,randomBytes(32).toString('hex')])),initial=createCommunityState(actors),policy=initialPolicy('smoke',actors);policy.ownerIds=['alice'];policy.overwrites.voice=[{id:'bob',type:'member',allow:mask(['PRIORITY_SPEAKER']).toString(),deny:mask(['USE_VAD']).toString()}]
+initial.servers.smoke={id:'smoke',name:'Priority test',revision:0,policy,channels:[{id:'voice',type:'voice',name:'Voice',serverId:'smoke'}],messages:{},audit:[]}
+const voice=createCommunityVoice({url:base.replace('http:','ws:')+'/realtime',mediaPort}),service=createCommunityService({tokens:Object.fromEntries(actors.map(actor=>[keys[actor],actor])),initialState:initial,voice})
+service.server.listen(port,'127.0.0.1');await once(service.server,'listening')
+try{
+ const renderer=`
+import {useVoiceStore} from './src/store/useVoiceStore';import {useRoleStore} from './src/store/useRoleStore';import {Track} from './src/media/realtime';
+const pause=ms=>new Promise(resolve=>setTimeout(resolve,ms)),check=(value,message)=>{if(!value)throw Error(message)},wait=async(test,label)=>{const end=Date.now()+10000;while(!test()){if(Date.now()>end)throw Error(label);await pause(40)}};
+(async()=>{let renewal,context;try{
+ const actor=await window.diag.actor(),snapshot=await window.diag.snapshot();useRoleStore.setState({owner:actor,serverId:'smoke',snapshot,status:'connected',configured:true});const get=useVoiceStore.getState;
+ if(actor==='bob')await get().selectInputMode('push-to-talk');check(await get().joinChannel('voice','Voice',{username:actor,display_name:actor}),'join');
+ if(actor==='carol'){context=new AudioContext();const oscillator=context.createOscillator(),destination=context.createMediaStreamDestination();oscillator.connect(destination);oscillator.start();await context.resume();await get().currentRoom.localParticipant.publishTrack(destination.stream.getAudioTracks()[0],{source:Track.Source.ScreenShareAudio,forceStereo:true})}
+ await wait(()=>get().participants.length===3,'three real clients');await wait(()=>[...get().currentRoom.remoteParticipants.values()].every(peer=>peer.getTrackPublication(Track.Source.Microphone)),'remote mics');
+ const track=(identity,source=Track.Source.Microphone)=>get().currentRoom.remoteParticipants.get(identity)?.getTrackPublication(source)?.track,gain=(identity,source)=>track(identity,source)?.volume;
+ if(actor==='alice'){get().setUserVolume('carol',80);get().setUserVolume('bob',120);get().setStreamVolume('carol',140);await wait(()=>gain('carol',Track.Source.ScreenShareAudio)===1.4,'stream received')}
+ await window.diag.barrier('ready');
+ if(actor==='bob'){await get().pushToTalk(true);renewal=setInterval(()=>void get().pushToTalk(true),400)}
+ await window.diag.barrier('normal');await pause(250);let rtp=false;for(let attempt=0;attempt<100&&!rtp;attempt++){let received=0;for(const consumer of get().currentRoom.consumers.values())for(const report of(await consumer.getStats()).values())if(report.type==='inbound-rtp'&&report.packetsReceived>0){received++;break}rtp=received>=2;if(!rtp)await pause(50)}check(rtp,'inbound RTP missing');check(!get().currentRoom.prioritySpeakers.size,'ordinary PTT granted priority');if(actor==='alice')check(gain('carol')===0.8,'ordinary voice gain');
+ if(actor==='bob'){clearInterval(renewal);await get().pushToTalk(false);await get().selectInputPriority(true);await get().toggleMic();await get().pushToTalk(true);renewal=setInterval(()=>void get().pushToTalk(true),400)}
+ await window.diag.barrier('priority');await wait(()=>get().currentRoom.prioritySpeakers.has('bob'),'trusted priority event');
+ if(actor==='alice'){await wait(()=>gain('carol')===0.2,'other voice not ducked');check(Math.abs(track('carol').gain.gain.value-0.2)<0.000001,'real Web Audio gain did not change');check(gain('bob')===1.2,'priority voice personal volume changed');check(gain('carol',Track.Source.ScreenShareAudio)===1.4,'priority changed stream audio');get().setUserVolume('carol',160);check(gain('carol')===0.4&&get().userVolumes.carol===160,'live volume lost priority or preference');await get().toggleDeafen();check(gain('carol')===0&&gain('bob')===0&&gain('carol',Track.Source.ScreenShareAudio)===0,'deafen bypassed priority');await get().toggleDeafen();check(gain('carol')===0.4&&gain('bob')===1.2&&gain('carol',Track.Source.ScreenShareAudio)===1.4,'undeafen lost mixed levels')}
+ await window.diag.barrier('mixed');
+ if(actor==='bob')await window.diag.rule(false);
+ await wait(()=>!get().currentRoom.prioritySpeakers.size,'priority revoke');if(actor==='alice')await wait(()=>gain('carol')===1.6&&gain('bob')===1.2,'revocation did not restore exact volumes');
+ if(actor==='bob'){await wait(()=>get().currentRoom.localParticipant.canPrioritySpeaker===false,'priority permission flag');const reply=await get().currentRoom.request('input-press',{pressed:true,priority:true});check(reply.priority===false,'forged priority accepted');check(get().currentRoom.localParticipant.isMicrophoneEnabled,'revoking priority muted ordinary speech')}
+ await window.diag.barrier('revoked');
+ if(actor==='bob')await window.diag.rule(true);await wait(()=>get().currentRoom.prioritySpeakers.has('bob'),'priority grant with held key');
+ if(actor==='alice')await wait(()=>gain('carol')===0.4,'restored grant did not duck');
+ await window.diag.barrier('regranted');
+ if(actor==='bob'){clearInterval(renewal);await get().pushToTalk(false)}await wait(()=>!get().currentRoom.prioritySpeakers.size,'release removes priority');if(actor==='alice')check(gain('carol')===1.6&&get().userVolumes.carol===160,'release lost personal level');
+ await window.diag.barrier('released');
+ if(actor==='bob'){await get().pushToTalk(true);await window.diag.mute();await wait(()=>get().isServerMuted,'server mute');check(!get().currentRoom.localParticipant.isMicrophoneEnabled,'muted priority microphone stayed live')}
+ await window.diag.barrier('muted');check(!get().currentRoom.prioritySpeakers.size,'muted sender kept priority');if(actor==='alice')check(gain('carol')===1.6,'mute did not restore playback');
+ await get().leaveChannel();await context?.close();window.diag.result({ok:true,actor,checks:['three-real-voice-stores','web-audio-gain-and-inbound-RTP','normal-PTT-no-priority','server-authorized-priority','nonpriority-voice-ducking','priority-personal-volume','stream-audio-unchanged','live-volume-edit-preserves-preference','deafen-overrides-priority','undeafen-restores-mix','permission-revocation-restores-levels','forged-priority-cannot-escalate','normal-speech-after-priority-revoke','release-restores-saved-levels','server-mute-clears-priority']});
+}catch(error){clearInterval(renewal);await useVoiceStore.getState().leaveChannel().catch(()=>{});window.diag.result({ok:false,error:error.message,stack:error.stack})}})();`
+ await build({stdin:{contents:renderer,loader:'tsx',resolveDir:process.cwd()},bundle:true,platform:'browser',format:'iife',outfile:folder+'/renderer.js'})
+ fs.writeFileSync(folder+'/index.html','<!doctype html><body><script src="renderer.js"></script></body>')
+ fs.writeFileSync(folder+'/preload.cjs',`const {contextBridge,ipcRenderer}=require('electron');contextBridge.exposeInMainWorld('contalkDesktop',{communityVoiceToken:(...args)=>ipcRenderer.invoke('ticket',...args)});contextBridge.exposeInMainWorld('diag',{actor:()=>ipcRenderer.invoke('actor'),snapshot:()=>ipcRenderer.invoke('snapshot'),barrier:stage=>ipcRenderer.invoke('barrier',stage),rule:enabled=>ipcRenderer.invoke('rule',enabled),mute:()=>ipcRenderer.invoke('mute'),result:value=>ipcRenderer.send('result',value)});`)
+ fs.writeFileSync(folder+'/main.cjs',`const {app,BrowserWindow,ipcMain}=require('electron'),fs=require('fs'),path=require('path');const base=${JSON.stringify(base)},keys=${JSON.stringify(keys)},actors=${JSON.stringify(actors)},windows=[],owners=new Map(),barriers=new Map(),results=[];app.setPath('userData',path.join(__dirname,'profile-'+Date.now()));for(const key of ['use-fake-device-for-media-stream','use-fake-ui-for-media-stream'])app.commandLine.appendSwitch(key);app.commandLine.appendSwitch('autoplay-policy','no-user-gesture-required');const request=async(actor,route,body)=>{const response=await fetch(base+route,{method:body?'POST':'GET',headers:{Authorization:'Bearer '+keys[actor],'Content-Type':'application/json'},...(body?{body:JSON.stringify(body)}:{})});if(!response.ok)throw Error('Synthetic fixture request failed');return response.json()};const command=async action=>{const snapshot=await request('alice','/servers/smoke');return request('alice','/servers/smoke/commands',{revision:snapshot.revision,action})};ipcMain.handle('actor',event=>owners.get(event.sender.id));ipcMain.handle('snapshot',event=>request(owners.get(event.sender.id),'/servers/smoke'));ipcMain.handle('ticket',event=>request(owners.get(event.sender.id),'/servers/smoke/voice-token',{channelId:'voice'}));ipcMain.handle('barrier',(_,stage)=>new Promise(resolve=>{const waiting=barriers.get(stage)||[];waiting.push(resolve);barriers.set(stage,waiting);if(waiting.length===actors.length)waiting.forEach(done=>done())}));ipcMain.handle('rule',(_,enabled)=>command({type:'role',command:{type:'overwrite',channel:'voice',targetId:'bob',targetType:'member',overwrite:{id:'bob',type:'member',allow:enabled?'256':'0',deny:'33554432'}}}));ipcMain.handle('mute',()=>command({type:'voice-mute',member:'bob',channelId:'voice',enabled:true}));let finished=false;const finish=ok=>{if(finished)return;finished=true;fs.writeFileSync(path.join(__dirname,'result.json'),JSON.stringify({ok,results},null,2));console.log(JSON.stringify({ok,results}));windows.forEach(win=>win.destroy());app.exit(ok?0:1)};const timer=setTimeout(()=>finish(false),70000);ipcMain.on('result',(_,result)=>{results.push(result);if(!result.ok||results.length===actors.length){clearTimeout(timer);finish(results.length===actors.length&&results.every(value=>value.ok))}});app.whenReady().then(()=>{for(const actor of actors){const win=new BrowserWindow({show:false,webPreferences:{preload:path.join(__dirname,'preload.cjs'),partition:'priority-'+actor+'-'+Date.now(),contextIsolation:true,nodeIntegration:false,backgroundThrottling:false}});windows.push(win);owners.set(win.webContents.id,actor);win.loadFile(path.join(__dirname,'index.html'))}});`)
+ const env={...process.env};delete env.ELECTRON_RUN_AS_NODE
+ const child=spawn(electron,[folder+'/main.cjs'],{windowsHide:true,stdio:'inherit',env}),timer=setTimeout(()=>child.kill(),80000)
+ try{if((await once(child,'exit'))[0]!==0)throw Error('Priority voice integration failed; see release/priority-voice-smoke/result.json')}finally{clearTimeout(timer)}
+}finally{voice.close();service.server.closeAllConnections();await new Promise(resolve=>service.server.close(resolve))}

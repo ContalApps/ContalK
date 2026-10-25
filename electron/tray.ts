@@ -6,13 +6,13 @@ export function setupTray(window:BrowserWindow) {
   // BrowserWindow.webContents cannot be accessed after the native window dies.
   const contents=window.webContents
   let quitting=false, speaking=false, phase=0
-  let voice={connected:false,micMuted:true,deafened:false}
+  let voice:{connected:boolean;micMuted:boolean;deafened:boolean;micBlocked?:boolean;outputBlocked?:boolean}={connected:false,micMuted:true,deafened:false}
   let timer:ReturnType<typeof setInterval>|undefined
   const idle=nativeImage.createFromPath(path.join(process.env.VITE_PUBLIC!, 'app-icon.png')).resize({width:24,height:24})
   const tray=new Tray(idle)
   tray.setToolTip('ConTALK')
   const action=(name:string)=>{if(!window.isDestroyed?.()&&!window.webContents.isDestroyed?.())window.webContents.send('tray-action',name)}
-  const menu=()=>Menu.buildFromTemplate([{label:'Abrir ConTALK',click:()=>{showMainWindow(window)}},{type:'separator'},{label:'Silenciar microfone',type:'checkbox',checked:voice.micMuted,enabled:voice.connected,click:()=>action('toggle-microphone')},{label:'Silenciar saída de áudio',type:'checkbox',checked:voice.deafened,enabled:voice.connected,click:()=>action('toggle-output')},{type:'separator'},{label:'Fechar ConTALK',click:()=>{quitting=true;app.quit()}}])
+  const menu=()=>Menu.buildFromTemplate([{label:'Abrir ConTALK',click:()=>{showMainWindow(window)}},{type:'separator'},{label:voice.micBlocked?'Microfone bloqueado pelo servidor':'Silenciar microfone',type:'checkbox',checked:voice.micMuted,enabled:voice.connected&&!voice.micBlocked,click:()=>action('toggle-microphone')},{label:voice.outputBlocked?'Áudio bloqueado pelo servidor':'Silenciar saída de áudio',type:'checkbox',checked:voice.deafened,enabled:!voice.outputBlocked,click:()=>action('toggle-output')},{type:'separator'},{label:'Fechar ConTALK',click:()=>{quitting=true;app.quit()}}])
   tray.on('click',()=>tray.popUpContextMenu(menu()))
   tray.on('right-click',()=>tray.popUpContextMenu(menu()))
   tray.on('double-click',()=>{showMainWindow(window)})
@@ -30,7 +30,7 @@ export function setupTray(window:BrowserWindow) {
   const voiceState=(event:Electron.IpcMainEvent,value:unknown)=>{
     if(event.sender!==window.webContents||event.senderFrame!==window.webContents.mainFrame||!value||typeof value!=='object')return
     const next=value as typeof voice
-    if(typeof next.connected==='boolean'&&typeof next.micMuted==='boolean'&&typeof next.deafened==='boolean')voice={connected:next.connected,micMuted:next.micMuted,deafened:next.deafened}
+    if(typeof next.connected==='boolean'&&typeof next.micMuted==='boolean'&&typeof next.deafened==='boolean')voice={connected:next.connected,micMuted:next.micMuted,deafened:next.deafened,micBlocked:next.micBlocked===true,outputBlocked:next.outputBlocked===true}
   }
   ipcMain.on('tray-voice-state',voiceState)
   const reset=()=>{clearInterval(timer);timer=undefined;speaking=false;phase=0;tray.setImage(idle)}

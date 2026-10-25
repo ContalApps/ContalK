@@ -18,6 +18,8 @@ jobs:
       - run: npm ci
       - name: Prepare native media worker
         run: npm rebuild mediasoup --foreground-scripts
+      - name: Build global voice and speech helper
+        run: npm run build:voice-input
       - run: npm run verify
       - run: npm run build
       - name: Four-client WebRTC integration

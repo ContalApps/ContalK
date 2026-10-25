@@ -7,6 +7,8 @@ import { ControlIcon } from './ControlIcon'
 import { FriendButton } from './FriendButton'
 import { RoleName } from './RoleName'
 
+function voiceName(person:VoiceParticipant){return person.serverNickname||person.name}
+
 function VideoTrackView({
   track,
   className = 'w-full h-full object-cover',
@@ -63,7 +65,7 @@ function ScreenShareViewer({
       className="ct-share-view relative flex-1 w-full h-full overflow-hidden flex flex-col items-center justify-center group min-h-0 select-none"
     >
       {participant.screenTrack&&<VideoTrackView track={participant.screenTrack} isLocal={participant.isLocal} className="ct-share-video w-full h-full object-contain" onReady={()=>setReady(true)}/>}
-      {!ready&&<div className="ct-share-waiting"><span><ControlIcon name="screen"/></span><strong>Aguardando transmissão</strong><p>A tela de {participant.name} aparecerá aqui assim que os primeiros quadros chegarem.</p></div>}
+      {!ready&&<div className="ct-share-waiting"><span><ControlIcon name="screen"/></span><strong>Aguardando transmissão</strong><p>A tela de {voiceName(participant)} aparecerá aqui assim que os primeiros quadros chegarem.</p></div>}
       {/* Top Header Overlay */}
       <div className="ct-share-header">
         <div className="ct-share-label">
@@ -71,8 +73,8 @@ function ScreenShareViewer({
             <span className="w-1.5 h-1.5 rounded-full bg-white animate-pulse" />
             AO VIVO
           </span>
-          <span data-profile-identity={participant.identity} data-profile-name={participant.name} title="Botão direito para opções da pessoa" className="text-white text-xs font-semibold tracking-wide">
-            {participant.isLocal ? 'Sua Transmissão de Tela' : `Tela de ${participant.name}`}
+          <span data-profile-identity={participant.identity} data-profile-name={voiceName(participant)} title="Botão direito para opções da pessoa" className="text-white text-xs font-semibold tracking-wide">
+            {participant.isLocal ? 'Sua Transmissão de Tela' : `Tela de ${voiceName(participant)}`}
           </span>
         </div>
 
@@ -110,7 +112,7 @@ function ScreenShareViewer({
             onClick={onFullscreen}
             className="bg-black/80 hover:bg-black text-purple-200 p-1.5 rounded-xl border border-purple-500/30 text-xs font-semibold transition shadow-md cursor-pointer"
             title="Tela cheia · selecionar transmissões"
-            aria-label={`Tela cheia: ${participant.name}`}
+            aria-label={`Tela cheia: ${voiceName(participant)}`}
           >
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" aria-hidden="true"><path d="M8 3H3v5M16 3h5v5M3 16v5h5M16 21h5v-5"/></svg>
           </button>}
@@ -174,7 +176,7 @@ function ParticipantTile({
               }`}
               title="Abrir perfil · botão direito para opções"
             >
-              {avatar?<img src={avatar} alt={participant.name} className="ct-voice-avatar"/>:participant.name.charAt(0).toUpperCase()}
+              {avatar?<img src={avatar} alt={voiceName(participant)} className="ct-voice-avatar"/>:voiceName(participant).charAt(0).toUpperCase()}
             </div>
           </div>
         </div>
@@ -186,7 +188,7 @@ function ParticipantTile({
         className="absolute bottom-4 left-4 flex items-center gap-2 bg-black/75 backdrop-blur-md px-3 py-1.5 rounded-xl text-xs border border-white/10 shadow-lg cursor-pointer hover:bg-black/90 transition"
         title="Abrir perfil · botão direito para opções"
       >
-        <span className="font-bold text-white tracking-wide"><RoleName identity={participant.identity} name={participant.name}/></span>
+        <span className="font-bold text-white tracking-wide"><RoleName identity={participant.identity} name={voiceName(participant)}/></span>
         {participant.isLocal && (
           <span className="text-[10px] bg-purple-950/80 border border-purple-700/50 text-purple-300 px-1.5 py-0.5 rounded font-medium">
             você
@@ -324,7 +326,7 @@ export function VoiceStage({
                   onChange={e => setSelectedScreens(e.target.checked
                     ? [...(selectedScreens ?? screenShares.map(s => s.identity)), p.identity]
                     : (selectedScreens ?? screenShares.map(s => s.identity)).filter(id => id !== p.identity))}/>
-                {p.name}{p.isLocal ? ' (você)' : ''}
+                {voiceName(p)}{p.isLocal ? ' (você)' : ''}
               </label>)}
             </div>
           </details>
@@ -500,10 +502,10 @@ export function VoiceStage({
                     }`}
                   >
                     <div className="w-10 h-10 rounded-full bg-gradient-to-br from-purple-600 to-indigo-600 flex items-center justify-center text-white font-bold text-sm shadow">
-                      {p.name.charAt(0).toUpperCase()}
+                      {voiceName(p).charAt(0).toUpperCase()}
                     </div>
                     <div className="absolute bottom-1 left-1 bg-black/75 px-1.5 py-0.5 rounded text-[10px] text-white">
-                      {p.name}
+                      {voiceName(p)}
                     </div>
                   </div>
                 )

@@ -12,7 +12,7 @@ export async function publishSafeMicrophone(room: Room, deviceId: string, muted 
   try {
     if (isLoopbackInput(track.mediaStreamTrack.label)) throw new Error('Essa entrada mistura o som do computador. Escolha o microfone físico em Configurações de áudio.')
     // Keep a replacement muted until it has been published; preserve user mute/deafen.
-    if (muted) await track.mute()
+    if (muted||room.inputMode==='push-to-talk') await track.mute()
     const old = room.localParticipant.getTrackPublication(Track.Source.Microphone)?.track
     if (old) await room.localParticipant.unpublishTrack(old, true)
     await room.localParticipant.publishTrack(track, { source: Track.Source.Microphone, audioPreset: AudioPresets.speech, forceStereo: false, dtx: true, red: true })
@@ -21,12 +21,12 @@ export async function publishSafeMicrophone(room: Room, deviceId: string, muted 
 }
 export async function setSafeMicrophoneEnabled(room: Room, enabled: boolean, deviceId: string): Promise<string> {
   const publication = room.localParticipant.getTrackPublication(Track.Source.Microphone)
-  if (!enabled) { if (publication?.track) await publication.track.mute(); return publication?.track?.mediaStreamTrack.label || '' }
+  if (!enabled) { if(room.inputMode==='push-to-talk')await room.setPushToTalk(false);if (publication?.track) await publication.track.mute(); return publication?.track?.mediaStreamTrack.label || '' }
   if (!publication?.track || publication.track.mediaStreamTrack.readyState === 'ended') return publishSafeMicrophone(room, deviceId)
   if (isLoopbackInput(publication.track.mediaStreamTrack.label)) {
     await room.localParticipant.unpublishTrack(publication.track, true)
     throw new Error('Entrada de loopback bloqueada. Selecione um microfone físico.')
   }
-  await publication.track.unmute()
+  if(room.inputMode!=='push-to-talk')await publication.track.unmute()
   return publication.track.mediaStreamTrack.label
 }

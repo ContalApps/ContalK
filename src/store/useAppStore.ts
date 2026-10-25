@@ -13,19 +13,25 @@ export interface Channel {
   name: string
   type: 'text' | 'voice'
   serverId: string
+  parentId?:string
+  slowmodeSeconds?:number
   nameUpdatedAt?:number
+  voiceMode?:'conversation'|'stage'
+  voiceStatus?:string|null
+  voiceStatusUpdatedAt?:number
 }
 
 export interface Server {
   id: string
   name: string
+  description?:string
   icon?: string
   channels: Channel[]
 }
 
 export interface Attachment { storageId?:string; thumbnail?:string; name: string; type: string; size: number; data: string }
 
-export interface MessageOptions { id?: string; preview?: boolean; once?: boolean }
+export interface MessageOptions { expression?:import('../roles/expressions').ExpressionReference;voice?:{durationMs:number};tts?:boolean;poll?:import('../roles/polls').PollDraft; id?: string; preview?: boolean; once?: boolean }
 
 export interface Message {
   id: string
@@ -33,10 +39,18 @@ export interface Message {
   userId: string
   userName: string
   content: string
+  expression?:import('../roles/expressions').ExpressionReference&{name:string;kind:import('../roles/expressions').ExpressionKind}
+  webhook?:{id:string;name:string}
+  voice?:{durationMs:number}
+  tts?:boolean
   timestamp: number
   preview?: boolean
   once?: boolean
+  poll?:import('../roles/polls').Poll
   editedAt?: number
+  reactions?:Array<{emoji:string;members:string[]}>
+  pinnedAt?:number
+  pinnedBy?:string
   attachment?: Attachment
   userColor?: string
   roleMentions?:string[]

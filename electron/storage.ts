@@ -11,7 +11,7 @@ export function setupStorage(window:BrowserWindow,getUsername:()=>string|null) {
     return path.join(app.getPath('userData'),'storage-'+createHash('sha256').update(username).digest('hex')+'.enc')
   }
   let uploading=false
-  const mime=(file:string)=>({'.png':'image/png','.jpg':'image/jpeg','.jpeg':'image/jpeg','.gif':'image/gif','.webp':'image/webp','.txt':'text/plain','.pdf':'application/pdf'}[path.extname(file).toLowerCase()]||'application/octet-stream')
+  const mime=(file:string)=>({'.png':'image/png','.jpg':'image/jpeg','.jpeg':'image/jpeg','.gif':'image/gif','.webp':'image/webp','.txt':'text/plain','.pdf':'application/pdf','.webm':'audio/webm;codecs=opus'}[path.extname(file).toLowerCase()]||'application/octet-stream')
   const thumbnail=async(file:string)=>{if(!mime(file).startsWith('image/'))return undefined;try{return (await nativeImage.createThumbnailFromPath(file,{width:240,height:180})).toJPEG(60).toString('base64')}catch{return undefined}}
   const trusted=(event:Electron.IpcMainInvokeEvent)=>{if(event.sender!==window.webContents||event.senderFrame!==window.webContents.mainFrame)throw new Error('Origem inválida.')}
   const config=()=>{
@@ -77,6 +77,29 @@ export function setupStorage(window:BrowserWindow,getUsername:()=>string|null) {
       const response=await fetch(new URL('/files/'+id+'/share',url),{method:'POST',headers:{Authorization:'Bearer '+token,'Content-Type':'application/json'},body:JSON.stringify({recipient}),signal:AbortSignal.timeout(15000)})
       if(response.status===404){const identity=await fetch(new URL('/identity',url),{headers:{Authorization:'Bearer '+token},signal:AbortSignal.timeout(10000)});if(identity.ok&&(await identity.json()).version===undefined)return}
       if(!response.ok)throw new Error('Não foi possível autorizar o destinatário do arquivo.')
+    },
+    'storage-selected-audio':(_event,id:string)=>{
+      const entry=selected.get(id)
+      if(!entry||entry.owner!==getUsername()||mime(entry.file)!=='audio/webm;codecs=opus'||statSync(entry.file).size>1048576)throw new Error('Selecione um arquivo WebM de até 1 MB nesta conta.')
+      const data=readFileSync(entry.file)
+      if(data.length<4||data.length>1048576||data.readUInt32BE(0)!==0x1a45dfa3)throw new Error('Arquivo WebM inválido.')
+      return 'data:audio/webm;codecs=opus;base64,'+data.toString('base64')
+    },
+    'storage-audio':async(_event,id:string)=>{
+      if(typeof id!=='string'||!/^[-0-9a-f]{36}$/.test(id))throw new Error('Arquivo inválido.')
+      const owner=getUsername(),{url,token}=config(),signal=AbortSignal.timeout(15000)
+      const link=await fetch(new URL('/links/'+id,url),{headers:{Authorization:'Bearer '+token},signal})
+      if(!link.ok)throw new Error('Não foi possível autorizar a mensagem de voz.')
+      const result=await link.json(),target=new URL(result.url)
+      if(target.origin!==new URL(url).origin||target.username||target.password)throw new Error('Endereço de áudio inválido.')
+      const response=await fetch(target,{signal,redirect:'error'})
+      if(!response.ok||!response.body||Number(response.headers.get('Content-Length'))>1048576)throw new Error('Mensagem de voz indisponível ou grande demais.')
+      const reader=response.body.getReader(),chunks:Buffer[]=[];let size=0
+      try{while(true){const {done,value}=await reader.read();if(done)break;size+=value.length;if(size>1048576)throw new Error('Mensagem de voz grande demais.');chunks.push(Buffer.from(value))}}finally{await reader.cancel().catch(()=>{})}
+      if(getUsername()!==owner)throw new Error('A conta foi alterada durante a leitura.')
+      const buffer=Buffer.concat(chunks)
+      if(buffer.length<4||buffer.readUInt32BE(0)!==0x1a45dfa3)throw new Error('O arquivo não contém áudio WebM.')
+      return 'data:audio/webm;codecs=opus;base64,'+buffer.toString('base64')
     },
     'storage-open':async(_event,id:string)=>{
       if(!/^[0-9a-f-]{36}$/.test(id))throw new Error('Arquivo inválido.')

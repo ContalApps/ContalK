@@ -20,6 +20,10 @@ export interface DesktopBridge {
   communityStatus:()=>Promise<{configured:boolean;url?:string}>
   configureCommunity:(value:{url:string;token:string})=>Promise<void>
   communitySnapshot:(serverId:string)=>Promise<import('../roles/types').CommunitySnapshot>
+  communityInvitePreview:(code:string)=>Promise<import('../roles/invites').InvitePreview>
+  communityInviteAccept:(code:string)=>Promise<import('../roles/types').CommunitySnapshot>
+  communityInsights:(serverId:string,days:7|30,timeZone:string)=>Promise<import('../roles/insights').CommunityInsights>
+  communityPins:(serverId:string,channelId:string)=>Promise<{serverId:string;channelId:string;revision:number;messages:import('../store/useAppStore').Message[]}>
   communityHistory:(serverId:string,channelId:string,before?:string)=>Promise<import('../roles/types').CommunityHistory>
   communityCommand:(serverId:string,revision:number,action:import('../roles/types').CommunityAction)=>Promise<import('../roles/types').CommunitySnapshot>
   communityVoiceToken:(serverId:string,channelId:string)=>Promise<{url:string;token:string}>
@@ -32,6 +36,8 @@ export interface DesktopBridge {
   listAccounts: () => Promise<import('../store/useAuthStore').User[]>
   updateProfile: (profile: {display_name: string; bio: string; avatar: string}) => Promise<import('../store/useAuthStore').User>
   logout: () => Promise<void>
+  readSelectedStorageAudio:(id:string)=>Promise<string>
+  readStorageAudio:(id:string)=>Promise<string>
   uploadInlineAttachment:(attachment:import('../store/useAppStore').Attachment)=>Promise<import('../store/useAppStore').Attachment>
   claimMessageView:(id:string)=>Promise<boolean>
   storageStatus:()=>Promise<boolean>
@@ -40,8 +46,17 @@ export interface DesktopBridge {
   uploadStorageFile:(id:string)=>Promise<import('../store/useAppStore').Attachment>
   openStorageFile:(id:string)=>Promise<void>
   shareStorageFile:(id:string,recipient:string)=>Promise<void>
+  speechVoices:()=>Promise<Array<{id:string;label:string;language:string}>>
+  synthesizeSpeech:(text:string,voice:string)=>Promise<string|null>
+  cancelSpeech:()=>void
+  communityExpressionLibraries:()=>Promise<Array<{id:string;name:string;count:number}>>
+  communityExpressions:(serverId:string)=>Promise<import('../roles/expressions').ExpressionLibrary>
+  communityWebhook:(serverId:string,revision:number,action:import('../roles/webhooks').WebhookCommand)=>Promise<import('../roles/webhooks').WebhookResult>
+  communityMessage:(serverId:string,channelId:string,messageId:string)=>Promise<import('../store/useAppStore').Message>
+  configureVoiceInput:(value:{key:string;id:string}|null)=>Promise<void>
+  onVoiceInputKey:(listener:(value:{id:string|null;pressed:boolean;error?:string})=>void)=>()=>void
   setSpeaking: (speaking:boolean)=>void
-  setTrayState:(state:{connected:boolean;micMuted:boolean;deafened:boolean})=>void
+  setTrayState:(state:{connected:boolean;micMuted:boolean;deafened:boolean;micBlocked?:boolean;outputBlocked?:boolean})=>void
   onTrayAction:(listener:(action:string)=>void)=>()=>void
   notifyActivity:(notice:import('../store/useNotificationStore').ActivityNotice)=>void
   onNotificationOpen:(listener:(id:string)=>void)=>()=>void

@@ -1,7 +1,7 @@
 import { create } from 'zustand'
 
-export interface ActivityNotice {id:string;kind:'message'|'friendship'|'live'|'voice';title:string;body:string;createdAt:number;read:boolean;channelId?:string;peer?:string;mention?:boolean}
-interface ActivityState {owner:string|null;entries:ActivityNotice[];unreadByChannel:Record<string,number>;visibleChannel:string|null;activate:(owner:string|null)=>void;push:(entry:ActivityNotice)=>void;markRead:(id:string)=>void;markChannelRead:(channel:string)=>void;markAllRead:()=>void;setVisibleChannel:(channel:string|null)=>void;clear:()=>void}
+export interface ActivityNotice {id:string;kind:'message'|'friendship'|'live'|'voice'|'thread'|'event';title:string;body:string;createdAt:number;read:boolean;channelId?:string;peer?:string;mention?:boolean;serverId?:string;eventId?:string}
+interface ActivityState {owner:string|null;entries:ActivityNotice[];unreadByChannel:Record<string,number>;visibleChannel:string|null;activate:(owner:string|null)=>void;push:(entry:ActivityNotice)=>void;markRead:(id:string)=>void;markChannelRead:(channel:string)=>void;markAllRead:()=>void;setVisibleChannel:(channel:string|null)=>void;clear:()=>void;forgetChannels:(ids:string[])=>void;forgetEvents:(serverId:string,ids:string[])=>void}
 const key=(owner:string)=>'contalk-notifications-v1:'+owner
 function save(state:Pick<ActivityState,'owner'|'entries'|'unreadByChannel'>){if(state.owner)try{localStorage.setItem(key(state.owner),JSON.stringify({entries:state.entries,unreadByChannel:state.unreadByChannel}))}catch{/* Keep current notifications usable when disk storage is full. */}}
 export const useNotificationStore=create<ActivityState>((set,get)=>({
@@ -24,5 +24,7 @@ export const useNotificationStore=create<ActivityState>((set,get)=>({
   markRead:id=>{const current=get(),entry=current.entries.find(entry=>entry.id===id);if(!entry||entry.read)return;const unreadByChannel={...current.unreadByChannel};if(entry.channelId&&entry.kind==='message'){const count=(unreadByChannel[entry.channelId]||0)-1;if(count>0)unreadByChannel[entry.channelId]=count;else delete unreadByChannel[entry.channelId]}set({entries:current.entries.map(entry=>entry.id===id?{...entry,read:true}:entry),unreadByChannel});save(get())},
   markAllRead:()=>{set({entries:get().entries.map(entry=>({...entry,read:true})),unreadByChannel:{}});save(get())},
   setVisibleChannel:visibleChannel=>{set({visibleChannel});if(visibleChannel&&document.hasFocus()&&!document.hidden)get().markChannelRead(visibleChannel)},
+  forgetChannels:ids=>{const hidden=new Set(ids),current=get(),next={entries:current.entries.filter(entry=>!entry.channelId||!hidden.has(entry.channelId)),unreadByChannel:Object.fromEntries(Object.entries(current.unreadByChannel).filter(([id])=>!hidden.has(id)))};set(next);save(get())},
+  forgetEvents:(serverId,ids)=>{const hidden=new Set(ids);set({entries:get().entries.filter(entry=>entry.serverId!==serverId||!entry.eventId||!hidden.has(entry.eventId))});save(get())},
   clear:()=>{set({entries:[],unreadByChannel:{}});save(get())},
 }))

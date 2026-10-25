@@ -37,7 +37,7 @@ assert.notEqual(productName,pkg.build.productName)
 await build({entryPoints:['electron/main.ts'],bundle:true,platform:'node',format:'esm',packages:'external',outfile:path.join(project,'dist-electron','app-main.js')})
 fs.copyFileSync('dist-electron/preload.mjs',path.join(project,'dist-electron','preload.mjs'))
 const wrapper=`
-import {app} from 'electron';import fs from 'node:fs';import {createRequire} from 'node:module';
+import {app} from 'electron';import fs from 'node:fs';import path from 'node:path';import {spawn} from 'node:child_process';import {createRequire} from 'node:module';
 const eventFile=${JSON.stringify(eventsFile)};
 const record=(event,detail)=>fs.appendFileSync(eventFile,JSON.stringify({event,version:app.getVersion(),detail,at:Date.now()})+'\\n');
 app.setPath('userData',${JSON.stringify(profile)});
@@ -54,6 +54,9 @@ app.on('browser-window-created',(_,window)=>{
   window.on('show',()=>window.hide());window.hide();
   window.webContents.once('did-finish-load',()=>{
     record('loaded');
+    const helper=spawn(path.join(process.resourcesPath,'voice-input','contalk-voice-input.exe'),['--key','135'],{windowsHide:true,stdio:'pipe'});
+    helper.stderr.resume();helper.stdout.on('data',data=>{if(data.toString().includes('"ready":true'))record('voice-input-helper-ready')});
+    helper.on('error',error=>record('uncaughtException',error.message));app.once('before-quit',()=>helper.stdin.end());
     if(app.getVersion()==='1.0.1')setTimeout(()=>{record('updated-ready');app.quit()},800);
   });
 });
@@ -98,6 +101,7 @@ try{
     if(events.some(event=>event.event==='updated-ready'&&event.version==='1.0.1')){
       assert.ok(events.some(event=>event.event==='loaded'&&event.version==='1.0.0'))
       assert.ok(events.some(event=>event.event==='downloaded'&&event.version==='1.0.0'))
+      for(const version of ['1.0.0','1.0.1'])assert.ok(events.some(event=>event.event==='voice-input-helper-ready'&&event.version===version),'new global key helper must load in both installed versions')
       const result={ok:true,isolatedAppId:appId,from:'1.0.0',to:'1.0.1',realInstaller:true,realRelaunch:true,events}
       fs.writeFileSync(path.join(buildRoot,'result.json'),JSON.stringify(result,null,2));console.log(JSON.stringify(result));success=true;break
     }
@@ -114,6 +118,6 @@ try{
   // Retain the temporary directory on failure for diagnosis; never remove paths
   // derived from app metadata or uninstall registry values.
   if(success&&fs.realpathSync(path.dirname(testRoot))===fs.realpathSync(os.tmpdir())&&path.basename(testRoot).startsWith('contalk-update-smoke-')){
-    await new Promise(resolve=>setTimeout(resolve,1500));fs.rmSync(testRoot,{recursive:true,force:true})
+    await new Promise(resolve=>setTimeout(resolve,1500));fs.rmSync(testRoot,{recursive:true,force:true,maxRetries:12,retryDelay:150})
   }
 }

@@ -32,6 +32,10 @@ O módulo de cálculo contempla o catálogo do documento, incluindo bits superio
 
 O documento também descreve recursos específicos do ecossistema Discord: impulsionamento, assinaturas, bots, integrações, conexões verificadas e palcos. No ConTALK, não se deve simular uma assinatura, uma conexão de conta ou uma verificação externa apenas pelo navegador. Cargos desse tipo exigem uma origem identificada e uma concessão verificada; cargos gerenciados não devem ser concedidos ou removidos manualmente como cargos comuns. Estilos gradientes, holográficos e ícones podem existir como apresentação do ConTALK sem alegar que o aplicativo oferece os planos comerciais do Discord.
 
+Na continuação local de 25/10, Expulsar membros e Banir membros passaram a ter operações reais, com confirmação, hierarquia, persistência, auditoria e revogação de acesso por HTTP/SSE/WebSocket. A remoção de banimento não restaura cargos nem participação. A copropriedade do HQ permanece protegida. Os detalhes e o escopo ainda pendente estão no [guia de moderação](member-moderation.md); essa continuação ainda não foi publicada nem implantada.
+
+Criar convite também passa a ter operação real na continuação local: link, prévia, prazo, limite de usos, revogação, aceite autenticado e readmissão sem cargos antigos. Banimentos impedem o aceite. Novas entradas registram data e origem para revisão, sem inventar a idade das contas locais. Os detalhes estão em [convites e readmissão](community-invites.md). Isso não conclui as demais operações do catálogo.
+
 ## Autoridade e sincronização
 
 A comunicação atual usa WebSocket autenticado e SFU mediasoup. O backend aplica permissões de canal e encerra publicações/sessões ao revogar acesso; o teste isolado com quatro clientes verifica esse comportamento. Detalhes e limites de validação em [Meteor Cloud](meteor-voice.md).
@@ -48,4 +52,62 @@ Os downloads novos podem ser vinculados à autoridade da comunidade: o serviço 
 
 A comunicação atual usa WebSocket autenticado e SFU mediasoup. O backend aplica permissões de canal e encerra publicações/sessões ao revogar acesso; o teste isolado com quatro clientes verifica esse comportamento. Detalhes e limites de validação em [Meteor Cloud](meteor-voice.md).
 
-O usuário escolheu hospedar o serviço em uma VPS e informar o endereço posteriormente. O [pacote de implantação](community-vps.md) prepara configuração e chaves sem exigir o endereço, conserva os dados em volume e oferece proxy HTTPS. No aplicativo, a engrenagem do servidor permite configurar essa conexão posteriormente. Permanecem pendentes a implantação na VPS, a migração das credenciais de voz distribuídas nos clientes anteriores e a ativação em produção. O login real da conta Telegram ainda precisa ser configurado. Recursos de plataforma inexistentes permanecem identificados como indisponíveis; não foram simuladas integrações verificadas, assinaturas ou impulsionamentos. Consulte [a execução e validação do serviço](community-service.md).
+A comunicação foi implantada na VPS com mediasoup e coturn, administrada pelo Coolify, conforme o relatório da versão 0.1.17. Mensagens e cargos continuam no volume existente da comunidade; sessões de mídia usam tickets temporários. O aplicativo não contém emissor de tokens do provedor anterior nem suas credenciais. Contas, senhas e perfis continuam locais; a migração não cria autenticação central de contas nem armazenamento central de imagens. O serviço separado de arquivos/Telegram ainda depende de configuração própria. Recursos de plataforma inexistentes permanecem identificados como indisponíveis; não foram simuladas integrações verificadas, assinaturas ou impulsionamentos. Consulte [a execução do serviço](community-service.md) e [a validação da comunicação](communication-validation.md).
+
+
+A continuação local também habilita Silenciar, Desativar áudio e Mover membros: há autorização por canal, ações confirmadas no perfil, persistência/auditoria, bloqueio de RTP no mediasoup e movimentação com ticket temporário. Essas ações não usam a hierarquia específica de kick/ban. A copropriedade do HQ permanece intacta. Consulte [a implementação e os limites de validação](voice-moderation.md). Ainda não houve publicação ou implantação dessa continuação.
+
+A continuação seguinte implementa Alterar próprio apelido, Gerenciar apelidos e Gerenciar servidor. Apelidos são específicos do servidor, com hierarquia para terceiros, preservação dos nomes globais e sincronização no SFU; as configurações gerais permitem nome e descrição, sem conceder permissões de cargos/canais. Os formulários preservam rascunhos em conflitos de edição. Veja [operações, testes e limites](community-settings.md).
+
+Reações, fixações e modo lento também têm operações reais na continuação local. Adicionar reações distingue criar de participar de um emoji existente; Fixar mensagens inclui consulta de mensagens antigas; Ignorar modo lento controla o bypass validado no serviço. A interface oferece moderação confirmada de mensagens e reações. O SSE não expõe mudanças de mensagens antigas a quem não pode ler o histórico. Veja [escopo e evidências](community-chat.md).
+
+Enviar enquetes também foi ligado a operações reais: criação por cargo/canal e modo lento, votação pública simples ou múltipla, retirada, autor autorizado a encerrar e vencimento automático. Participantes de canais somente leitura podem votar; sem histórico, apenas em enquetes recebidas na sessão ao vivo autorizada. Consulte [o escopo e os testes de enquetes](community-polls.md). O restante do catálogo permanece em implementação.
+
+
+Tópicos públicos e privados também possuem operações reais na continuação local: criação, participação, herança do canal principal, envio independente, origem em mensagem, busca, arquivamento automático, bloqueio e exclusão confirmada. A revogação remove acesso ao histórico, anexos e avisos internos. Gerenciar canais não substitui Gerenciar tópicos; a copropriedade do HQ permanece preservada. Consulte [o escopo e a validação de tópicos](community-threads.md). Aplicações e integrações continuam pendentes.
+
+
+Criar eventos e Gerenciar eventos também possuem operações reais na continuação local: eventos próprios e de terceiros, autorização por canal/categoria, agenda, edição, estados, interessados, notificações e exclusão confirmada. A perda de acesso limpa o evento e seus avisos internos; o relógio do serviço controla os estados automáticos. A copropriedade do HQ permanece preservada. Consulte [o escopo, os limites e os testes de eventos](community-events.md). Expressões, aplicações, integrações e outras operações do catálogo continuam pendentes.
+
+
+Definir status do canal de voz também tem operação real na continuação local. O serviço confere a sessão autenticada no canal; fora da chamada, exige adicionalmente Gerenciar canais. O texto é persistido no volume existente, sincronizado, auditado e ocultado de quem não pode ver a sala. A interface preserva rascunhos em conflitos, revogações e falhas de gravação. Veja [o escopo e os testes do status de voz](voice-channel-status.md). Prioridade de fala continua pendente e não foi marcada como disponível.
+
+
+Atividade de voz agora autoriza o modo automático no serviço; sua negação força Pressionar para falar apenas no canal correspondente. Há tecla global Windows, preferências por conta, corte local imediato ao soltar, prazo de renovação no mediasoup e respeito a mute/deafen, reconexão e moderação. A bandeja acompanha a publicação efetiva. Consulte [modos de entrada, limites e evidências](voice-input-modes.md). O catálogo local apresenta 36 das 52 permissões como disponíveis; as 16 restantes incluem prioridade de fala, leitura em voz, expressões, aplicações, webhooks, atividades, palcos, mensagens de voz e análises. Essa contagem não equivale a uma porcentagem do trabalho total, pois os recursos têm tamanhos diferentes.
+
+
+## Decisão de escopo — monetização
+
+Em 25/10/2026, o usuário confirmou: assinaturas, impulsionamentos e análises de monetização permanecem indisponíveis até existir um sistema de cobrança. Esta entrega não cria pagamentos, benefícios comerciais ou números financeiros simulados. A permissão VIEW_CREATOR_MONETIZATION_ANALYTICS e origens de cargos vinculadas a cobrança não são apresentadas como funções executáveis. Os demais recursos do documento continuam no escopo de implementação.
+
+
+Prioridade de fala também possui operação real: opção por conta no Pressionar para falar, autorização no canal, lista de participantes fornecida pelo serviço e redução temporária das outras vozes. Os volumes pessoais e o áudio de tela são preservados; revogar prioridade não impede fala normal. Consulte [implementação e evidências](priority-speaker.md). O catálogo local passa a 37 de 52 permissões disponíveis; uma das indisponíveis é monetização, explicitamente excluída desta entrega pelo usuário.
+
+
+Ver estatísticas do servidor possui consulta autenticada e painel próprio, com contagens do histórico central autorizado, períodos de 7/30 dias e calendário no fuso do usuário. Revogações invalidam os dados e respostas em trânsito. Não são criadas métricas financeiras nem datas fictícias de contas. Consulte [escopo e evidências de estatísticas](community-insights.md). O catálogo local passa a 38 de 52 permissões disponíveis, com monetização explicitamente fora desta entrega.
+
+### Leitura em voz
+
+Enviar mensagens com leitura em voz possui envio autorizado no serviço e reprodução local optativa, com voz Windows, volume e dispositivo de saída por conta. Consultas atuais e revogação impedem leitura de conteúdo indisponível. Consulte [funcionamento e validação](community-speech.md). O catálogo passa a 39 de 52 permissões disponíveis; monetização continua excluída por decisão do usuário.
+
+### Mensagens de voz
+
+Enviar mensagens de voz possui gravação Opus, prévia e envio explícito, arquivo no armazenamento configurado e reprodução autenticada. Permissão própria, modo lento, revogações e cancelamento da captura são efetivos. Consulte [implementação e validação](voice-messages.md). O catálogo passa a 40 de 52 permissões disponíveis; monetização permanece excluída por decisão do usuário.
+
+### Integrações por webhook
+
+Gerenciar webhooks possui painel no canal, criação com chave mostrada uma vez, renomeação, renovação e exclusão confirmadas. Envios HTTP externos usam texto identificado, autorização atual do criador, limites e repetição controlada por nonce. Chaves e hashes não entram nos snapshots; cargos de bot não são simulados. Consulte [escopo e evidências](community-webhooks.md). O catálogo passa a 41 de 52 permissões disponíveis, com monetização explicitamente indisponível até existir cobrança.
+
+### Emojis e figurinhas
+
+Criar expressões, Gerenciar expressões, Usar emojis externos e Usar figurinhas externas possuem operações reais. Há biblioteca por servidor, imagem no armazenamento configurado, seleção e envio no compositor, manutenção própria/de terceiros, limites, conflitos e exclusão confirmada. Prévia estática, sem cobrança. Consulte [funcionamento e evidências](community-expressions.md). O catálogo passa a 45 de 52 permissões disponíveis; sons, aplicativos, atividades e pedir fala continuam pendentes. Monetização permanece excluída.
+
+### Painel de sons
+
+Usar painel de sons e Usar sons externos possuem comandos na sessão real de voz, cadastro Opus na biblioteca e reprodução autorizada nos clientes presentes. Permissões, bloqueios do servidor, origem, limites, acesso temporário ao arquivo, saída e volume são efetivos. Consulte [escopo e validação](community-soundboard.md). O catálogo passa a 47 de 52 permissões disponíveis. Aplicativos, comandos, atividades e pedido de fala continuam pendentes; monetização está excluída desta entrega.
+
+### Palco e encerramento desta entrega
+
+Pedir fala possui modo de palco real, fila privada, convite/aceite, moderação e autorização vinculada à sessão da chamada. Consulte [o fluxo e as evidências](community-stages.md). O catálogo chega a 48 de 52 permissões disponíveis. As três capacidades de aplicativos, comandos e atividades permanecem indisponíveis; monetização também está indisponível por decisão explícita do usuário. Cargos gerenciados/vinculados ainda não possuem os provedores confiáveis necessários.
+
+O usuário decidiu encerrar esta implementação após a validação do palco, integrar e publicar, deixando a continuação para outra LLM. O estado de retomada está em [LLM_HANDOFF.md](LLM_HANDOFF.md). As etapas históricas acima não representam novas pendências da entrega agora delimitada.

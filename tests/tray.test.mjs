@@ -40,10 +40,19 @@ test('shutdown does not access webContents through a destroyed native window',()
 })
 
 test('right click offers microphone and output controls tied to acknowledged renderer state',()=>{
- const f=fixture();f.tray.emit('right-click');assert.equal(f.menu.find(item=>item.label==='Silenciar microfone').enabled,false)
+ const f=fixture();f.tray.emit('right-click');assert.equal(f.menu.find(item=>item.label==='Silenciar microfone').enabled,false);assert.equal(f.menu.find(item=>item.label==='Silenciar saída de áudio').enabled,true)
  f.ipc.emit('tray-voice-state',{sender:{},senderFrame:{}},{connected:true,micMuted:false,deafened:false});f.tray.emit('right-click');assert.equal(f.menu.find(item=>item.label==='Silenciar microfone').enabled,false)
  f.ipc.emit('tray-voice-state',{sender:f.window.webContents,senderFrame:f.window.webContents.mainFrame},{connected:true,micMuted:false,deafened:true});f.tray.emit('right-click')
  const microphone=f.menu.find(item=>item.label==='Silenciar microfone'),output=f.menu.find(item=>item.label==='Silenciar saída de áudio')
  assert.equal(microphone.enabled,true);assert.equal(microphone.checked,false);assert.equal(output.checked,true)
  microphone.click();output.click();assert.deepEqual(f.sent,[['tray-action','toggle-microphone'],['tray-action','toggle-output']]);f.window.emit('closed')
+})
+
+test('server audio restrictions are identified in the tray and cannot be toggled there',()=>{
+ const f=fixture()
+ f.ipc.emit('tray-voice-state',{sender:f.window.webContents,senderFrame:f.window.webContents.mainFrame},{connected:true,micMuted:true,deafened:true,micBlocked:true,outputBlocked:true})
+ f.tray.emit('right-click')
+ assert.equal(f.menu[2].label,'Microfone bloqueado pelo servidor');assert.equal(f.menu[2].enabled,false)
+ assert.equal(f.menu[3].label,'Áudio bloqueado pelo servidor');assert.equal(f.menu[3].enabled,false)
+ f.window.emit('closed')
 })

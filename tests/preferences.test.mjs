@@ -4,9 +4,19 @@ import { loadTypescript } from './load-typescript.mjs'
 function fixture() {
   const storage=new Map();let state;let fail=false
   const create=init=>{const get=()=>state;const set=patch=>state={...state,...patch};state=init(set,get);return {getState:get}}
-  const store=loadTypescript('src/store/usePreferencesStore.ts',{zustand:{create}},{localStorage:{getItem:key=>storage.get(key),setItem:(key,value)=>{if(fail)throw new Error('full');storage.set(key,value)}}}).usePreferencesStore
+  const store=loadTypescript('src/store/usePreferencesStore.ts',{'../media/voice-input':loadTypescript('src/media/voice-input.ts'),zustand:{create}},{localStorage:{getItem:key=>storage.get(key),setItem:(key,value)=>{if(fail)throw new Error('full');storage.set(key,value)}}}).usePreferencesStore
   return {store,storage,fail:()=>{fail=true}}
 }
+
+test('voice mode and shortcut remain local to each account and reject typing keys',()=>{
+ const f=fixture(),get=f.store.getState;get().activate('alice');get().update({voiceInputMode:'push-to-talk',pushToTalkKey:'F24',prioritySpeaker:true})
+ get().activate('bob');assert.equal(get().voiceInputMode,'voice-activity');assert.equal(get().pushToTalkKey,'F8')
+ assert.equal(get().prioritySpeaker,false)
+ get().activate('alice');assert.equal(get().voiceInputMode,'push-to-talk');assert.equal(get().pushToTalkKey,'F24')
+ assert.equal(get().prioritySpeaker,true)
+ assert.throws(()=>get().update({pushToTalkKey:'KeyA'}),/inválida/);assert.throws(()=>get().update({voiceInputMode:'always-send'}),/inválida/)
+ get().activate(null);assert.equal(get().voiceInputMode,'voice-activity')
+})
 test('theme, motion and text size persist per account without changing other users',()=>{
   const f=fixture(),state=f.store.getState
   state().activate('alice');state().update({theme:'vice-city',reducedMotion:true,textSize:120})
@@ -64,3 +74,5 @@ test('role mention preferences persist independently from general notifications 
  state().activate('bob');assert.equal(state().roleMentionNotifications,true)
  state().activate('alice');assert.equal(state().roleMentionNotifications,false)
 })
+
+test('soundboard volume is separate per account and accepts only an integer percentage',()=>{const f=fixture(),get=f.store.getState;get().activate('alice');assert.equal(get().soundboardVolume,50);get().update({soundboardVolume:20});get().activate('bob');assert.equal(get().soundboardVolume,50);get().activate('alice');assert.equal(get().soundboardVolume,20);for(const value of [-1,101,1.5,'20'])assert.throws(()=>get().update({soundboardVolume:value}))})
