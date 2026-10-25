@@ -1,0 +1,19 @@
+import {useEffect,useRef,useState} from 'react'
+import {can} from '../roles/permissions'
+import type {CommunityInsights} from '../roles/insights'
+import {useRoleStore} from '../store/useRoleStore'
+
+function scope(){const state=useRoleStore.getState(),snapshot=state.snapshot;return snapshot?JSON.stringify([snapshot.id,snapshot.actor,state.connectionVersion,snapshot.serverPermissions,snapshot.channels.map(channel=>[channel.id,channel.name,snapshot.channelPermissions[channel.id]])]):''}
+export function ServerInsights(){
+ const roles=useRoleStore(),snapshot=roles.snapshot,[days,setDays]=useState<7|30>(7),[data,setData]=useState<{scope:string;value:CommunityInsights}|null>(null),[busy,setBusy]=useState(false),[error,setError]=useState(''),version=useRef(0)
+ const allowed=!!snapshot&&roles.status==='connected'&&can(snapshot.policy,snapshot.actor,'VIEW_GUILD_INSIGHTS'),key=scope(),timeZone=Intl.DateTimeFormat().resolvedOptions().timeZone||'UTC'
+ const load=async()=>{const request=++version.current;setData(null);setError('');if(!allowed||!snapshot)return;setBusy(true);try{const bridge=window.contalkDesktop;if(!bridge?.communityInsights)throw new Error('Atualize o aplicativo para consultar as estatísticas.');const result=await bridge.communityInsights(snapshot.id,days,timeZone);if(request===version.current&&scope()===key&&useRoleStore.getState().status==='connected')setData({scope:key,value:result})}catch(error){if(request===version.current)setError(error instanceof Error?error.message:'Não foi possível consultar as estatísticas.')}finally{if(request===version.current)setBusy(false)}}
+ useEffect(()=>{void load();return()=>{version.current++}},[key,days,allowed])
+ if(!allowed)return <p role="alert">Seu cargo não permite consultar as estatísticas deste servidor.</p>
+ const current=data?.scope===key?data.value:null,max=Math.max(1,...(current?.daily.map(day=>day.messages)||[]))
+ return <section className="ct-server-insights" aria-label="Estatísticas do servidor"><header><h3>Estatísticas do servidor</h3><div><select aria-label="Período das estatísticas" value={days} onChange={event=>setDays(Number(event.target.value) as 7|30)}><option value={7}>7 dias</option><option value={30}>30 dias</option></select><button disabled={busy} onClick={()=>void load()}>Atualizar estatísticas</button></div></header><p className="ct-muted">Histórico central disponível dos canais que você pode ver e consultar. Mensagens excluídas não entram nas contagens.</p>
+ {busy&&<p role="status">Consultando estatísticas…</p>}{error&&<p role="alert">{error}</p>}{current&&<><dl className="ct-insight-cards">{[['Membros atuais',current.members],['Canais visíveis',current.visibleChannels],['Mensagens no período',current.messages],['Autores no período',current.authors],['Reações atuais nas mensagens do período',current.reactions],['Enquetes no período',current.polls],['Fixadas visíveis',current.pins],['Canais de voz visíveis',current.voiceChannels]].map(([label,value])=><div key={label}><dt>{label}</dt><dd>{value===null?'Sem histórico autorizado':value}</dd></div>)}</dl>
+ {!!current.daily.length&&<><h4>Mensagens por dia</h4><ol className="ct-insight-days">{current.daily.map(day=><li key={day.day}><time>{day.day.slice(8,10)+'/'+day.day.slice(5,7)}</time><span aria-hidden="true"><i style={{width:(day.messages/max*100)+'%'}}/></span><strong>{day.messages}</strong></li>)}</ol><h4>Canais no período</h4><ul className="ct-insight-channels">{current.channels.map(channel=><li key={channel.id}><span>{channel.name}</span><strong>{channel.messages}</strong></li>)}</ul></>}
+ <p>{current.recordedInvitedMembers} membros atuais com entrada por convite registrada neste período. {current.unknownAdmissionMembers>0&&<span>{current.unknownAdmissionMembers} membros sem data de entrada registrada.</span>}</p><small>Atualizado em {new Date(current.generatedAt).toLocaleString('pt-BR')} · {current.timeZone}. Atualize para consultar novamente.</small></>}
+ </section>
+}

@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict'
+import {eventStatusLabels} from '../src/roles/events.ts'
 import { test } from 'node:test'
 import { EventEmitter } from 'node:events'
 import { loadTypescript } from './load-typescript.mjs'
@@ -24,6 +25,19 @@ test('reading a visible but unfocused channel does not discard unread messages',
  const f=fixture(),get=f.store.getState;get().activate('alice');get().push(notice('one'));get().setVisibleChannel('text')
  assert.equal(get().unreadByChannel.text,1)
 })
+
+test('losing a channel clears its persisted notices and unread count while preserving unrelated activity',()=>{
+ const f=fixture(),get=f.store.getState;get().activate('alice');get().push(notice('private','thread'));get().push({...notice('membership','thread'),kind:'thread'});get().push(notice('public','general'));get().forgetChannels(['thread'])
+ assert.equal(get().entries.length,1);assert.equal(get().entries[0].channelId,'general');assert.equal(get().unreadByChannel.thread,undefined);assert.equal(get().unreadByChannel.general,1)
+ get().activate('bob');get().activate('alice');assert.equal(get().entries.length,1);assert.equal(get().entries[0].channelId,'general')
+})
+
+test('event revocation removes persisted notices only from the matching server without changing chat counters',()=>{
+ const f=fixture(),get=f.store.getState;get().activate('alice');get().push(notice('message'))
+ for(const serverId of ['group','other'])get().push({...notice(serverId),kind:'event',eventId:'meeting',serverId})
+ get().forgetEvents('group',['meeting']);assert.equal(get().entries.some(entry=>entry.serverId==='group'),false);assert.equal(get().entries.some(entry=>entry.serverId==='other'),true);assert.equal(get().unreadByChannel.text,1)
+ get().activate('bob');get().activate('alice');assert.equal(get().entries.some(entry=>entry.serverId==='group'),false);assert.equal(get().entries.some(entry=>entry.serverId==='other'),true)
+})
 test('system notification IPC is limited to the main renderer and opens the correct activity',()=>{
  const ipc=new EventEmitter(),window=new EventEmitter(),notifications=[];let shown=0
  window.webContents={mainFrame:{},isDestroyed:()=>false,send:(...args)=>notifications.push(args)};window.isDestroyed=()=>false
@@ -35,6 +49,8 @@ test('system notification IPC is limited to the main renderer and opens the corr
  ipc.emit('activity-notify',{sender:{},senderFrame:{}},notice('forged'));assert.equal(created.length,0)
  ipc.emit('activity-notify',event,notice('one'));ipc.emit('activity-notify',event,notice('two'));assert.equal(created.length,2)
  created[1].emit('click');assert.equal(shown,1);assert.equal(notifications[0][1],'two')
+ ipc.emit('activity-notify',event,{...notice('thread-membership'),kind:'thread'});assert.equal(created.length,3)
+ ipc.emit('activity-notify',event,{...notice('event-start'),kind:'event'});assert.equal(created.length,4)
  window.emit('closed');assert.equal(ipc.listenerCount('activity-notify'),0)
 })
 
@@ -43,8 +59,9 @@ test('activity routes messages, friendships and live calls to the center and res
  const observable=initial=>{let state=initial;const listeners=new Set();return {getState:()=>state,subscribe:listener=>{listeners.add(listener);return()=>listeners.delete(listener)},update:patch=>{const previous=state;state={...state,...patch};for(const listener of listeners)listener(state,previous)}}}
  const auth=observable({user:{username:'alice'}}),app=observable({messages:{},servers:[{channels:[{id:'general',name:'geral'}]}]}),friends=observable({relations:{}}),preferences=observable({systemNotifications:true}),voice=observable({connectionStatus:'connected',activeChannelId:'call',activeChannelName:'Sala',participants:[]})
  const rolesApi=loadTypescript('src/roles/permissions.ts');const policy=rolesApi.initialPolicy('group',['alice','bob']);policy.roles.push({...rolesApi.everyoneRole('team'),position:1,name:'Equipe',permissions:'0'});policy.memberRoles.alice=['team']
+ const roles=observable({owner:'alice',status:'connected',snapshot:{policy,id:'group',actor:'alice',channels:[{id:'general'}],events:[]}})
  const {setupActivityNotifications}=loadTypescript('src/notifications/activity.ts',{
-  '../store/useRoleStore':{useRoleStore:{getState:()=>({snapshot:{policy}})}},'../roles/permissions':rolesApi,'../store/useAuthStore':{useAuthStore:auth},'../store/useAppStore':{useAppStore:app},'../store/useFriendStore':{useFriendStore:friends},'../store/useVoiceStore':{useVoiceStore:voice},'../store/usePreferencesStore':{usePreferencesStore:preferences},'../store/useNotificationStore':{useNotificationStore:f.store},
+  '../roles/events':{eventStatusLabels},'../store/useRoleStore':{useRoleStore:roles},'../roles/permissions':rolesApi,'../store/useAuthStore':{useAuthStore:auth},'../store/useAppStore':{useAppStore:app},'../store/useFriendStore':{useFriendStore:friends},'../store/useVoiceStore':{useVoiceStore:voice},'../store/usePreferencesStore':{usePreferencesStore:preferences},'../store/useNotificationStore':{useNotificationStore:f.store},
  },{document:{hasFocus:()=>false,hidden:false,addEventListener(){},removeEventListener(){}},window:{contalkDesktop:{notifyActivity:notice=>sent.push(notice)},addEventListener(){},removeEventListener(){}}})
  const stop=setupActivityNotifications()
  const message={id:'one',userId:'bob',userName:'Bob',content:'Olá'}
@@ -66,6 +83,11 @@ test('activity routes messages, friendships and live calls to the center and res
  preferences.update({systemNotifications:false});const before=sent.length
  app.update({messages:{general:[message,{id:'private',userId:'bob',userName:'Bob',once:true,content:'Conteúdo privado'}]}})
  assert.equal(sent.length,before);assert.equal(f.store.getState().entries[0].body,'Mensagem de visualização única')
+ const event={id:'meeting',name:'Reunião',creator:'bob',channelId:null,status:'scheduled',startsAt:Date.now(),updatedAt:1,interested:true}
+ roles.update({snapshot:{...roles.getState().snapshot,events:[event]}});assert.equal(f.store.getState().entries.some(entry=>entry.kind==='event'),false)
+ roles.update({snapshot:{...roles.getState().snapshot,events:[{...event,status:'active'}]}});assert.equal(f.store.getState().entries[0].kind,'event');assert.equal(sent.length,before)
+ preferences.update({systemNotifications:true});roles.update({snapshot:{...roles.getState().snapshot,events:[{...event,status:'active',updatedAt:2}]}});assert.equal(sent.at(-1).kind,'event');assert.equal(sent.at(-1).eventId,'meeting')
+ roles.update({snapshot:{...roles.getState().snapshot,events:[]}});assert.equal(f.store.getState().entries.some(entry=>entry.kind==='event'),false)
  stop();app.update({messages:{general:[{id:'after-stop',userId:'bob',content:'fim'}]}})
  assert.equal(f.store.getState().entries.some(entry=>entry.id==='message:after-stop'),false)
 })

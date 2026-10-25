@@ -8,10 +8,10 @@ import { CommunityConnection } from './CommunityConnection'
 import { StorageConnection } from './StorageConnection'
 import { CoastalScene } from './CoastalScene'
 
-export function SettingsView({ onClose, onEditProfile }: { onClose: () => void; onEditProfile: () => void }) {
+export function SettingsView({ onClose, onEditProfile, initialTab='appearance' }: { onClose: () => void; onEditProfile: () => void; initialTab?:'appearance'|'community' }) {
   const preferences = usePreferencesStore()
   const user = useAuthStore(s => s.user)!
-  const [tab, setTab] = useState<'appearance' | 'audio' | 'account' | 'about' | 'notifications' | 'community' | 'storage'>('appearance')
+  const [tab, setTab] = useState<'appearance' | 'audio' | 'account' | 'about' | 'notifications' | 'community' | 'storage'>(initialTab)
   const [error, setError] = useState('')
   const [updateMessage, setUpdateMessage] = useState('')
   const [checking, setChecking] = useState(false)

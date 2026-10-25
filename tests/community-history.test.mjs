@@ -19,6 +19,20 @@ test('paging preserves rows leaving the live window, applies edits/deletes, and 
  assert.equal(Object.keys(mergeHistory(next,{...next,messages:{}},result)).length,0)
  assert.equal(Object.keys(mergeHistory(next,{...next,channelPermissions:{text:'0'}},result)).length,0)
 })
+
+test('reaction and pin deltas update cached older rows without erasing text, edit time or mention metadata',()=>{
+ const before=snapshot([message(3)]),next=snapshot([message(3)]),old={...message(0),editedAt:123,roleMentions:['team'],mentionsEveryone:'all',pinnedAt:22,pinnedBy:'alice'}
+ next.messageChanges=[{id:'message-0',channelId:'text',deleted:false,reactions:[{emoji:'👍',members:['bob']}],pinnedAt:null,pinnedBy:null}]
+ const result=mergeHistory(before,next,{text:[old]}).text[0]
+ assert.equal(result.content,old.content);assert.equal(result.editedAt,123);assert.equal(result.roleMentions[0],'team');assert.equal(result.mentionsEveryone,'all');assert.equal(result.reactions[0].members[0],'bob');assert.equal(result.pinnedAt,undefined);assert.equal(result.pinnedBy,undefined)
+ assert.equal(old.pinnedAt,22);assert.equal(old.reactions,undefined)
+})
+
+test('poll ballot deltas reach cached older messages while preserving their author, question and pin',()=>{
+ const before=snapshot([message(3)]),next=snapshot([message(3)]),old={...message(0),userId:'alice',pinnedAt:22,poll:{question:'Pergunta',answers:[{id:'a',text:'A',voters:[]},{id:'b',text:'B',voters:[]}],multiple:false,expiresAt:Date.now()+3600000}}
+ next.messageChanges=[{id:'message-0',channelId:'text',deleted:false,poll:{...old.poll,answers:[{id:'a',text:'A',voters:['bob']},{id:'b',text:'B',voters:[]}]}}]
+ const result=mergeHistory(before,next,{text:[old]}).text[0];assert.equal(result.poll.answers[0].voters[0],'bob');assert.equal(result.userId,'alice');assert.equal(result.content,old.content);assert.equal(result.pinnedAt,22);assert.equal(old.poll.answers[0].voters.length,0)
+})
 test('the central history retains older messages and returns bounded pages only to authorized members',async t=>{
  const state=createCommunityState(['alice','bob']),policy=initialPolicy('group',['alice','bob']);policy.ownerIds=['alice']
  state.servers.group={id:'group',name:'Grupo',revision:0,policy,channels:[{id:'text',name:'Texto',type:'text',serverId:'group'}],messages:{text:Array.from({length:350},(_,index)=>({...message(index),channelId:'text',userId:'alice',userName:'Alice'}))},audit:[]}

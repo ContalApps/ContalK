@@ -8,7 +8,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends python3 python3
     && npm cache clean --force && rm -rf /var/lib/apt/lists/*
 COPY scripts/community-server.mjs ./scripts/community-server.mjs
 COPY scripts/community/ ./scripts/community/
-COPY src/roles/permissions.ts src/roles/commands.ts ./src/roles/
+COPY src/roles/permissions.ts src/roles/commands.ts src/roles/invites.ts src/roles/voice-moderation.ts src/roles/nicknames.ts src/roles/chat.ts src/roles/polls.ts src/roles/threads.ts src/roles/events.ts src/roles/voice-status.ts src/roles/insights.ts src/roles/expressions.ts ./src/roles/
 RUN mkdir /app/data && chown node:node /app/data
 USER node
 ENV CONTALK_COMMUNITY_HOST=0.0.0.0 CONTALK_COMMUNITY_PORT=8789 CONTALK_COMMUNITY_DATA=/app/data

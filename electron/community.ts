@@ -3,6 +3,7 @@ import fs from 'node:fs'
 import path from 'node:path'
 import { createHash } from 'node:crypto'
 import type { CommunitySnapshot, CommunityAction } from '../src/roles/types'
+import { validInviteCode } from '../src/roles/invites'
 
 const validId = (value:unknown):value is string => typeof value==='string' && /^[\w:-]{1,100}$/.test(value) && !['__proto__','constructor','prototype'].includes(value)
 export function setupCommunity(window:BrowserWindow,getUsername:()=>string|null) {
@@ -27,7 +28,7 @@ export function setupCommunity(window:BrowserWindow,getUsername:()=>string|null)
     if(!response.ok)throw new Error(typeof result.error==='string'?result.error:'Não foi possível acessar a comunidade.')
     return result
   }
-  const send=(serverId:string,value:{snapshot?:CommunitySnapshot;error?:string})=>{if(!window.isDestroyed()&&!contents.isDestroyed())contents.send('community-state',{serverId,...value})}
+  const send=(serverId:string,value:{snapshot?:CommunitySnapshot;error?:string;accessRevoked?:boolean})=>{if(!window.isDestroyed()&&!contents.isDestroyed())contents.send('community-state',{serverId,...value})}
   const subscribe=async(serverId:string,owner:string,controller:AbortController)=>{
     let delay=1000
     while(!controller.signal.aborted&&getUsername()===owner){
@@ -39,6 +40,7 @@ export function setupCommunity(window:BrowserWindow,getUsername:()=>string|null)
         const connectionTimer=setTimeout(()=>attempt.abort(),10000)
         let response:Response
         try{response=await fetch(new URL(`/servers/${serverId}/events`,url),{headers:{Authorization:'Bearer '+token},signal:attempt.signal})}finally{clearTimeout(connectionTimer)}
+        if(response.status===403){send(serverId,{accessRevoked:true});controller.abort();return}
         if(!response.ok||!response.body)throw new Error('Não foi possível acompanhar a comunidade.')
         const reader=response.body.getReader(),decoder=new TextDecoder()
         let buffer=''
@@ -54,7 +56,7 @@ export function setupCommunity(window:BrowserWindow,getUsername:()=>string|null)
             while((end=buffer.indexOf('\n\n'))!==-1){
               const packet=buffer.slice(0,end);buffer=buffer.slice(end+2)
               const data=packet.split('\n').filter(line=>line.startsWith('data: ')).map(line=>line.slice(6)).join('\n')
-              if(data){const snapshot=JSON.parse(data) as CommunitySnapshot;if(snapshot.actor!==owner||snapshot.id!==serverId)throw new Error('Identidade da comunidade inconsistente.');send(serverId,{snapshot})}
+              if(data){const snapshot=JSON.parse(data) as CommunitySnapshot;if(snapshot.actor!==owner||snapshot.id!==serverId)throw new Error('Identidade da comunidade inconsistente.');if(packet.split('\n').includes('event: access-revoked')){send(serverId,{accessRevoked:true});controller.abort();return}send(serverId,{snapshot})}
             }
           }
         }finally{await reader.cancel().catch(()=>{})}
@@ -79,7 +81,15 @@ export function setupCommunity(window:BrowserWindow,getUsername:()=>string|null)
       fs.writeFileSync(configPath(),safeStorage.encryptString(JSON.stringify({url:url.origin,token:value.token})))
     },
     'community-snapshot':async(serverId:string)=>{if(!validId(serverId))throw new Error('Servidor inválido.');return request(`/servers/${serverId}`)},
+    'community-invite-preview':async(code:string)=>{if(!validInviteCode(code))throw new Error('Convite inválido.');return request(`/invites/${code}`)},
+    'community-invite-accept':async(code:string)=>{if(!validInviteCode(code))throw new Error('Convite inválido.');return request(`/invites/${code}/accept`,{})},
     'community-presence-token':async(name:string)=>{if(typeof name!=='string'||!name.trim()||name.trim().length>40)throw new Error('Nome de exibição inválido.');return request('/presence-token',{name:name.trim()})},
+    'community-expression-libraries':()=>request('/expression-libraries'),
+    'community-expressions':(serverId:string)=>{if(!validId(serverId))throw new Error('Servidor inválido.');return request('/servers/'+serverId+'/expressions')},
+    'community-webhook':async(serverId:string,revision:number,action:import('../src/roles/webhooks').WebhookCommand)=>{if(!validId(serverId)||!Number.isSafeInteger(revision)||revision<0||!action||JSON.stringify(action).length>2000)throw new Error('Operação de integração inválida.');return request('/servers/'+serverId+'/webhooks',{revision,action})},
+    'community-message':async(serverId:string,channelId:string,messageId:string)=>{if(!validId(serverId)||!validId(channelId)||!validId(messageId))throw new Error('Mensagem inválida.');return request(`/servers/${serverId}/messages/${channelId}/${messageId}`)},
+    'community-insights':async(serverId:string,days:number,timeZone:string)=>{if(!validId(serverId)||![7,30].includes(days)||typeof timeZone!=='string'||timeZone.length>100)throw new Error('Consulta de estatísticas inválida.');return request(`/servers/${serverId}/insights?days=${days}&timeZone=${encodeURIComponent(timeZone)}`)},
+    'community-pins':async(serverId:string,channelId:string)=>{if(!validId(serverId)||!validId(channelId))throw new Error('Canal inválido.');return request(`/servers/${serverId}/pins/${channelId}`)},
     'community-history':async(serverId:string,channelId:string,before?:string)=>{if(!validId(serverId)||!validId(channelId)||(before!==undefined&&!validId(before)))throw new Error('Histórico inválido.');return request(`/servers/${serverId}/history/${channelId}${before?'?before='+encodeURIComponent(before):''}`)},
     'community-command':async(serverId:string,revision:number,action:CommunityAction)=>{if(!validId(serverId)||!Number.isSafeInteger(revision)||revision<0)throw new Error('Revisão da comunidade inválida.');const serialized=JSON.stringify(action);if(!serialized||serialized.length>100000)throw new Error('Comando inválido.');return request(`/servers/${serverId}/commands`,{revision,action})},
     'community-voice-token':async(serverId:string,channelId:string)=>{if(!validId(serverId)||!validId(channelId))throw new Error('Canal inválido.');return request(`/servers/${serverId}/voice-token`,{channelId})},

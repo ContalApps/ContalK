@@ -149,7 +149,10 @@ export const useCommunityStore = create<{ members: Member[]; status: string; pro
     if(room?.state==='connected') {await room.localParticipant.setName(user.display_name);await room.localParticipant.setMetadata(JSON.stringify({avatar:user.avatar || '',bio:user.bio || ''}))}
   },
   sendMessage: async (channelId, content, destination, attachment, options) => {
-    if(centralEnabled()&&!destination&&!channelId.startsWith('dm:')){await centralCommand({type:'message-send',id:crypto.randomUUID(),channel:channelId,content,attachment,preview:options?.preview,once:options?.once});return}
+    if(centralEnabled()&&!destination&&!channelId.startsWith('dm:')){await centralCommand({type:'message-send',id:crypto.randomUUID(),channel:channelId,content,attachment,expression:options?.expression,voice:options?.voice,tts:options?.tts,poll:options?.poll,preview:options?.preview,once:options?.once});return}
+    if(options?.expression)throw new Error('Expressões exigem um canal conectado à comunidade.')
+    if(options?.voice)throw new Error('Mensagens de voz exigem um canal conectado à comunidade.')
+    if(options?.tts)throw new Error('A leitura em voz exige um canal conectado à comunidade.')
     const connection=room
     if(!connection || connection.state!=='connected')throw new Error('Aguarde a conexão para enviar mensagens.')
     if((!content.trim()&&!attachment)||content.length>2000)throw new Error('Escreva uma mensagem de até 2000 caracteres.')

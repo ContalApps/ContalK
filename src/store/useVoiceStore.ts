@@ -1,3 +1,6 @@
+import { priorityAudioGain } from '../media/priority-audio'
+import type { VoiceInputMode } from '../media/voice-input'
+import { useRoleStore } from './useRoleStore'
 import { create } from 'zustand'
 import { publishSafeMicrophone, setSafeMicrophoneEnabled } from '../media/microphone'
 import { centralAllows, centralEnabled, centralOccupants, centralVoiceToken } from '../roles/transport'
@@ -17,6 +20,10 @@ export interface VoiceParticipant {
   identity: string
   name: string
   avatar?: string
+  serverNickname?:string|null
+  isPrioritySpeaker?:boolean
+  serverMuted?: boolean
+  serverDeafened?: boolean
   isLocal: boolean
   isSpeaking: boolean
   isAudioEnabled: boolean
@@ -27,6 +34,13 @@ export interface VoiceParticipant {
 }
 
 interface VoiceState {
+  prioritySpeaker:boolean
+  selectInputPriority:(enabled:boolean)=>Promise<void>
+  inputMode:VoiceInputMode
+  voiceInputError:string|null
+  voiceInputState:'idle'|'starting'|'global'|'focused'
+  selectInputMode:(mode:VoiceInputMode)=>Promise<void>
+  pushToTalk:(pressed:boolean)=>Promise<void>
   currentRoom: Room | null
   activeChannelId: string | null
   activeChannelName: string | null
@@ -38,6 +52,8 @@ interface VoiceState {
   microphoneError: string | null
   micMutedBeforeDeafen: boolean
   selectMicrophone: (deviceId: string) => Promise<void>
+  isServerMuted: boolean
+  isServerDeafened: boolean
   isMicMuted: boolean
   isDeafened: boolean
   isCameraOn: boolean
@@ -52,7 +68,7 @@ interface VoiceState {
   channelOccupants: Record<string, VoiceParticipant[]>
 
   // Actions
-  joinChannel: (channelId: string, channelName: string, user: { username: string; display_name: string; avatar?: string }) => Promise<boolean>
+  joinChannel: (channelId: string, channelName: string, user: { username: string; display_name: string; avatar?: string }, move?: {authority:{url:string;token:string};serverId:string;preserveMicMuted:boolean;preserveDeafened:boolean}) => Promise<boolean>
   leaveChannel: () => Promise<void>
   renameActiveChannel:(id:string,name:string)=>void
   refreshParticipants: () => void
@@ -67,6 +83,11 @@ interface VoiceState {
     source: any,
     options: { audio: boolean; fps: number; resolution: string }
   ) => Promise<void>
+}
+
+function voicePlaybackLevel(state:VoiceState,identity:string,source:string,deafened=state.isDeafened||state.isServerDeafened){
+  const volume=(source===Track.Source.ScreenShareAudio?state.streamVolumes:state.userVolumes)[identity]??100,priority=state.currentRoom?.prioritySpeakers
+  return priorityAudioGain(volume,deafened,source===Track.Source.Microphone,!!priority?.size,priority?.has(identity)===true)
 }
 
 function getAudioContainer(): HTMLElement {
@@ -99,6 +120,20 @@ const initialStreamVolumes: Record<string, number> = (() => {
 const clampVolume = (volume: number) => Math.min(200, Math.max(0, Number.isFinite(volume) ? volume : 100))
 
 export const useVoiceStore = create<VoiceState>((set, get) => ({
+  prioritySpeaker:false,
+  selectInputPriority:async enabled=>{const room=get().currentRoom;set({prioritySpeaker:enabled,...(room?{isMicMuted:true}:{})});if(room){room.prioritySpeaker=enabled;await room.setPushToTalk(false).catch(()=>{});if(get().currentRoom===room)get().refreshParticipants()}},
+  inputMode:'voice-activity',voiceInputError:null,voiceInputState:'idle',
+  selectInputMode:async mode=>{
+    const room=get().currentRoom
+    set({inputMode:mode,voiceInputError:null,...(room?{isMicMuted:true}:{})})
+    if(room){try{await room.setInputMode(mode);get().refreshParticipants()}catch(error){if(get().currentRoom===room)set({voiceInputError:error instanceof Error?error.message:'Não foi possível alterar o modo de entrada.'});throw error}}
+  },
+  pushToTalk:async pressed=>{
+    const state=get(),room=state.currentRoom
+    if(!room||room.inputMode!=='push-to-talk')return
+    const active=pressed&&state.connectionStatus==='connected'&&!state.isMicMuted&&!state.isDeafened&&!state.isServerMuted&&!state.isServerDeafened
+    try{await room.setPushToTalk(active);if(get().currentRoom===room)get().refreshParticipants()}catch(error){if(get().currentRoom===room){await room.setPushToTalk(false).catch(()=>{});if(get().currentRoom!==room)return;set({isMicMuted:true,voiceInputError:error instanceof Error?error.message:'O atalho de voz foi interrompido.'});get().refreshParticipants()}}
+  },
   currentRoom: null,
   activeChannelId: null,
   activeChannelName: null,
@@ -113,6 +148,8 @@ export const useVoiceStore = create<VoiceState>((set, get) => ({
   microphoneLabel: '',
   microphoneError: null,
   micMutedBeforeDeafen: false,
+  isServerMuted: false,
+  isServerDeafened: false,
   isMicMuted: false,
   isDeafened: false,
   isCameraOn: false,
@@ -140,7 +177,7 @@ export const useVoiceStore = create<VoiceState>((set, get) => ({
       if (remote) {
         remote.audioTrackPublications.forEach((pub) => {
           if (pub.source !== Track.Source.ScreenShareAudio && pub.audioTrack && 'setVolume' in pub.audioTrack) {
-            pub.audioTrack.setVolume(get().isDeafened ? 0 : volume / 100)
+            pub.audioTrack.setVolume(voicePlaybackLevel(get(),identity,pub.source))
           }
         })
       }
@@ -153,13 +190,16 @@ export const useVoiceStore = create<VoiceState>((set, get) => ({
     set({ streamVolumes })
     try { localStorage.setItem('contalk_stream_volumes', JSON.stringify(streamVolumes)) } catch { /* Still applies for this call. */ }
     get().currentRoom?.remoteParticipants.get(identity)?.audioTrackPublications.forEach(pub => {
-      if (pub.source === Track.Source.ScreenShareAudio && pub.audioTrack && 'setVolume' in pub.audioTrack) pub.audioTrack.setVolume(get().isDeafened ? 0 : volume / 100)
+      if (pub.source === Track.Source.ScreenShareAudio && pub.audioTrack && 'setVolume' in pub.audioTrack) pub.audioTrack.setVolume((get().isDeafened||get().isServerDeafened) ? 0 : volume / 100)
     })
   },
 
   fetchChannelOccupants: async () => {
     if(centralEnabled()){
-      try{const occupants=await centralOccupants();set({channelOccupants:{...occupants,...(get().activeChannelId?{[get().activeChannelId!]:get().participants}:{})}})}catch{set({channelOccupants:get().activeChannelId?{[get().activeChannelId!]:get().participants}:{}})}
+      const attempt=++occupantsGeneration,authority=useRoleStore.getState(),serverId=authority.serverId,owner=authority.owner
+      const current=()=>attempt===occupantsGeneration&&useRoleStore.getState().serverId===serverId&&useRoleStore.getState().owner===owner&&useRoleStore.getState().status==='connected'
+      if(authority.status!=='connected')return
+      try{const occupants=await centralOccupants();if(current())set({channelOccupants:{...occupants,...(get().activeChannelId?{[get().activeChannelId!]:get().participants}:{})}})}catch{if(current())set({channelOccupants:get().activeChannelId?{[get().activeChannelId!]:get().participants}:{}})}
       return
     }
     set({channelOccupants:get().activeChannelId?{[get().activeChannelId!]:get().participants}:{}})
@@ -172,6 +212,8 @@ export const useVoiceStore = create<VoiceState>((set, get) => ({
 
     const list: VoiceParticipant[] = []
     const local = currentRoom.localParticipant
+    const outputChanged=get().isServerDeafened!==local.serverDeafened
+    if(outputChanged)currentRoom.remoteParticipants.forEach(participant=>participant.audioTrackPublications.forEach(pub=>{pub.audioTrack?.setVolume(voicePlaybackLevel(get(),participant.identity,pub.source,get().isDeafened||local.serverDeafened))}))
 
     const localCamPub = local.getTrackPublication(Track.Source.Camera)
     const localScreenPub = local.getTrackPublication(Track.Source.ScreenShare)
@@ -180,6 +222,8 @@ export const useVoiceStore = create<VoiceState>((set, get) => ({
       identity: local.identity,
       name: local.name || local.identity,
       avatar: readAvatar(local.metadata),
+      isPrioritySpeaker:currentRoom.prioritySpeakers?.has(local.identity)===true,
+      serverNickname:local.serverNickname,serverMuted:local.serverMuted,serverDeafened:local.serverDeafened,
       isLocal: true,
       isSpeaking: local.isSpeaking,
       isAudioEnabled: local.isMicrophoneEnabled,
@@ -197,6 +241,8 @@ export const useVoiceStore = create<VoiceState>((set, get) => ({
         identity: p.identity,
         name: p.name || p.identity,
         avatar: readAvatar(p.metadata),
+        isPrioritySpeaker:currentRoom.prioritySpeakers?.has(p.identity)===true,
+        serverNickname:p.serverNickname,serverMuted:p.serverMuted,serverDeafened:p.serverDeafened,
         isLocal: false,
         isSpeaking: p.isSpeaking,
         isAudioEnabled: p.isMicrophoneEnabled,
@@ -208,10 +254,11 @@ export const useVoiceStore = create<VoiceState>((set, get) => ({
     })
 
     set({
+      isServerMuted:local.serverMuted,isServerDeafened:local.serverDeafened,
       participants: list,
       isScreenSharing: local.isScreenShareEnabled,
       isCameraOn: local.isCameraEnabled,
-      isMicMuted: !local.isMicrophoneEnabled,
+      isMicMuted: currentRoom.inputMode==='push-to-talk'&&local.getTrackPublication(Track.Source.Microphone)?get().isMicMuted:!local.isMicrophoneEnabled,
     })
 
     const activeId = get().activeChannelId
@@ -225,7 +272,7 @@ export const useVoiceStore = create<VoiceState>((set, get) => ({
     }
   },
 
-  joinChannel: async (channelId, channelName, user) => {
+  joinChannel: async (channelId, channelName, user, move) => {
     const state = get()
     if (state.activeChannelId === channelId && ['connected','connecting','reconnecting'].includes(state.connectionStatus)) {
       return true
@@ -246,6 +293,8 @@ export const useVoiceStore = create<VoiceState>((set, get) => ({
     set({ currentRoom: null, channelOccupants: Object.fromEntries(Object.entries(get().channelOccupants).map(([id, users]) => [id, users.filter(p => p.identity !== user.username)])) })
 
     set({
+      isServerMuted:false,isServerDeafened:false,
+      isDeafened:move?.preserveDeafened??get().isDeafened,
       connectionStatus: 'connecting',
       activeChannelId: channelId,
       activeChannelName: channelName,
@@ -258,7 +307,7 @@ export const useVoiceStore = create<VoiceState>((set, get) => ({
     let room: Room | undefined
     try {
       // 1. Obter ticket de sessão autenticado.
-      const authority=await centralVoiceToken(channelId)
+      const authority=move?{...move.authority,serverId:move.serverId}:await centralVoiceToken(channelId)
       if (!authority) throw new Error('Configure sua conexão com a comunidade para entrar na chamada.')
       const token = authority.token
       if (!token || typeof token !== 'string') {
@@ -268,7 +317,8 @@ export const useVoiceStore = create<VoiceState>((set, get) => ({
       if (attempt !== connectionGeneration) return false
       // 2. Preparar os transportes WebRTC do servidor.
       const connection = new Room({
-        tokenProvider: () => centralVoiceToken(channelId),
+        tokenProvider: () => centralVoiceToken(channelId,authority.serverId),
+        inputMode:get().inputMode,prioritySpeaker:get().prioritySpeaker,
       })
 
       room = connection
@@ -299,6 +349,18 @@ export const useVoiceStore = create<VoiceState>((set, get) => ({
         triggerUpdate()
       })
 
+      on(RoomEvent.PrioritySpeakersChanged,()=>{
+        connection.remoteParticipants.forEach(participant=>participant.audioTrackPublications.forEach(pub=>pub.audioTrack?.setVolume(voicePlaybackLevel(get(),participant.identity,pub.source))));triggerUpdate()
+      })
+      on(RoomEvent.ServerModerationChanged,()=>{
+        set({isServerMuted:connection.localParticipant.serverMuted,isServerDeafened:connection.localParticipant.serverDeafened})
+        connection.remoteParticipants.forEach(participant=>participant.audioTrackPublications.forEach(pub=>{
+          pub.audioTrack?.setVolume(voicePlaybackLevel(get(),participant.identity,pub.source))
+        }));triggerUpdate()
+      })
+      on(RoomEvent.ServerMoved,data=>{void get().joinChannel(data.channelId,data.channelName,user,{authority:data.authority,serverId:data.serverId,preserveMicMuted:get().isMicMuted,preserveDeafened:get().isDeafened})})
+      let moderatorDisconnected=false
+      on(RoomEvent.ServerVoiceDisconnected,()=>{moderatorDisconnected=true})
       on(RoomEvent.ParticipantConnected, () => triggerUpdate())
       on(RoomEvent.ParticipantDisconnected, () => triggerUpdate())
 
@@ -326,10 +388,9 @@ export const useVoiceStore = create<VoiceState>((set, get) => ({
           const element = track.attach()
           audioContainer.appendChild(element)
 
-          const volumes = _pub.source === Track.Source.ScreenShareAudio ? get().streamVolumes : get().userVolumes
-          const userVol = get().isDeafened ? 0 : clampVolume(volumes[participant.identity] ?? 100)
+          const userVol = voicePlaybackLevel(get(),participant.identity,_pub.source)
           if (typeof (track as any).setVolume === 'function') {
-            (track as any).setVolume(userVol / 100)
+            (track as any).setVolume(userVol)
           }
         }
         triggerUpdate()
@@ -361,7 +422,9 @@ export const useVoiceStore = create<VoiceState>((set, get) => ({
           currentRoom: null,
 
           connectionStatus: 'disconnected',
-          error: 'A conexão de voz foi encerrada. Tente novamente.',
+          activeChannelId:null,activeChannelName:null,
+          isServerMuted:false,isServerDeafened:false,isDeafened:false,
+          error: moderatorDisconnected?'Você foi desconectado da voz por um moderador.':'A conexão de voz foi encerrada. Tente novamente.',
           participants: [],
           activeSpeakers: [],
           isMicMuted: false,
@@ -375,12 +438,12 @@ export const useVoiceStore = create<VoiceState>((set, get) => ({
       await connection.connect(authority.url, token)
       if (attempt !== connectionGeneration) { await connection.disconnect(); return false }
       if (connection.state !== 'connected') throw new Error('A conexão de voz foi encerrada. Tente novamente.')
-      try { await connection.localParticipant.setMetadata(JSON.stringify({ avatar: user.avatar || '' })) }
+      try { await connection.localParticipant.setName(user.display_name); await connection.localParticipant.setMetadata(JSON.stringify({ avatar: user.avatar || '' })) }
       catch { if (attempt === connectionGeneration) set({profileError: 'Não foi possível sincronizar a foto. A chamada continua conectada.'}) }
       if (attempt !== connectionGeneration) { await connection.disconnect(); return false }
 
       // 5. Ativar microfone local se permitido
-      if(centralAllows('SPEAK',channelId))try {
+      if(!move?.preserveMicMuted&&!get().isDeafened&&!connection.localParticipant.serverMuted&&!connection.localParticipant.serverDeafened&&(connection.localParticipant.canPublishMicrophone??centralAllows('SPEAK',channelId)))try {
         const label = await publishSafeMicrophone(connection, get().microphoneDeviceId)
         if (attempt === connectionGeneration) set({ microphoneLabel: label, microphoneError: null })
       } catch (micErr) {
@@ -393,7 +456,7 @@ export const useVoiceStore = create<VoiceState>((set, get) => ({
       set({
         currentRoom: connection,
         connectionStatus: 'connected',
-        isMicMuted: !connection.localParticipant.isMicrophoneEnabled,
+        isMicMuted: connection.inputMode==='push-to-talk'&&connection.localParticipant.getTrackPublication(Track.Source.Microphone)?move?.preserveMicMuted??false:!connection.localParticipant.isMicrophoneEnabled,
       })
 
       triggerUpdate()
@@ -406,6 +469,7 @@ export const useVoiceStore = create<VoiceState>((set, get) => ({
       set({
         currentRoom: null,
         connectionStatus: 'disconnected',
+        isServerMuted:false,isServerDeafened:false,isDeafened:false,
         participants: [], isScreenSharing: false, isCameraOn: false, isMicMuted: true,
         channelOccupants: Object.fromEntries(Object.entries(get().channelOccupants).map(([id, users]) => [id, users.filter(p => p.identity !== user.username)])),
         error: /websocket|signal|connection refused/i.test(err?.message || '') ? 'Não foi possível conectar ao servidor de voz. Verifique o domínio de voz, HTTPS e WebSocket no Coolify.' : /ICE|peer connection/i.test(err?.message || '') ? 'O transporte de mídia falhou. Verifique as portas UDP/TCP e TURN da VPS.' : String(err?.message || 'Falha ao conectar ao servidor de voz.').replace(/eyJ[\w-]+\.[\w-]+\.[\w-]+/g, '[token removido]'),
@@ -449,7 +513,8 @@ export const useVoiceStore = create<VoiceState>((set, get) => ({
       participants: [],
       activeSpeakers: [],
       isMicMuted: false,
-      isDeafened: false,
+      isDeafened: get().isDeafened,
+      isServerMuted:false,isServerDeafened:false,
       isCameraOn: false,
       isScreenSharing: false,
       error: null,
@@ -457,19 +522,21 @@ export const useVoiceStore = create<VoiceState>((set, get) => ({
   },
 
   toggleMic: async () => {
+    if(get().isServerMuted||get().isServerDeafened){set({microphoneError:'Seu microfone está bloqueado pela moderação do servidor.'});return}
     if(get().isMicMuted&&!centralAllows('SPEAK',get().activeChannelId||undefined)){set({microphoneError:'Seu cargo não permite falar neste canal.'});return}
     const { currentRoom, isMicMuted, isDeafened } = get()
     if (!currentRoom) return
     if (isDeafened) return
 
     const nextMuted = !isMicMuted
+    set({isMicMuted:nextMuted})
     try {
       const label = await setSafeMicrophoneEnabled(currentRoom, !nextMuted, get().microphoneDeviceId)
       set({ microphoneLabel: label, microphoneError: null })
-      set({ isMicMuted: !currentRoom.localParticipant.isMicrophoneEnabled })
+      set({ isMicMuted: currentRoom.inputMode==='push-to-talk'?nextMuted:!currentRoom.localParticipant.isMicrophoneEnabled })
       get().refreshParticipants()
     } catch (err) {
-      set({ microphoneError: err instanceof Error ? err.message : 'Falha ao abrir o microfone.' })
+      set({ isMicMuted:true,microphoneError: err instanceof Error ? err.message : 'Falha ao abrir o microfone.' })
     }
   },
 
@@ -477,23 +544,23 @@ export const useVoiceStore = create<VoiceState>((set, get) => ({
     const { currentRoom, isMicMuted, isDeafened } = get()
     try {
       let label = ''
-      if (currentRoom) label = await publishSafeMicrophone(currentRoom, deviceId, isMicMuted || isDeafened)
+      if (currentRoom&&!get().isServerMuted&&!get().isServerDeafened) label = await publishSafeMicrophone(currentRoom, deviceId, isMicMuted || isDeafened)
       localStorage.setItem('contalk-microphone-id', deviceId)
-      set({ microphoneDeviceId: deviceId, microphoneLabel: label, microphoneError: null })
+      set({ microphoneDeviceId: deviceId, microphoneLabel: label, microphoneError: null,...(currentRoom?.inputMode==='push-to-talk'?{isMicMuted:isMicMuted||isDeafened||get().isServerMuted||get().isServerDeafened}:{}) })
       get().refreshParticipants()
     } catch (error) { set({ microphoneError: error instanceof Error ? error.message : 'Não foi possível trocar de microfone.' }); get().refreshParticipants(); throw error }
   },
   toggleDeafen: async () => {
     const { currentRoom, isDeafened, isMicMuted, microphoneDeviceId, micMutedBeforeDeafen } = get()
-    if (!currentRoom) return
+    if(get().isServerDeafened)return
+    if(!currentRoom){set({isDeafened:!isDeafened,...(!isDeafened?{micMutedBeforeDeafen:isMicMuted}:{})});return}
     const nextDeafened = !isDeafened
-    set({ isDeafened: nextDeafened, ...(nextDeafened ? { micMutedBeforeDeafen: isMicMuted } : {}) })
+    set({ isDeafened: nextDeafened,isMicMuted:nextDeafened?true:micMutedBeforeDeafen, ...(nextDeafened ? { micMutedBeforeDeafen: isMicMuted } : {}) })
     currentRoom.remoteParticipants.forEach(participant => participant.audioTrackPublications.forEach(pub => {
-      const volumes = pub.source === Track.Source.ScreenShareAudio ? get().streamVolumes : get().userVolumes
-      if (pub.audioTrack && 'setVolume' in pub.audioTrack) pub.audioTrack.setVolume(nextDeafened ? 0 : clampVolume(volumes[participant.identity] ?? 100) / 100)
+      if (pub.audioTrack && 'setVolume' in pub.audioTrack) pub.audioTrack.setVolume(voicePlaybackLevel(get(),participant.identity,pub.source,nextDeafened||get().isServerDeafened))
     }))
     try {
-      await setSafeMicrophoneEnabled(currentRoom, !nextDeafened && !micMutedBeforeDeafen, microphoneDeviceId)
+      if(!get().isServerMuted&&!get().isServerDeafened)await setSafeMicrophoneEnabled(currentRoom, !nextDeafened && !micMutedBeforeDeafen, microphoneDeviceId)
       set({ microphoneError: null })
     } catch (error) { set({ microphoneError: error instanceof Error ? error.message : 'Falha no microfone.' }) }
     get().refreshParticipants()

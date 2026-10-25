@@ -24,11 +24,12 @@ export async function centralPresenceToken(name:string){
   if(!window.contalkDesktop?.communityPresenceToken)throw new Error('Atualize o aplicativo para conectar a presença da comunidade.')
   return window.contalkDesktop.communityPresenceToken(name)
 }
-export async function centralVoiceToken(channelId:string){
+export async function centralVoiceToken(channelId:string,serverId?:string){
   if(!await configurationMode())return null
   const state=useRoleStore.getState()
-  if(!state.serverId||!window.contalkDesktop?.communityVoiceToken)throw new Error('Reconecte a comunidade para entrar na chamada.')
-  return window.contalkDesktop.communityVoiceToken(state.serverId,channelId)
+  const target=serverId||state.serverId
+  if(!target||!window.contalkDesktop?.communityVoiceToken)throw new Error('Reconecte a comunidade para entrar na chamada.')
+  return {...await window.contalkDesktop.communityVoiceToken(target,channelId),serverId:target}
 }
 export async function centralOccupants(){
   const state=useRoleStore.getState()

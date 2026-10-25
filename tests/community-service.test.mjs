@@ -48,6 +48,37 @@ test('central service authenticates identity and never delivers private channel 
  assert.equal((await f.command('alice',{type:'message-delete',channel:'public',id:'one'})).status,200)
 })
 
+test('server settings require MANAGE_GUILD independently of role/channel management and preserve ownership, IDs and messages',async t=>{
+ let saved;const storage={load:()=>saved||null,save:state=>{saved=structuredClone(state)}}
+ const f=await fixture(t,{storage})
+ assert.equal((await f.command('bob',{type:'server-edit',patch:{name:'Forged'},actor:'alice'})).status,403)
+ await f.command('alice',{type:'role',command:{type:'create',id:'manager',name:'Gerente'}})
+ await f.command('alice',{type:'role',command:{type:'edit',id:'manager',patch:{permissions:mask(['MANAGE_GUILD']).toString()}}})
+ await f.command('alice',{type:'role',command:{type:'assign',id:'manager',member:'bob'}})
+ const before=(await f.request('alice','/servers/group')).data
+ const edited=await f.command('bob',{type:'server-edit',patch:{name:'  Novo nome  ',description:'  Um servidor de teste.  '}})
+ assert.equal(edited.status,200);assert.equal(edited.data.name,'Novo nome');assert.equal(edited.data.description,'Um servidor de teste.');assert.equal(edited.data.id,'group')
+ assert.equal(edited.data.audit.length,0)
+ const current=(await f.request('alice','/servers/group')).data;assert.deepEqual(current.policy,before.policy);assert.deepEqual(current.messages,before.messages);assert.equal(current.audit[0].event,'server-edit');assert.equal(current.audit[0].actor,'bob');assert.equal(current.audit[0].targetName,'Novo nome')
+ assert.equal((await f.command('bob',{type:'role',command:{type:'create',id:'elevated',name:'Elevação'}})).status,403)
+ assert.equal((await f.command('bob',{type:'channel-delete',id:'public'})).status,403)
+ for(const patch of [{},{name:''},{name:'x'.repeat(101)},{name:'Linha\nDois'},{description:'x'.repeat(301)},{description:{}},{ownerIds:['bob']},{roles:[]},{name:'X',ownership:'all-members'}])assert.equal((await f.command('bob',{type:'server-edit',patch})).status,400)
+ const stale=await f.command('alice',{type:'server-edit',patch:{name:'Obsoleto'}},'group',before.revision);assert.equal(stale.status,409)
+ const restarted=await fixture(t,{storage});assert.equal((await restarted.request('charlie','/servers/group')).data.name,'Novo nome');assert.equal((await restarted.request('charlie','/servers/group')).data.description,'Um servidor de teste.')
+ const hq=(await restarted.command('bob',{type:'server-edit',patch:{description:'HQ colaborativo'}},'srv-1')).data;assert.equal(hq.policy.ownership,'all-members');assert.deepEqual(hq.policy.ownerIds,[])
+})
+
+test('server settings reach a second authenticated client over SSE and failed persistence publishes no change',async t=>{
+ let fail=false;const f=await fixture(t,{storage:{load:()=>null,save:()=>{if(fail)throw Error('disk unavailable')}}}),controller=new AbortController();t.after(()=>controller.abort())
+ const response=await fetch(f.base+'/servers/group/events',{headers:{Authorization:'Bearer '+keys.charlie},signal:controller.signal}),reader=response.body.getReader();await reader.read()
+ const result=await f.command('alice',{type:'server-edit',patch:{description:'Nova descrição'}});assert.equal(result.status,200)
+ assert.match(new TextDecoder().decode((await reader.read()).value),/Nova descrição/)
+ fail=true
+ assert.equal((await f.command('alice',{type:'server-edit',patch:{name:'Não persistiu'}})).status,500)
+ const after=(await f.request('alice','/servers/group')).data;assert.equal(after.name,'Grupo');assert.equal(after.description,'Nova descrição');assert.equal(after.revision,result.data.revision)
+ controller.abort()
+})
+
 test('all provisioned HQ members start as co-owners and role revisions reach another authenticated client over SSE',async t=>{
  const f=await fixture(t)
  const controller=new AbortController();t.after(()=>controller.abort())

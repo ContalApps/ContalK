@@ -1,0 +1,24 @@
+import { useEffect, useRef, useState } from 'react'
+import { useRoleStore } from '../store/useRoleStore'
+import { can } from '../roles/permissions'
+import { normalizePoll, type PollDraft } from '../roles/polls'
+import { useCommunityClock } from '../roles/useCommunityClock'
+import { ControlIcon } from './ControlIcon'
+
+export function PollEditor({channelId,onSend,onClose}:{channelId:string;onSend:(poll:PollDraft)=>Promise<void>;onClose:()=>void}){
+  const state=useRoleStore(),snapshot=state.snapshot
+  const blank=()=>({key:crypto.randomUUID(),text:'',emoji:''})
+  const [question,setQuestion]=useState(''),[answers,setAnswers]=useState(()=>[blank(),blank()]),[multiple,setMultiple]=useState(false),[hours,setHours]=useState(24),[busy,setBusy]=useState(false),[error,setError]=useState('')
+  const panel=useRef<HTMLElement>(null),previous=useRef(document.activeElement as HTMLElement|null)
+  useEffect(()=>{panel.current?.querySelector<HTMLInputElement>('input')?.focus();return()=>previous.current?.focus()},[])
+  const deadline=snapshot?.sendAfter?.[channelId]||0,now=useCommunityClock(deadline,true),cooling=deadline>now
+  const allowed=!!snapshot&&snapshot.channels.some(channel=>channel.id===channelId&&channel.type==='text')&&can(snapshot.policy,snapshot.actor,'VIEW_CHANNEL',channelId)&&can(snapshot.policy,snapshot.actor,'SEND_MESSAGES',channelId)&&can(snapshot.policy,snapshot.actor,'SEND_POLLS',channelId)
+  const draft={question,answers:answers.map(({text,emoji})=>({text,...(emoji?{emoji}:{})})),multiple,durationHours:hours}
+  let valid=true;try{normalizePoll(draft)}catch{valid=false}
+  const ready=allowed&&state.status==='connected'&&!state.busy&&!busy&&!cooling
+  const send=async()=>{if(!ready)return;setBusy(true);setError('');try{await onSend(normalizePoll(draft));onClose()}catch(error){setError(error instanceof Error?error.message:'Não foi possível publicar a enquete.')}finally{setBusy(false)}}
+  return <div className="ct-modal-backdrop"><section ref={panel} className="ct-role-dialog ct-poll-editor" role="dialog" aria-modal="true" aria-labelledby="ct-poll-title" onKeyDown={event=>{
+    if(event.key==='Escape'&&!busy){event.stopPropagation();onClose()}
+    if(event.key==='Tab'){const controls=[...event.currentTarget.querySelectorAll<HTMLElement>('button:not(:disabled),input:not(:disabled),select:not(:disabled)')],first=controls[0],last=controls[controls.length-1];if(event.shiftKey&&document.activeElement===first){event.preventDefault();last?.focus()}else if(!event.shiftKey&&document.activeElement===last){event.preventDefault();first?.focus()}}
+  }}><header><h2 id="ct-poll-title">Criar enquete</h2><button aria-label="Fechar criação de enquete" disabled={busy} onClick={onClose}>×</button></header><form onSubmit={event=>{event.preventDefault();if(valid)void send()}}><label>Pergunta<input aria-label="Pergunta da enquete" maxLength={300} required value={question} onChange={event=>setQuestion(event.target.value)} disabled={busy}/></label><fieldset disabled={busy}><legend>Opções</legend>{answers.map((answer,index)=><div className="ct-poll-answer-edit" key={answer.key}><input aria-label={'Emoji da opção '+(index+1)} placeholder="Emoji" maxLength={40} value={answer.emoji} onChange={event=>setAnswers(answers.map(item=>item.key===answer.key?{...item,emoji:event.target.value}:item))}/><input aria-label={'Opção '+(index+1)+' da enquete'} placeholder={'Opção '+(index+1)} maxLength={55} required value={answer.text} onChange={event=>setAnswers(answers.map(item=>item.key===answer.key?{...item,text:event.target.value}:item))}/><button type="button" aria-label={'Remover opção '+(index+1)} disabled={answers.length<=2} onClick={()=>setAnswers(answers.filter(item=>item.key!==answer.key))}><ControlIcon name="delete"/></button></div>)}<button type="button" disabled={answers.length>=10} onClick={()=>setAnswers([...answers,blank()])}>Adicionar opção</button><label className="ct-poll-multiple"><input type="checkbox" checked={multiple} onChange={event=>setMultiple(event.target.checked)}/>Permitir várias escolhas</label><label>Duração<select aria-label="Duração da enquete" value={hours} onChange={event=>setHours(Number(event.target.value))}>{[[1,'1 hora'],[4,'4 horas'],[8,'8 horas'],[24,'1 dia'],[72,'3 dias'],[168,'1 semana'],[768,'32 dias']].map(([value,label])=><option key={value} value={value}>{label}</option>)}</select></label></fieldset><p className="ct-muted">Os votos são públicos. A pergunta e as opções não poderão ser alteradas depois da publicação.</p>{!allowed&&<p role="status">Seu cargo não permite publicar enquetes neste canal. Seu rascunho foi preservado.</p>}{cooling&&<p role="status">Modo lento: aguarde {Math.ceil((deadline-now)/1000)} s.</p>}<button className="ct-primary" disabled={!ready||!valid}>{busy?'Publicando…':'Publicar enquete'}</button>{error&&<p role="alert">{error}</p>}</form></section></div>
+}

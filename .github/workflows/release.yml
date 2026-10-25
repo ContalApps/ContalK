@@ -26,6 +26,8 @@ jobs:
         run: npm rebuild mediasoup --foreground-scripts
       - name: Build isolated audio helper
         run: npm run build:audio
+      - name: Build global voice shortcut helper
+        run: npm run build:voice-input
       - name: Typecheck and test
         run: npm run verify
       - name: Build Windows installer

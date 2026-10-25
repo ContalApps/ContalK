@@ -1,0 +1,17 @@
+import {can,type RolePolicy} from './permissions.ts'
+import type {Channel,Message} from '../store/useAppStore'
+
+export interface CommunityInsights {serverId:string;revision:number;generatedAt:number;days:7|30;timeZone:string;members:number;visibleChannels:number;voiceChannels:number;analyzedChannels:number;messages:number|null;authors:number|null;reactions:number|null;polls:number|null;pins:number|null;recordedInvitedMembers:number;unknownAdmissionMembers:number;daily:Array<{day:string;messages:number}>;channels:Array<{id:string;name:string;messages:number}>}
+interface Source {id:string;revision:number;policy:RolePolicy;channels:Channel[];messages:Record<string,Message[]>;memberAdmissions?:Record<string,{joinedAt:number}>}
+
+export function buildCommunityInsights(server:Source,actor:string,days:7|30,timeZone:string,now=Date.now()):CommunityInsights{
+ if(!can(server.policy,actor,'VIEW_GUILD_INSIGHTS'))throw new Error('Você não pode consultar as estatísticas.')
+ if(![7,30].includes(days)||typeof timeZone!=='string'||timeZone.length>100)throw new Error('Período ou fuso inválido.')
+ const formatter=new Intl.DateTimeFormat('en-US',{timeZone,year:'numeric',month:'2-digit',day:'2-digit'})
+ const date=(timestamp:number)=>{const parts=Object.fromEntries(formatter.formatToParts(timestamp).map(part=>[part.type,part.value]));return parts.year+'-'+parts.month+'-'+parts.day}
+ const today=date(now),[year,month,day]=today.split('-').map(Number),ordinal=Date.UTC(year,month-1,day),labels=Array.from({length:days},(_,index)=>new Date(ordinal-(days-index-1)*86400000).toISOString().slice(0,10)),counts=new Map(labels.map(label=>[label,0]))
+ const visible=server.channels.filter(channel=>can(server.policy,actor,'VIEW_CHANNEL',channel.id)),channels=visible.filter(channel=>channel.type==='text'&&can(server.policy,actor,'READ_MESSAGE_HISTORY',channel.id)),authors=new Set<string>(),totals={messages:0,reactions:0,polls:0,pins:0},ranking:Array<{id:string;name:string;messages:number}>=[]
+ for(const channel of channels){let messages=0;for(const message of server.messages[channel.id]||[]){if(message.pinnedAt)totals.pins++;if(!Number.isFinite(message.timestamp)||message.timestamp>now)continue;const label=date(message.timestamp);if(!counts.has(label))continue;counts.set(label,counts.get(label)!+1);messages++;totals.messages++;authors.add(message.userId);totals.reactions+=(message.reactions||[]).reduce((total,reaction)=>total+reaction.members.length,0);if(message.poll)totals.polls++}ranking.push({id:channel.id,name:channel.name,messages})}
+ const records=server.policy.members.map(member=>server.memberAdmissions?.[member]),known=records.filter(record=>record&&Number.isFinite(record.joinedAt)),admitted=known.filter(record=>record&&record.joinedAt<=now&&counts.has(date(record.joinedAt))).length
+ return {serverId:server.id,revision:server.revision,generatedAt:now,days,timeZone,members:server.policy.members.length,visibleChannels:visible.length,voiceChannels:visible.filter(channel=>channel.type==='voice').length,analyzedChannels:channels.length,messages:channels.length?totals.messages:null,authors:channels.length?authors.size:null,reactions:channels.length?totals.reactions:null,polls:channels.length?totals.polls:null,pins:channels.length?totals.pins:null,recordedInvitedMembers:admitted,unknownAdmissionMembers:records.length-known.length,daily:channels.length?[...counts].map(([day,messages])=>({day,messages})):[],channels:ranking.sort((a,b)=>b.messages-a.messages||a.name.localeCompare(b.name)).slice(0,10)}
+}

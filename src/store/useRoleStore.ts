@@ -9,7 +9,7 @@ interface RoleState {
   configured:boolean
   url:string
   connectionVersion:number
-  status:'off'|'loading'|'connected'|'error'
+  status:'off'|'loading'|'connected'|'error'|'revoked'
   snapshot:CommunitySnapshot|null
   error:string
   busy:boolean
@@ -21,6 +21,8 @@ interface RoleState {
   command:(action:CommunityAction)=>Promise<void>
   refresh:()=>Promise<void>
   loadHistory:(channelId:string)=>Promise<void>
+  previewInvite:(code:string)=>Promise<import('../roles/invites').InvitePreview>
+  acceptInvite:(code:string)=>Promise<CommunitySnapshot>
 }
 let generation=0
 let unsubscribe:(()=>void)|undefined
@@ -28,12 +30,13 @@ export const useRoleStore=create<RoleState>((set,get)=>({
   owner:null,serverId:null,configured:false,url:'',connectionVersion:0,status:'off',snapshot:null,error:'',busy:false,olderMessages:{},historyMore:{},historyBusy:false,
   activate:async(owner,serverId='srv-1')=>{
     const current=get()
-    if(owner===current.owner&&serverId===current.serverId)return
+    if(owner===current.owner&&serverId===current.serverId&&current.status!=='revoked')return
     const version=++generation
     unsubscribe?.();unsubscribe=undefined
     const bridge=window.contalkDesktop
     void bridge?.unsubscribeCommunity?.().catch(()=>{})
-    set({owner,serverId:owner?serverId:null,configured:false,url:'',status:owner&&bridge?.communityStatus?'loading':'off',snapshot:null,error:'',busy:false,olderMessages:{},historyMore:{},historyBusy:false})
+    const retainConfiguration=!!owner&&owner===current.owner&&current.configured
+    set({owner,serverId:owner?serverId:null,configured:retainConfiguration,url:retainConfiguration?current.url:'',status:owner&&bridge?.communityStatus?'loading':'off',snapshot:null,error:'',busy:false,olderMessages:{},historyMore:{},historyBusy:false})
     if(!owner||!bridge?.communityStatus)return
     try{
       const configuration=await bridge.communityStatus()
@@ -42,6 +45,7 @@ export const useRoleStore=create<RoleState>((set,get)=>({
       if(!configuration.configured)return
       unsubscribe=bridge.onCommunityState(event=>{
         if(version!==generation||event.serverId!==serverId)return
+        if(event.accessRevoked){generation++;unsubscribe?.();unsubscribe=undefined;set({status:'revoked',snapshot:null,olderMessages:{},historyMore:{},historyBusy:false,busy:false,error:'Seu acesso a este servidor foi removido.'});return}
         if(event.error){set({status:'error',error:event.error,olderMessages:{},historyMore:{}});return}
         const snapshot=event.snapshot
         if(!snapshot||snapshot.actor!==owner||snapshot.id!==serverId)return
@@ -60,6 +64,24 @@ export const useRoleStore=create<RoleState>((set,get)=>({
     if(version!==generation)return
     set({owner:null,serverId:null,connectionVersion:get().connectionVersion+1})
     await get().activate(owner,serverId||'srv-1')
+  },
+  previewInvite:async code=>{
+    const {owner,configured}=get(),bridge=window.contalkDesktop,version=generation
+    if(!owner||!configured||!bridge?.communityInvitePreview)throw new Error('Conecte a comunidade para usar um convite.')
+    const preview=await bridge.communityInvitePreview(code)
+    if(version!==generation||get().owner!==owner)throw new Error('A conta ou a comunidade foi alterada. Confira o convite novamente.')
+    return preview
+  },
+  acceptInvite:async code=>{
+    const {owner,configured,busy}=get(),bridge=window.contalkDesktop,version=generation
+    if(!owner||!configured||!bridge?.communityInviteAccept)throw new Error('Conecte a comunidade para usar um convite.')
+    if(busy)throw new Error('Aguarde a alteração atual.')
+    set({busy:true})
+    try{
+      const next=await bridge.communityInviteAccept(code)
+      if(version!==generation||get().owner!==owner||next.actor!==owner)throw new Error('A conta ou a comunidade foi alterada. Confira o acesso antes de continuar.')
+      return next
+    }finally{if(version===generation)set({busy:false})}
   },
   command:async action=>{
     const {snapshot,owner,serverId}=get(),bridge=window.contalkDesktop,version=generation

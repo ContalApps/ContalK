@@ -9,6 +9,8 @@ import { setupStorage } from './storage'
 import { setupTray } from './tray'
 import { setupUpdates } from './updates'
 import { setupTitleBar, titleBarOptions } from './title-bar'
+import { setupSpeech } from './speech'
+import { setupPushToTalk } from './push-to-talk'
 import { setupNotifications } from './notifications'
 import { setupCommunity } from './community'
 import { setupCaptureAudio } from './capture-audio'
@@ -129,6 +131,8 @@ function createWindow() {
   setupStorage(win,()=>sessionUser)
   setupCommunity(win,()=>sessionUser)
   setupCaptureAudio(win)
+  setupPushToTalk(win)
+  setupSpeech(win)
 
   // Test active push message to Renderer_process.
   win.webContents.on('did-finish-load', () => {
