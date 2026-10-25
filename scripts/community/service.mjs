@@ -1,3 +1,4 @@
+import {canJoinStage,canModerateStage,pruneStage} from '../../src/roles/stages.ts'
 import {canManageExpression,expressionName} from '../../src/roles/expressions.ts'
 import {WebhookError,authorizeWebhook,visibleWebhooks,manageWebhook,publishWebhook} from './webhooks.mjs'
 import { canCreateEvent, canManageEvent, canViewEvent, eventStatus, eventDeadline, normalizeEventDraft } from '../../src/roles/events.ts'
@@ -135,7 +136,7 @@ export function createCommunityService({ tokens, storage, initialState, voice, f
     return server
   }
   const removeChannels=(server,ids)=>{
-    for(const id of ids){server.deletedChannels=[...new Set([...(server.deletedChannels||[]),id])];for(const message of server.messages[id]||[]){server.messageDeletions||={};server.messageDeletions[message.id]=true;delete server.fileDeliveries?.[message.id]}delete server.messages[id];delete server.policy.overwrites[id];delete server.policy.channelCategories[id];delete server.policy.threads?.[id];delete server.slowmodeLastSent?.[id];for(const [code,invite]of Object.entries(server.invites||{}))if(invite.channelId===id)delete server.invites[code]}
+    for(const id of ids){server.deletedChannels=[...new Set([...(server.deletedChannels||[]),id])];for(const message of server.messages[id]||[]){server.messageDeletions||={};server.messageDeletions[message.id]=true;delete server.fileDeliveries?.[message.id]}delete server.messages[id];delete server.policy.overwrites[id];delete server.policy.channelCategories[id];delete server.policy.threads?.[id];delete server.policy.stages?.[id];delete server.slowmodeLastSent?.[id];for(const [code,invite]of Object.entries(server.invites||{}))if(invite.channelId===id)delete server.invites[code]}
     for(const [id,event]of Object.entries(server.events||{}))if(ids.includes(event.channelId))delete server.events[id]
     server.channels=server.channels.filter(channel=>!ids.includes(channel.id))
   }
@@ -145,15 +146,16 @@ export function createCommunityService({ tokens, storage, initialState, voice, f
   const armPolls=()=>{
     clearTimeout(pollWake);if(closed||!pollDeadlines.size)return
     let next=Infinity;for(const item of pollDeadlines.values())next=Math.min(next,item.expiresAt)
-    pollWake=setTimeout(()=>{const affected=new Set();for(const [message,item]of pollDeadlines)if(item.expiresAt<=Date.now()){affected.add(item.serverId);pollDeadlines.delete(message)}for(const id of affected){indexPolls(id);changes.emit(id)}armPolls()},Math.min(2147483647,Math.max(1,next-Date.now())))
+    pollWake=setTimeout(()=>{const affected=new Set();for(const [message,item]of pollDeadlines)if(item.expiresAt<=Date.now()){affected.add(item.serverId);pollDeadlines.delete(message)}for(const id of affected){indexPolls(id);changes.emit(id);voice?.refreshStages?.(id)}armPolls()},Math.min(2147483647,Math.max(1,next-Date.now())))
   }
-  const indexPolls=id=>{for(const [message,item]of pollDeadlines)if(item.serverId===id)pollDeadlines.delete(message);for(const list of Object.values(state.servers[id].messages))for(const message of list)if(message.poll&&pollOpen(message.poll))pollDeadlines.set('poll:'+message.id,{serverId:id,expiresAt:message.poll.expiresAt});for(const [threadId,thread]of Object.entries(state.servers[id].policy.threads||{}))if(!threadArchived(thread))pollDeadlines.set('thread:'+threadId,{serverId:id,expiresAt:thread.lastActivityAt+thread.autoArchiveMinutes*60000});for(const event of Object.values(state.servers[id].events||{})){const expiresAt=eventDeadline(event);if(expiresAt)pollDeadlines.set('event:'+event.id,{serverId:id,expiresAt})}armPolls()}
+  const indexPolls=id=>{for(const [message,item]of pollDeadlines)if(item.serverId===id)pollDeadlines.delete(message);for(const [channel,stage]of Object.entries(state.servers[id].policy.stages||{}))for(const [member,invitation]of Object.entries(stage.invitations))if(invitation.expiresAt>Date.now())pollDeadlines.set('stage:'+channel+':'+member,{serverId:id,expiresAt:invitation.expiresAt});for(const list of Object.values(state.servers[id].messages))for(const message of list)if(message.poll&&pollOpen(message.poll))pollDeadlines.set('poll:'+message.id,{serverId:id,expiresAt:message.poll.expiresAt});for(const [threadId,thread]of Object.entries(state.servers[id].policy.threads||{}))if(!threadArchived(thread))pollDeadlines.set('thread:'+threadId,{serverId:id,expiresAt:thread.lastActivityAt+thread.autoArchiveMinutes*60000});for(const event of Object.values(state.servers[id].events||{})){const expiresAt=eventDeadline(event);if(expiresAt)pollDeadlines.set('event:'+event.id,{serverId:id,expiresAt})}armPolls()}
   const lastSent=(server,channel,actor)=>server.slowmodeLastSent?.[channel]?.[actor]??[...(server.messages[channel]||[])].reverse().find(message=>message.userId===actor)?.timestamp??0
   const snapshot = (actor, id) => {
     const server = serverFor(actor, id)
     const visible = server.channels.filter(channel => can(server.policy, actor, 'VIEW_CHANNEL', channel.id))
     const ids = new Set(visible.map(channel => channel.id))
     const policy = copy(server.policy)
+    delete policy.stages
     if(policy.threads)policy.threads=Object.fromEntries(Object.entries(policy.threads).filter(([id])=>ids.has(id)).map(([id,thread])=>[id,{...thread,archived:threadArchived(thread)}]))
     policy.channelCategories = Object.fromEntries(Object.entries(policy.channelCategories).filter(([channel]) => ids.has(channel)))
     const categoryIds = new Set(Object.values(policy.channelCategories).map(link => link.categoryId))
@@ -187,6 +189,35 @@ export function createCommunityService({ tokens, storage, initialState, voice, f
       requireValue(action && typeof action === 'object' && !Array.isArray(action), 'Operação inválida.')
       let target, event, liveMessage, messageChange, reason, pendingMove, auditThread, auditAction=true
       switch (action.type) {
+        case 'channel-voice-mode':{
+          const channel=server.channels.find(channel=>channel.id===action.channelId&&channel.type==='voice');requireValue(channel,'Canal de voz não encontrado.',404)
+          requirePermission(server,actor,'VIEW_CHANNEL',channel.id);requirePermission(server,actor,'MANAGE_CHANNELS',channel.id);requireValue(['conversation','stage'].includes(action.mode),'Modo de voz inválido.')
+          requireValue((channel.voiceMode||'conversation')!==action.mode,'O canal já está neste modo.',409)
+          channel.voiceMode=action.mode;policy.stages||={};if(action.mode==='stage')policy.stages[channel.id]={speakerSessions:{},requests:{},invitations:{}};else delete policy.stages[channel.id]
+          target=channel.id;event=action.type;auditThread={parentId:channel.id,private:false};break
+        }
+        case 'stage-request':case 'stage-invite':case 'stage-decline':case 'stage-audience':case 'stage-accept':case 'stage-join':{
+          const channel=server.channels.find(channel=>channel.id===action.channelId&&channel.type==='voice'),stage=policy.stages?.[action.channelId]
+          requireValue(channel&&stage,'Palco não encontrado.',404);requirePermission(server,actor,'VIEW_CHANNEL',channel.id);requirePermission(server,actor,'CONNECT',channel.id)
+          requireValue(voice?.participantSession,'Atualize o serviço de comunicação para usar o palco.',503)
+          const sessionFor=member=>policy.members.includes(member)?voice.participantSession(id,member,channel.id):null,session=sessionFor(actor)
+          requireValue(session,'Entre neste canal antes de usar o palco.',409);pruneStage(stage,sessionFor)
+          const moderator=canModerateStage(policy,actor,channel.id)
+          if(action.type==='stage-request'){
+            requireValue(typeof action.enabled==='boolean','Pedido de fala inválido.');if(action.enabled){requireValue(canJoinStage(policy,actor,channel.id),'Seu cargo ou bloqueio de áudio não permite falar neste canal.',403);requirePermission(server,actor,'REQUEST_TO_SPEAK',channel.id);requireValue(stage.speakerSessions[actor]!==session,'Você já está no palco.');stage.requests[actor]||={sessionId:session,requestedAt:Date.now()}}else delete stage.requests[actor];auditAction=false
+          }else if(action.type==='stage-accept'||action.type==='stage-join'){
+            requireValue(canJoinStage(policy,actor,channel.id),'Seu cargo ou bloqueio de áudio não permite falar.',403)
+            if(action.type==='stage-join')requireValue(moderator,'Apenas moderadores podem subir sem convite.',403)
+            else requireValue(stage.invitations[actor]?.sessionId===session&&stage.invitations[actor]?.expiresAt>Date.now(),'O convite expirou ou não pertence a esta sessão.',409)
+            stage.speakerSessions[actor]=session;delete stage.requests[actor];delete stage.invitations[actor];auditAction=false
+          }else{
+            requireValue(identifier(action.member),'Membro inválido.');const member=action.member,targetSession=sessionFor(member);requireValue(targetSession,'A pessoa não está neste palco.',409)
+            if(action.type==='stage-invite'){requireValue(moderator,'Você não pode moderar este palco.',403);requireValue(canJoinStage(policy,member,channel.id),'Esta pessoa não pode falar no canal.',403);stage.invitations[member]={sessionId:targetSession,invitedBy:actor,expiresAt:Date.now()+60000};delete stage.requests[member]}
+            else if(action.type==='stage-decline'){requireValue(member===actor||moderator,'Você não pode remover este pedido ou convite.',403);delete stage.requests[member];delete stage.invitations[member];auditAction=member!==actor}
+            else{requireValue(member===actor||moderator,'Você não pode mover esta pessoa para a plateia.',403);delete stage.speakerSessions[member];delete stage.requests[member];delete stage.invitations[member];auditAction=member!==actor}
+          }
+          target=action.member||actor;event=action.type;auditThread={parentId:channel.id,private:false};break
+        }
         case 'expression-create':case 'expression-edit':case 'expression-delete':{
           requireValue(identifier(action.id),'Identificador de expressão inválido.');server.expressions||={}
           const existing=own(server.expressions,action.id)?server.expressions[action.id]:null
@@ -541,9 +572,9 @@ export function createCommunityService({ tokens, storage, initialState, voice, f
       if(pendingMove){try{movePlan=voice.prepareMove(pendingMove)}catch(error){throw new CommunityError(409,error.message)}}
       try{await storage?.save(next)}catch(error){movePlan?.cancel();throw error}
       state = next
-      if(action.poll||action.type.startsWith('event-')||action.type.startsWith('thread-')||action.type==='message-send'&&policy.threads?.[action.channel]||['poll-close','message-delete','channel-delete'].includes(action.type))indexPolls(id)
+      if(action.poll||action.type.startsWith('event-')||action.type.startsWith('stage-')||action.type==='channel-voice-mode'||action.type.startsWith('thread-')||action.type==='message-send'&&policy.threads?.[action.channel]||['poll-close','message-delete','channel-delete'].includes(action.type))indexPolls(id)
       movePlan?.commit()
-      const syncVoice=voice&&(action.type==='role'||action.type==='channel-delete'||action.type==='member-kick'||action.type==='member-ban'||action.type==='voice-mute'||action.type==='voice-deafen'||action.type==='member-nickname'||action.type==='expression-delete')
+      const syncVoice=voice&&(action.type==='role'||action.type==='channel-delete'||action.type==='member-kick'||action.type==='member-ban'||action.type==='voice-mute'||action.type==='voice-deafen'||action.type==='member-nickname'||action.type==='expression-delete'||action.type.startsWith('stage-')||action.type==='channel-voice-mode')
       if(syncVoice)pendingVoice.set(id,pendingVoice.get(id)||previous)
       changes.emit(id,{message:liveMessage,messageChange})
       // Revoke/update connected participants as soon as permissions change.

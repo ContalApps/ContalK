@@ -1,3 +1,4 @@
+import {isStageSpeaker,stageView} from '../../src/roles/stages.ts'
 import { randomBytes, randomUUID, createHmac } from 'node:crypto'
 import { isIP } from 'node:net'
 import { networkInterfaces } from 'node:os'
@@ -6,10 +7,11 @@ import { createWorker } from 'mediasoup'
 import { can } from '../../src/roles/permissions.ts'
 
 const sources = ['microphone', 'camera', 'screen_share', 'screen_share_audio']
-export function voicePermissions(policy, actor, channel) {
+export function voicePermissions(policy, actor, channel, sessionId) {
   const connect = can(policy, actor, 'VIEW_CHANNEL', channel) && can(policy, actor, 'CONNECT', channel)
+  const speaker=isStageSpeaker(policy,actor,channel,sessionId)
   const serverMuted=policy.voiceRestrictions?.[actor]?.muted===true,serverDeafened=policy.voiceRestrictions?.[actor]?.deafened===true
-  return { canUseSoundboard:connect&&!serverMuted&&!serverDeafened&&can(policy,actor,'SPEAK',channel)&&can(policy,actor,'USE_SOUNDBOARD',channel),canUseExternalSounds:connect&&can(policy,actor,'USE_EXTERNAL_SOUNDS',channel),canPrioritySpeaker:connect&&!serverMuted&&!serverDeafened&&can(policy,actor,'SPEAK',channel)&&can(policy,actor,'PRIORITY_SPEAKER',channel),canUseVoiceActivity:connect&&can(policy,actor,'USE_VAD',channel),canSubscribe:connect,canReceiveAudio:connect&&!serverDeafened,serverMuted,serverDeafened,canPublishSources:connect?sources.filter(source=>can(policy,actor,source==='microphone'?'SPEAK':'STREAM',channel)&&(source!=='microphone'||!serverMuted&&!serverDeafened)):[] }
+  return { canUseSoundboard:connect&&speaker&&!serverMuted&&!serverDeafened&&can(policy,actor,'SPEAK',channel)&&can(policy,actor,'USE_SOUNDBOARD',channel),canUseExternalSounds:connect&&can(policy,actor,'USE_EXTERNAL_SOUNDS',channel),canPrioritySpeaker:connect&&speaker&&!serverMuted&&!serverDeafened&&can(policy,actor,'SPEAK',channel)&&can(policy,actor,'PRIORITY_SPEAKER',channel),canUseVoiceActivity:connect&&can(policy,actor,'USE_VAD',channel),canSubscribe:connect,canReceiveAudio:connect&&!serverDeafened,serverMuted,serverDeafened,canPublishSources:connect&&speaker?sources.filter(source=>can(policy,actor,source==='microphone'?'SPEAK':'STREAM',channel)&&(source!=='microphone'||!serverMuted&&!serverDeafened)):[] }
 }
 export function mediaListenInfos({ announcedAddress, mediaPort, exposeInternalIp = false, interfaces = networkInterfaces() }) {
   const ip = exposeInternalIp ? Object.values(interfaces).flat().find(info => info?.family === 'IPv4' && !info.internal)?.address : '0.0.0.0'
@@ -37,11 +39,14 @@ export function createCommunityVoice({ url, announcedAddress = '127.0.0.1', medi
     session.socket.send(JSON.stringify(value))
   }
   const event = (session, name, data) => send(session, { event: name, data })
+  const participantSession=(serverId,actor,channelId)=>[...sessions].find(peer=>peer.serverId===serverId&&peer.channelId===channelId&&peer.actor===actor&&peer.socket.readyState===1)?.sessionId||null
+  const viewStage=session=>session.room==='presence'?null:stageView(snapshotFor(session.actor,session.serverId).policy,session.actor,session.channelId,member=>participantSession(session.serverId,member,session.channelId))
+  const refreshStages=(serverId,channelId)=>{for(const session of sessions)if(session.serverId===serverId&&(!channelId||session.channelId===channelId))event(session,'stage',viewStage(session))}
   const roomMembers = session => [...sessions].filter(peer => peer.room === session.room)
   const broadcast = (session, name, data) => roomMembers(session).forEach(peer => event(peer, name, data))
-  const moderation = session => {const grant=permission(session),policy=session.room==='presence'?null:snapshotFor(session.actor,session.serverId).policy;return {canCreateExpressions:!!policy&&can(policy,session.actor,'CREATE_GUILD_EXPRESSIONS'),canManageExpressions:!!policy&&can(policy,session.actor,'MANAGE_GUILD_EXPRESSIONS'),serverMuted:!!grant.serverMuted,serverDeafened:!!grant.serverDeafened,canPublishMicrophone:grant.canPublishSources.includes('microphone'),canUseVoiceActivity:!!grant.canUseVoiceActivity,canPrioritySpeaker:!!grant.canPrioritySpeaker,canUseSoundboard:!!grant.canUseSoundboard,canUseExternalSounds:!!grant.canUseExternalSounds}}
+  const moderation = session => {const grant=permission(session),policy=session.room==='presence'?null:snapshotFor(session.actor,session.serverId).policy;return {canCreateExpressions:!!policy&&can(policy,session.actor,'CREATE_GUILD_EXPRESSIONS'),canManageExpressions:!!policy&&can(policy,session.actor,'MANAGE_GUILD_EXPRESSIONS'),serverMuted:!!grant.serverMuted,serverDeafened:!!grant.serverDeafened,canStream:grant.canPublishSources.includes('screen_share'),canPublishMicrophone:grant.canPublishSources.includes('microphone'),canUseVoiceActivity:!!grant.canUseVoiceActivity,canPrioritySpeaker:!!grant.canPrioritySpeaker,canUseSoundboard:!!grant.canUseSoundboard,canUseExternalSounds:!!grant.canUseExternalSounds}}
   const profile = session => ({ identity: session.actor, name:session.name,serverNickname:session.room==='presence'?null:snapshotFor(session.actor,session.serverId).nicknames?.[session.actor]||null, metadata: session.metadata || '',...moderation(session) })
-  const permission = session => session.room === 'presence' ? { canSubscribe: true, canPublishSources: [] } : voicePermissions(snapshotFor(session.actor, session.serverId).policy, session.actor, session.channelId)
+  const permission = session => session.room === 'presence' ? { canSubscribe: true, canPublishSources: [] } : voicePermissions(snapshotFor(session.actor, session.serverId).policy, session.actor, session.channelId,session.sessionId)
   const microphoneAllowed=session=>permission(session).canPublishSources.includes('microphone')&&(session.inputMode==='push-to-talk'?session.holdUntil>Date.now():permission(session).canUseVoiceActivity)
   const broadcastPriority=(session,force=false)=>{const ids=roomMembers(session).filter(peer=>peer.priority&&microphoneAllowed(peer)&&permission(peer).canPrioritySpeaker&&[...peer.producers.values()].some(producer=>producer.appData.source==='microphone'&&!producer.paused)).map(peer=>peer.actor),room=rooms.get(session.room),encoded=JSON.stringify(ids);if(!force&&room?.priorityState===encoded)return;if(room)room.priorityState=encoded;broadcast(session,'prioritySpeakers',ids)}
   const pauseMicrophone=async (session,reason='key-release')=>{for(const producer of session.producers.values())if(producer.appData.source==='microphone'&&!producer.paused){await producer.pause();broadcast(session,'producerPaused',{producerId:producer.id,paused:true,reason})}}
@@ -64,7 +69,7 @@ export function createCommunityVoice({ url, announcedAddress = '127.0.0.1', medi
     if(session.pendingMove){tickets.delete(session.pendingMove);session.pendingMove=undefined}
     for (const producer of [...session.producers.values()]) closeProducer(session, producer)
     for (const transport of session.transports.values()) transport.close()
-    broadcast(session, 'left', { identity: session.actor });broadcastPriority(session)
+    broadcast(session, 'left', { identity: session.actor });broadcastPriority(session);if(session.room!=='presence')refreshStages(session.serverId,session.channelId)
     if (session.room !== 'presence' && !roomMembers(session).length) {
       recentSounds.delete(session.room)
       const room = rooms.get(session.room); room?.router.close(); rooms.delete(session.room)
@@ -201,6 +206,7 @@ export function createCommunityVoice({ url, announcedAddress = '127.0.0.1', medi
     throw new Error('Operação inválida.')
   }
   return {
+    participantSession,refreshStages,
     canReadSound(actor,storageId){for(const play of soundPlays.values())if(play.data.storageId===storageId&&play.data.expiresAt>Date.now()){try{soundAsset(play.source,play.data.sourceServerId,play.data.soundId)}catch{continue}if([...play.recipients].some(peer=>sessions.has(peer)&&peer.actor===actor&&permission(peer).canReceiveAudio))return true}return false},
     hasParticipant(serverId,member,channelId){return [...sessions].some(peer=>peer.serverId===serverId&&peer.channelId===channelId&&peer.actor===member&&peer.socket.readyState===1)},
     prepareMove({serverId,member,fromChannelId,destinationId,destinationName}){
@@ -236,7 +242,7 @@ export function createCommunityVoice({ url, announcedAddress = '127.0.0.1', medi
     async reconcile(previous, current) {
       for(const [room,play]of soundPlays)try{soundAsset(play.source,play.data.sourceServerId,play.data.soundId)}catch{stopSound(room)}
       for (const session of sessions) if (session.serverId === current.id) {
-        const grant = voicePermissions(current.policy, session.actor, session.channelId)
+        const grant = voicePermissions(current.policy, session.actor, session.channelId,session.sessionId)
         if (!current.channels.some(channel => channel.id === session.channelId && channel.type === 'voice') || !grant.canSubscribe) { cleanup(session); session.socket.close(4003, 'Access revoked'); continue }
         for (const producer of [...session.producers.values()]) if (!grant.canPublishSources.includes(producer.appData.source)||producer.appData.source==='microphone'&&session.inputMode!=='push-to-talk'&&!grant.canUseVoiceActivity) closeProducer(session, producer)
         for(const consumer of session.consumers.values())if(consumer.kind==='audio'){
@@ -244,7 +250,7 @@ export function createCommunityVoice({ url, announcedAddress = '127.0.0.1', medi
           else if(grant.canReceiveAudio&&consumer.appData.ready&&consumer.paused)await consumer.resume()
         }
         if(!grant.canPrioritySpeaker)session.priority=false
-        broadcastPriority(session)
+        broadcastPriority(session);event(session,'stage',viewStage(session))
         const flags=moderation(session),encoded=JSON.stringify({...flags,serverNickname:profile(session).serverNickname})
         if(session.lastModeration!==encoded){session.lastModeration=encoded;event(session,'moderation',flags);broadcast(session,'profile',profile(session))}
       }
@@ -278,10 +284,10 @@ export function createCommunityVoice({ url, announcedAddress = '127.0.0.1', medi
                 const sameRoom = [...sessions].filter(peer => peer.room === ticket.room)
                 for (const peer of sameRoom) if (peer.actor === ticket.actor) { cleanup(peer); peer.socket.close(4009, 'Session replaced') }
                 if ([...sessions].filter(peer => peer.room === ticket.room).length + [...tickets.values()].filter(value=>value.room===ticket.room&&value.reserved&&value.expires>=Date.now()).length >= 4) throw new Error('A sala já tem quatro participantes.')
-                session = { ...ticket, serverId, channelId, socket, features:Array.isArray(message.features)&&message.features.includes('voice-move-v1')?['voice-move-v1']:[], inputMode:'voice-activity',holdUntil:0,priority:false,metadata: '', transports: new Map(), producers: new Map(), consumers: new Map() }
+                session = { ...ticket, sessionId:randomUUID(),serverId, channelId, socket, features:Array.isArray(message.features)&&message.features.includes('voice-move-v1')?['voice-move-v1']:[], inputMode:'voice-activity',holdUntil:0,priority:false,metadata: '', transports: new Map(), producers: new Map(), consumers: new Map() }
                 sessions.add(session); clearTimeout(timer)
-                send(session, { id: message.id, data: { self: profile(session), peers: roomMembers(session).filter(peer => peer !== session).map(profile) } })
-                broadcast(session, 'joined', profile(session));broadcastPriority(session,true); return
+                send(session, { id: message.id, data: { self: profile(session), stage:viewStage(session),peers: roomMembers(session).filter(peer => peer !== session).map(profile) } })
+                broadcast(session, 'joined', profile(session));broadcastPriority(session,true);if(session.room!=='presence')refreshStages(serverId,channelId); return
               }
               const result = await rpc(session, message.method, message.data)
               send(session, { id: message.id, data: result })

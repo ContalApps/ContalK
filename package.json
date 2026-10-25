@@ -1,7 +1,7 @@
 {
   "name": "contalk",
   "private": true,
-  "version": "0.1.17",
+  "version": "0.1.18",
   "type": "module",
   "main": "dist-electron/main.js",
   "scripts": {
@@ -55,7 +55,10 @@
       }
     ],
     "extraResources": [
-      {"from":"native/bin/contalk-voice-input.exe","to":"voice-input/contalk-voice-input.exe"},
+      {
+        "from": "native/bin/contalk-voice-input.exe",
+        "to": "voice-input/contalk-voice-input.exe"
+      },
       {
         "from": "native/bin/contalk-audio.exe",
         "to": "audio/contalk-audio.exe"

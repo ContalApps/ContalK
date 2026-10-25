@@ -29,6 +29,10 @@ export interface CommunitySnapshot {
   audit:Array<{id:string;actor:string;event:string;target?:string;targetName?:string;member?:string;reason?:string;timestamp:number}>
 }
 export type CommunityAction =
+  | {type:'channel-voice-mode';channelId:string;mode:'conversation'|'stage'}
+  | {type:'stage-request';channelId:string;enabled:boolean}
+  | {type:'stage-invite'|'stage-decline'|'stage-audience';channelId:string;member:string}
+  | {type:'stage-accept'|'stage-join';channelId:string}
   | {type:'expression-create';id:string;kind:import('./expressions').ExpressionKind;name:string;durationMs?:number;attachment:import('../store/useAppStore').Attachment}
   | {type:'expression-edit';id:string;updatedAt:number;name:string}
   | {type:'expression-delete';id:string;updatedAt:number}

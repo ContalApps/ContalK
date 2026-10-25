@@ -105,3 +105,9 @@ Criar expressões, Gerenciar expressões, Usar emojis externos e Usar figurinhas
 ### Painel de sons
 
 Usar painel de sons e Usar sons externos possuem comandos na sessão real de voz, cadastro Opus na biblioteca e reprodução autorizada nos clientes presentes. Permissões, bloqueios do servidor, origem, limites, acesso temporário ao arquivo, saída e volume são efetivos. Consulte [escopo e validação](community-soundboard.md). O catálogo passa a 47 de 52 permissões disponíveis. Aplicativos, comandos, atividades e pedido de fala continuam pendentes; monetização está excluída desta entrega.
+
+### Palco e encerramento desta entrega
+
+Pedir fala possui modo de palco real, fila privada, convite/aceite, moderação e autorização vinculada à sessão da chamada. Consulte [o fluxo e as evidências](community-stages.md). O catálogo chega a 48 de 52 permissões disponíveis. As três capacidades de aplicativos, comandos e atividades permanecem indisponíveis; monetização também está indisponível por decisão explícita do usuário. Cargos gerenciados/vinculados ainda não possuem os provedores confiáveis necessários.
+
+O usuário decidiu encerrar esta implementação após a validação do palco, integrar e publicar, deixando a continuação para outra LLM. O estado de retomada está em [LLM_HANDOFF.md](LLM_HANDOFF.md). As etapas históricas acima não representam novas pendências da entrega agora delimitada.

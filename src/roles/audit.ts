@@ -1,4 +1,5 @@
 export const auditLabels:Record<string,string>={
+  'channel-voice-mode':'Modo do canal de voz alterado','stage-invite':'Convite para falar no palco','stage-decline':'Pedido ou convite do palco removido','stage-audience':'Participante movido para a plateia',
   'expression-create':'Expressão criada','expression-edit':'Expressão renomeada','expression-delete':'Expressão excluída',
   'webhook-create':'Integração criada','webhook-edit':'Integração renomeada','webhook-rotate':'Chave de integração renovada','webhook-delete':'Integração excluída',
   'voice-status':'Status do canal de voz atualizado',

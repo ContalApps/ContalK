@@ -350,6 +350,7 @@ export const useVoiceStore = create<VoiceState>((set, get) => ({
         triggerUpdate()
       })
 
+      on(RoomEvent.StageChanged,triggerUpdate)
       on(RoomEvent.PrioritySpeakersChanged,()=>{
         connection.remoteParticipants.forEach(participant=>participant.audioTrackPublications.forEach(pub=>pub.audioTrack?.setVolume(voicePlaybackLevel(get(),participant.identity,pub.source))));triggerUpdate()
       })
@@ -523,6 +524,7 @@ export const useVoiceStore = create<VoiceState>((set, get) => ({
   },
 
   toggleMic: async () => {
+    if(get().currentRoom?.localParticipant.canPublishMicrophone===false){set({microphoneError:get().currentRoom?.stage?.audience?'Peça a fala ou aceite um convite para entrar no palco.':'Seu microfone não está autorizado neste canal.'});return}
     if(get().isServerMuted||get().isServerDeafened){set({microphoneError:'Seu microfone está bloqueado pela moderação do servidor.'});return}
     if(get().isMicMuted&&!centralAllows('SPEAK',get().activeChannelId||undefined)){set({microphoneError:'Seu cargo não permite falar neste canal.'});return}
     const { currentRoom, isMicMuted, isDeafened } = get()
@@ -545,7 +547,7 @@ export const useVoiceStore = create<VoiceState>((set, get) => ({
     const { currentRoom, isMicMuted, isDeafened } = get()
     try {
       let label = ''
-      if (currentRoom&&!get().isServerMuted&&!get().isServerDeafened) label = await publishSafeMicrophone(currentRoom, deviceId, isMicMuted || isDeafened)
+      if (currentRoom&&currentRoom.localParticipant.canPublishMicrophone!==false&&!get().isServerMuted&&!get().isServerDeafened) label = await publishSafeMicrophone(currentRoom, deviceId, isMicMuted || isDeafened)
       localStorage.setItem('contalk-microphone-id', deviceId)
       set({ microphoneDeviceId: deviceId, microphoneLabel: label, microphoneError: null,...(currentRoom?.inputMode==='push-to-talk'?{isMicMuted:isMicMuted||isDeafened||get().isServerMuted||get().isServerDeafened}:{}) })
       get().refreshParticipants()
@@ -556,12 +558,12 @@ export const useVoiceStore = create<VoiceState>((set, get) => ({
     if(get().isServerDeafened)return
     if(!currentRoom){set({isDeafened:!isDeafened,...(!isDeafened?{micMutedBeforeDeafen:isMicMuted}:{})});return}
     const nextDeafened = !isDeafened
-    set({ isDeafened: nextDeafened,isMicMuted:nextDeafened?true:micMutedBeforeDeafen, ...(nextDeafened ? { micMutedBeforeDeafen: isMicMuted } : {}) })
+    set({ isDeafened: nextDeafened,isMicMuted:nextDeafened?true:micMutedBeforeDeafen||currentRoom.localParticipant.canPublishMicrophone===false, ...(nextDeafened ? { micMutedBeforeDeafen: isMicMuted } : {}) })
     currentRoom.remoteParticipants.forEach(participant => participant.audioTrackPublications.forEach(pub => {
       if (pub.audioTrack && 'setVolume' in pub.audioTrack) pub.audioTrack.setVolume(voicePlaybackLevel(get(),participant.identity,pub.source,nextDeafened||get().isServerDeafened))
     }))
     try {
-      if(!get().isServerMuted&&!get().isServerDeafened)await setSafeMicrophoneEnabled(currentRoom, !nextDeafened && !micMutedBeforeDeafen, microphoneDeviceId)
+      if(!get().isServerMuted&&!get().isServerDeafened)await setSafeMicrophoneEnabled(currentRoom, !nextDeafened && !micMutedBeforeDeafen && currentRoom.localParticipant.canPublishMicrophone!==false, microphoneDeviceId)
       set({ microphoneError: null })
     } catch (error) { set({ microphoneError: error instanceof Error ? error.message : 'Falha no microfone.' }) }
     get().refreshParticipants()

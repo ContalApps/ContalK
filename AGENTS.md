@@ -24,3 +24,8 @@ A regra vale também para PRs de preparação de release: eles integram a mesma 
 - Concentrar microfone, saída de áudio, câmera, compartilhamento e desconexão no card do usuário no canto inferior esquerdo; não recriar barras grandes de controles no palco de voz.
 - Canais exibem uma engrenagem para abrir configurações, inclusive pelo menu de contexto. Renomeação e exclusão ficam nesse painel; exclusão sempre requer confirmação separada, sem lixeira de acesso direto na lista.
 - No ConTALK HQ, por decisão explícita do usuário, todos os participantes são coproprietários nesta fase. O sistema de cargos deve conservar essa política inicial; não selecionar um proprietário exclusivo automaticamente. Não apresentar cargos ou permissões individuais como disponíveis antes de implementá-los de fato.
+
+## Retomada e escopo
+
+- Antes de continuar funcionalidades, ler `docs/LLM_HANDOFF.md` e conferir Git, PR e release atuais. O fechamento local confirmado da entrega fica também em `release/HANDOFF_FINAL.md`, quando existente.
+- Por decisão explícita do usuário, assinaturas, impulsionamentos e monetização permanecem indisponíveis até existir um sistema de cobrança. Não apresentá-los como implementados.

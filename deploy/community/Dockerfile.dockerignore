@@ -26,3 +26,5 @@ src/roles/**
 !src/roles/insights.ts
 
 !src/roles/expressions.ts
+
+!src/roles/stages.ts
