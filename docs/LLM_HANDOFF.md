@@ -1,4 +1,14 @@
-# Retomada do ConTALK — entrega 0.1.18
+# Retomada do ConTALK — preparação 0.1.19
+
+## Trabalho posterior na branch dev/caliari
+
+Após a publicação 0.1.18, a primeira entrega de IA compartilhada foi implementada e ajustada em `dev/caliari`. O pedido de PR, merge e publicação da 0.1.19 foi feito em 25/10/2026. Confira PR, main, tag e release antes de informar o estado da publicação. **A implantação na VPS foi adiada pelo usuário.** Mesmo com o cliente publicado, não atribuir essas funcionalidades ao servidor existente até implantar e validar a revisão do serviço da comunidade.
+
+O serviço oferece modelo OpenAI por canal, projetos privados com leitores, colaboradores e delegados, listas de acesso sem bypass dos coproprietários do HQ, fila de pedidos, streaming SSE, cancelamento, retomada manual após falha e resumo de contexto. A chave pessoal é guardada com `safeStorage` no Electron e enviada por HTTPS apenas na execução iniciada pela pessoa. O serviço persiste mensagens, contexto e consumo no volume existente; não persiste chave nem bytes de anexos. PDF/imagens são enviados como entrada multimodal; texto, código e documentos modernos são convertidos em texto para contagem prévia. Consulte [ai-projects.md](ai-projects.md) para uso, formatos e implantação.
+
+`npm run verify` passou com 278 testes; `npm run build` passou. Os testes exercitam a ponte Electron com o serviço local e um provedor OpenAI simulado. O ajuste posterior em `electron/preload.ts` encaminha os limites de tokens por solicitação e o ID da execução a retirar da fila; há um teste específico para esses argumentos. Não havia chave OpenAI pessoal nem Docker/Coolify acessível para validar uma chamada paga real ou criar a imagem de produção. **O usuário pediu explicitamente para anotar o acesso/validação Coolify e tratar disso depois.** Antes de ativar em produção, obter o endereço/projeto e método de acesso, preservar o volume e os segredos atuais, implantar a revisão do serviço e validar uma chamada real com uma chave configurada no aplicativo. A imagem Docker agora inclui `src/roles/ai.ts` e a dependência `fflate`.
+
+Os arquivos locais `native/audio-capture/main.cpp` e `Sistema de Cargos.docx` continuam fora dos commits. A etapa posterior de agentes, MCP e alterações de arquivos/serviços externos permanece fora desta primeira entrega; cada ação de escrita futura exigirá aprovação explícita. Não ativar integrações de aplicativos nem monetização por inferência deste trabalho.
 
 Leia AGENTS.md primeiro. Em 25/10/2026 o usuário decidiu encerrar a implementação após a validação atual do palco, fazer PR/merge/publicação e deixar os recursos restantes para outra LLM. Não continue automaticamente o escopo completo do documento de cargos como se esta entrega ainda estivesse aberta.
 
@@ -6,7 +16,7 @@ Leia AGENTS.md primeiro. Em 25/10/2026 o usuário decidiu encerrar a implementa�
 
 Trabalhe exclusivamente em dev/caliari, sem criar branches. Leia git status e preserve arquivos modificados/novos antes de fetch ou sincronização. Não use reset --hard, git clean nem sobrescreva arquivos locais. Confira main/dev remotas, PRs e release atual. A confirmação final desta publicação, com URLs e commit integrado, será registrada localmente em release/HANDOFF_FINAL.md após verificar os arquivos publicados; essa pasta é ignorada pelo Git.
 
-A versão desta entrega é 0.1.18. A fonte de verdade da publicação é a release GitHub, não o merge: confirme tag, isDraft=false, latest e instalador Windows, blockmap e latest.yml. O AGENTS.md exige publicação estável quando o usuário pede PR e merge, exceto exclusão explícita. Não substitua instaladores de versões existentes.
+A versão preparada nesta etapa é 0.1.19; a entrega anterior foi 0.1.18. A fonte de verdade da publicação é a release GitHub, não o merge: confirme tag, isDraft=false, latest e instalador Windows, blockmap e latest.yml. O AGENTS.md exige publicação estável quando o usuário pede PR e merge, exceto exclusão explícita. Não substitua instaladores de versões existentes.
 
 ## Arquitetura preservada
 

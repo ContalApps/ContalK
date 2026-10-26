@@ -16,7 +16,7 @@ export interface CommunitySnapshot {
   messages:Record<string,Message[]>
   hasOlder?:Record<string,boolean>
   liveMessages?:Message[]
-  messageChanges?:Array<{id:string;channelId:string;deleted:boolean;content?:string;editedAt?:number;roleMentions?:string[];mentionsEveryone?:'all'|'online'|null;reactions?:Message['reactions'];pinnedAt?:number|null;pinnedBy?:string|null;poll?:Message['poll']}>
+  messageChanges?:Array<{id:string;channelId:string;deleted:boolean;content?:string;editedAt?:number;roleMentions?:string[];mentionsEveryone?:'all'|'online'|null;reactions?:Message['reactions'];pinnedAt?:number|null;pinnedBy?:string|null;poll?:Message['poll'];ai?:Message['ai']}>
   serverNow?:number
   sendAfter?:Record<string,number>
   nicknames?:Record<string,string>
@@ -29,6 +29,13 @@ export interface CommunitySnapshot {
   audit:Array<{id:string;actor:string;event:string;target?:string;targetName?:string;member?:string;reason?:string;timestamp:number}>
 }
 export type CommunityAction =
+  | {type:'ai-channel-model';channelId:string;model:string|null}
+  | {type:'project-create';id:string;parentId:string;name:string;model?:string}
+  | {type:'project-member';id:string;member:string;access:import('./ai').ProjectAccess|null}
+  | {type:'project-model';id:string;model:string|null}
+  | {type:'project-rename';id:string;name:string}
+  | {type:'project-delete';id:string}
+  | {type:'project-restore';id:string}
   | {type:'channel-voice-mode';channelId:string;mode:'conversation'|'stage'}
   | {type:'stage-request';channelId:string;enabled:boolean}
   | {type:'stage-invite'|'stage-decline'|'stage-audience';channelId:string;member:string}

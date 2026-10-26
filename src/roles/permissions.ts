@@ -12,7 +12,7 @@ export interface Role {id:string;name:string;position:number;permissions:string;
 export interface Overwrite {id:string;type:'role'|'member';allow:string;deny:string}
 export interface ThreadInfo {parentId:string;ownerId:string;private:boolean;members:string[];archived:boolean;locked:boolean;invitable:boolean;autoArchiveMinutes:number;createdAt:number;lastActivityAt:number;sourceMessageId?:string}
 export function threadArchived(thread:ThreadInfo,now=Date.now()):boolean{return thread.archived||thread.lastActivityAt+thread.autoArchiveMinutes*60000<=now}
-export interface RolePolicy {stages?:Record<string,import('./stages').StagePolicy>;threads?:Record<string,ThreadInfo>;serverId:string;ownership:'all-members'|'owners';ownerIds:string[];members:string[];roles:Role[];memberRoles:Record<string,string[]>;overwrites:Record<string,Overwrite[]>;categories:Array<{id:string;name:string}>;channelCategories:Record<string,{categoryId:string;synced:boolean}>;timeouts:Record<string,number>;voiceRestrictions?:Record<string,{muted:boolean;deafened:boolean}>}
+export interface RolePolicy {visibleChannelIds?:string[];projects?:Record<string,import('./ai').AiProject>;stages?:Record<string,import('./stages').StagePolicy>;threads?:Record<string,ThreadInfo>;serverId:string;ownership:'all-members'|'owners';ownerIds:string[];members:string[];roles:Role[];memberRoles:Record<string,string[]>;overwrites:Record<string,Overwrite[]>;categories:Array<{id:string;name:string}>;channelCategories:Record<string,{categoryId:string;synced:boolean}>;timeouts:Record<string,number>;voiceRestrictions?:Record<string,{muted:boolean;deafened:boolean}>}
 export function everyoneRole(serverId:string):Role{return {id:serverId,name:'@everyone',position:0,permissions:mask(['VIEW_CHANNEL','READ_MESSAGE_HISTORY','SEND_MESSAGES','EMBED_LINKS','ATTACH_FILES','ADD_REACTIONS','CONNECT','SPEAK','STREAM','USE_VAD','CHANGE_NICKNAME','SEND_MESSAGES_IN_THREADS']).toString(),color:null,secondaryColor:null,style:'solid',icon:null,hoist:false,mentionable:false,managed:'none'}}
 export function initialPolicy(serverId:string,members:string[]=[]):RolePolicy{return {serverId,ownership:serverId==='srv-1'?'all-members':'owners',ownerIds:[],members:[...new Set(members)],roles:[everyoneRole(serverId)],memberRoles:{},overwrites:{},categories:[],channelCategories:{},timeouts:{}}}
 export function isOwner(policy:RolePolicy,member:string):boolean{return policy.ownership==='all-members'?policy.members.includes(member):policy.ownerIds.includes(member)}
@@ -22,6 +22,22 @@ export const CHANNEL_PERMISSIONS=mask(['CREATE_EVENTS','MANAGE_EVENTS','CREATE_I
 const messageDependencies=mask(['SEND_TTS_MESSAGES','ATTACH_FILES','EMBED_LINKS','MENTION_EVERYONE','SEND_POLLS','SEND_VOICE_MESSAGES'])
 const voiceDependencies=mask(['SPEAK','STREAM','USE_VAD','PRIORITY_SPEAKER','USE_SOUNDBOARD','USE_EXTERNAL_SOUNDS','REQUEST_TO_SPEAK'])
 export function permissionsFor(policy:RolePolicy,member:string,channelId?:string,previewRoles?:readonly string[],now=Date.now(),threadParent=false):bigint {
+  if(channelId&&policy.visibleChannelIds&&!policy.visibleChannelIds.includes(channelId))return 0n
+  const project=channelId&&policy.projects?.[channelId]
+  if(project){
+    const parent=permissionsFor(policy,member,project.parentId,previewRoles,now,true)
+    if(previewRoles!==undefined||(parent&Permission.VIEW_CHANNEL)===0n||!policy.members.includes(member)||!project.members[member])return 0n
+    const base=parent&~(CHANNEL_PERMISSIONS|Permission.ADMINISTRATOR)
+    let result=base|Permission.VIEW_CHANNEL|Permission.READ_MESSAGE_HISTORY
+    if(!(policy.timeouts[member]>now)&&!project.archived&&Object.entries(project.members).some(([person,level])=>level==='manager'&&policy.members.includes(person))&&project.members[member]!=='reader'){
+      result|=Permission.SEND_MESSAGES|Permission.EMBED_LINKS|Permission.ATTACH_FILES|Permission.ADD_REACTIONS|Permission.SEND_MESSAGES_IN_THREADS
+      if((parent&Permission.SEND_TTS_MESSAGES)!==0n)result|=Permission.SEND_TTS_MESSAGES
+      if((parent&Permission.SEND_POLLS)!==0n)result|=Permission.SEND_POLLS
+      if((parent&Permission.SEND_VOICE_MESSAGES)!==0n)result|=Permission.SEND_VOICE_MESSAGES
+      if(project.members[member]==='manager')result|=Permission.MANAGE_MESSAGES
+    }
+    return result
+  }
   const thread=channelId&&policy.threads?.[channelId]
   if(thread){
     const parent=permissionsFor(policy,member,thread.parentId,previewRoles,now,true),manage=(parent&Permission.MANAGE_THREADS)!==0n

@@ -28,3 +28,4 @@ src/roles/**
 !src/roles/expressions.ts
 
 !src/roles/stages.ts
+!src/roles/ai.ts

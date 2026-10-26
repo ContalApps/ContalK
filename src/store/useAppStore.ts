@@ -14,6 +14,8 @@ export interface Channel {
   type: 'text' | 'voice'
   serverId: string
   parentId?:string
+  project?:boolean
+  aiModel?:string
   slowmodeSeconds?:number
   nameUpdatedAt?:number
   voiceMode?:'conversation'|'stage'
@@ -38,6 +40,7 @@ export interface Message {
   channelId: string
   userId: string
   userName: string
+  ai?:import('../roles/ai').AiRunInfo
   content: string
   expression?:import('../roles/expressions').ExpressionReference&{name:string;kind:import('../roles/expressions').ExpressionKind}
   webhook?:{id:string;name:string}
