@@ -1,8 +1,8 @@
-# Retomada do ConTALK — entrega 0.1.18
+# Retomada do ConTALK — preparação 0.1.19
 
 ## Trabalho posterior na branch dev/caliari
 
-Após a publicação 0.1.18, a primeira entrega de IA compartilhada foi implementada e ajustada em `dev/caliari`, com os commits enviados ao remoto. **Ainda não houve PR, merge, release nova ou redeploy na VPS** para esta entrega; a main e a release latest continuam em v0.1.18. Não atribuir essas funcionalidades ao aplicativo instalado até publicação e implantação do serviço da comunidade.
+Após a publicação 0.1.18, a primeira entrega de IA compartilhada foi implementada e ajustada em `dev/caliari`. O pedido de PR, merge e publicação da 0.1.19 foi feito em 25/10/2026. Confira PR, main, tag e release antes de informar o estado da publicação. **A implantação na VPS foi adiada pelo usuário.** Mesmo com o cliente publicado, não atribuir essas funcionalidades ao servidor existente até implantar e validar a revisão do serviço da comunidade.
 
 O serviço oferece modelo OpenAI por canal, projetos privados com leitores, colaboradores e delegados, listas de acesso sem bypass dos coproprietários do HQ, fila de pedidos, streaming SSE, cancelamento, retomada manual após falha e resumo de contexto. A chave pessoal é guardada com `safeStorage` no Electron e enviada por HTTPS apenas na execução iniciada pela pessoa. O serviço persiste mensagens, contexto e consumo no volume existente; não persiste chave nem bytes de anexos. PDF/imagens são enviados como entrada multimodal; texto, código e documentos modernos são convertidos em texto para contagem prévia. Consulte [ai-projects.md](ai-projects.md) para uso, formatos e implantação.
 
@@ -16,7 +16,7 @@ Leia AGENTS.md primeiro. Em 25/10/2026 o usuário decidiu encerrar a implementa�
 
 Trabalhe exclusivamente em dev/caliari, sem criar branches. Leia git status e preserve arquivos modificados/novos antes de fetch ou sincronização. Não use reset --hard, git clean nem sobrescreva arquivos locais. Confira main/dev remotas, PRs e release atual. A confirmação final desta publicação, com URLs e commit integrado, será registrada localmente em release/HANDOFF_FINAL.md após verificar os arquivos publicados; essa pasta é ignorada pelo Git.
 
-A versão desta entrega é 0.1.18. A fonte de verdade da publicação é a release GitHub, não o merge: confirme tag, isDraft=false, latest e instalador Windows, blockmap e latest.yml. O AGENTS.md exige publicação estável quando o usuário pede PR e merge, exceto exclusão explícita. Não substitua instaladores de versões existentes.
+A versão preparada nesta etapa é 0.1.19; a entrega anterior foi 0.1.18. A fonte de verdade da publicação é a release GitHub, não o merge: confirme tag, isDraft=false, latest e instalador Windows, blockmap e latest.yml. O AGENTS.md exige publicação estável quando o usuário pede PR e merge, exceto exclusão explícita. Não substitua instaladores de versões existentes.
 
 ## Arquitetura preservada
 
