@@ -53,6 +53,7 @@ export function ChatComposer({onSend,placeholder,disabled=false,channelId,ai}:{o
   const [text,setText]=useState(''),[attachment,setAttachment]=useState<Attachment>(),[busy,setBusy]=useState(false),[error,setError]=useState('')
   const [sendToAi,setSendToAi]=useState(!!ai),[aiFiles,setAiFiles]=useState<Array<{id:string;name:string;size:number;type:string}>>([])
   const [aiLimits,setAiLimits]=useState({contextTokens:8192,maxOutputTokens:2048})
+  useEffect(()=>{setSendToAi(!!ai);if(!ai)setAiFiles([])},[!!ai])
   useEffect(()=>{if(ai)void window.contalkDesktop?.communityAiStatus().then(value=>setAiLimits({contextTokens:value.contextTokens,maxOutputTokens:value.maxOutputTokens})).catch(()=>{})},[!!ai])
   const [localFile,setLocalFile]=useState<{id:string;name:string;size:number;type:string;thumbnail?:string}>()
   const [configure,setConfigure]=useState(false),[serviceUrl,setServiceUrl]=useState(''),[serviceToken,setServiceToken]=useState('')
