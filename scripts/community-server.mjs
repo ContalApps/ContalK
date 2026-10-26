@@ -11,7 +11,6 @@ const port = Number(process.env.CONTALK_COMMUNITY_PORT || 8789)
 if (!Number.isInteger(port) || port < 1 || port > 65535) throw new Error('Porta do serviço inválida.')
 const voice = process.env.CONTALK_REALTIME_URL ? createCommunityVoice({ url:process.env.CONTALK_REALTIME_URL, announcedAddress:process.env.CONTALK_MEDIA_PUBLIC_IP, mediaPort:Number(process.env.CONTALK_MEDIA_PORT || 40000), turnUrls:(process.env.CONTALK_TURN_URLS || '').split(',').filter(Boolean), turnSecret:process.env.CONTALK_TURN_SECRET, exposeInternalIp:process.env.CONTALK_MEDIA_EXPOSE_INTERNAL_IP === 'true' }) : undefined
 // Fresh start: accounts, servers, messages and files live in this subfolder of the volume.
-// Data written by earlier versions stays untouched in the parent folder as a backup.
 const dataDirectory = path.join(process.env.CONTALK_COMMUNITY_DATA || '.community-data', 'contalk-v2')
 fs.mkdirSync(dataDirectory, { recursive: true })
 const service = createCommunityService({
