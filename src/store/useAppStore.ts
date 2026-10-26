@@ -16,6 +16,7 @@ export interface Channel {
   parentId?:string
   project?:boolean
   aiModel?:string
+  aiEndpoint?:string
   slowmodeSeconds?:number
   nameUpdatedAt?:number
   voiceMode?:'conversation'|'stage'

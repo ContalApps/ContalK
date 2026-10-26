@@ -4,7 +4,7 @@ import path from 'node:path'
 import { createHash, randomUUID } from 'node:crypto'
 import type { CommunitySnapshot, CommunityAction } from '../src/roles/types'
 import { validInviteCode } from '../src/roles/invites'
-import { aiFileMime } from '../src/roles/ai'
+import { aiFileMime,aiProviders,type AiProviderId } from '../src/roles/ai'
 
 const validId = (value:unknown):value is string => typeof value==='string' && /^[\w:-]{1,100}$/.test(value) && !['__proto__','constructor','prototype'].includes(value)
 export function setupCommunity(window:BrowserWindow,getUsername:()=>string|null) {
@@ -23,9 +23,10 @@ export function setupCommunity(window:BrowserWindow,getUsername:()=>string|null)
     return JSON.parse(safeStorage.decryptString(fs.readFileSync(configPath())))
   }
   const aiPath=()=>path.join(app.getPath('userData'),'ai-'+createHash('sha256').update(getUsername()||'').digest('hex')+'.enc')
-  const aiConfig=():{key:string;contextTokens:number;maxOutputTokens:number}|null=>{
+  const aiConfig=():{keys:Partial<Record<AiProviderId,string>>;contextTokens:number;maxOutputTokens:number}|null=>{
     if(!getUsername()||!safeStorage.isEncryptionAvailable()||!fs.existsSync(aiPath()))return null
-    return JSON.parse(safeStorage.decryptString(fs.readFileSync(aiPath())))
+    const saved=JSON.parse(safeStorage.decryptString(fs.readFileSync(aiPath())))
+    return {keys:saved.keys||{openai:saved.key},contextTokens:saved.contextTokens||8192,maxOutputTokens:saved.maxOutputTokens||2048}
   }
   const request=async(route:string,body?:unknown,timeout=15000)=>{
     const owner=getUsername()
@@ -89,16 +90,18 @@ export function setupCommunity(window:BrowserWindow,getUsername:()=>string|null)
   }
   const handlers:Record<string,(...args:any[])=>unknown>={
     'community-status':()=>{try{return {configured:true,url:config().url}}catch{return {configured:false}}},
-    'community-ai-status':()=>{const value=aiConfig();return {configured:!!value,contextTokens:value?.contextTokens||8192,maxOutputTokens:value?.maxOutputTokens||2048}},
-    'community-ai-configure':(value:{key?:string;contextTokens:number;maxOutputTokens:number})=>{
+    'community-ai-status':()=>{const value=aiConfig();return {configured:!!value?.keys.openai,providers:aiProviders.filter(provider=>!!value?.keys[provider]),contextTokens:value?.contextTokens||8192,maxOutputTokens:value?.maxOutputTokens||2048}},
+    'community-ai-configure':(value:{provider?:AiProviderId;key?:string;contextTokens:number;maxOutputTokens:number})=>{
       if(!value||!Number.isInteger(value.contextTokens)||value.contextTokens<1024||value.contextTokens>32768||!Number.isInteger(value.maxOutputTokens)||value.maxOutputTokens<128||value.maxOutputTokens>8192)throw new Error('Defina limites válidos para o uso da IA.')
-      const key=value.key?.trim()||aiConfig()?.key
-      if(!key||key.length<20||key.length>512)throw new Error('Informe uma chave pessoal da OpenAI.')
+      const provider=value.provider||'openai';if(!aiProviders.includes(provider))throw new Error('Provedor de IA inválido.')
+      const previous=aiConfig(),key=value.key?.trim()||previous?.keys[provider]
+      if(!key||key.length<8||key.length>512)throw new Error('Informe uma chave pessoal deste provedor.')
       if(!safeStorage.isEncryptionAvailable())throw new Error('Proteção de credenciais indisponível.')
-      fs.writeFileSync(aiPath(),safeStorage.encryptString(JSON.stringify({key,contextTokens:value.contextTokens,maxOutputTokens:value.maxOutputTokens})))
-      return {configured:true,contextTokens:value.contextTokens,maxOutputTokens:value.maxOutputTokens}
+      const keys={...previous?.keys,[provider]:key}
+      fs.writeFileSync(aiPath(),safeStorage.encryptString(JSON.stringify({keys,contextTokens:value.contextTokens,maxOutputTokens:value.maxOutputTokens})))
+      return {configured:true,providers:aiProviders.filter(item=>!!keys[item]),contextTokens:value.contextTokens,maxOutputTokens:value.maxOutputTokens}
     },
-    'community-ai-remove':()=>{const file=aiPath();if(fs.existsSync(file))fs.unlinkSync(file);selectedAiFiles.clear()},
+    'community-ai-remove':(provider?:AiProviderId)=>{if(provider&&!aiProviders.includes(provider))throw new Error('Provedor inválido.');const file=aiPath(),saved=aiConfig();if(provider&&saved){delete saved.keys[provider];if(Object.values(saved.keys).some(Boolean))fs.writeFileSync(file,safeStorage.encryptString(JSON.stringify(saved)));else if(fs.existsSync(file))fs.unlinkSync(file)}else if(fs.existsSync(file))fs.unlinkSync(file);selectedAiFiles.clear()},
     'community-ai-select-files':async()=>{
       const owner=getUsername()!,result=await dialog.showOpenDialog(window,{title:'Anexar arquivos à solicitação de IA',properties:['openFile','multiSelections']})
       if(result.canceled)return []
@@ -108,13 +111,14 @@ export function setupCommunity(window:BrowserWindow,getUsername:()=>string|null)
       for(const file of result.filePaths){const type=aiFileMime(path.basename(file)),size=fs.statSync(file).size;total+=size;if(!type)throw new Error('A IA não aceita '+path.basename(file)+'. Selecione um formato compatível.');if(!size||total>50*1024*1024)throw new Error('Os anexos devem somar no máximo 50 MB.');const id=randomUUID();selectedAiFiles.set(id,{file,owner,size,type});items.push({id,name:path.basename(file),size,type})}
       return items
     },
-    'community-ai-start':async(serverId:string,channelId:string,text:string,fileIds:string[],limits?:{contextTokens:number;maxOutputTokens:number})=>{
+    'community-ai-start':async(serverId:string,channelId:string,text:string,fileIds:string[],limits?:{contextTokens:number;maxOutputTokens:number},provider:AiProviderId='openai')=>{
       if(!validId(serverId)||!validId(channelId)||typeof text!=='string'||!Array.isArray(fileIds)||fileIds.length>20)throw new Error('Solicitação de IA inválida.')
-      const owner=getUsername(),settings=aiConfig();if(!settings)throw new Error('Configure sua chave pessoal da OpenAI.')
+      if(!aiProviders.includes(provider))throw new Error('Provedor de IA inválido.')
+      const owner=getUsername(),settings=aiConfig(),key=settings?.keys[provider];if(!settings||!key)throw new Error('Configure sua chave pessoal de '+provider+' nas Configurações.')
       const contextTokens=limits?.contextTokens??settings.contextTokens,maxOutputTokens=limits?.maxOutputTokens??settings.maxOutputTokens
       if(!Number.isInteger(contextTokens)||contextTokens<1024||contextTokens>32768||!Number.isInteger(maxOutputTokens)||maxOutputTokens<128||maxOutputTokens>8192)throw new Error('Defina limites válidos para esta solicitação.')
       let total=0;const files=fileIds.map(id=>{const item=selectedAiFiles.get(id);if(!item||item.owner!==owner||!fs.existsSync(item.file))throw new Error('Selecione os arquivos novamente.');const data=fs.readFileSync(item.file);total+=data.length;if(total>50*1024*1024||data.length!==item.size)throw new Error('Os arquivos mudaram ou excedem 50 MB.');return {name:path.basename(item.file),type:item.type,size:data.length,data:data.toString('base64')}})
-      const result=await request(`/servers/${serverId}/ai-runs`,{channelId,text,files,key:settings.key,contextTokens,maxOutputTokens},120000)
+      const result=await request(`/servers/${serverId}/ai-runs`,{channelId,text,files,key,provider,contextTokens,maxOutputTokens},120000)
       for(const id of fileIds)selectedAiFiles.delete(id)
       return result
     },

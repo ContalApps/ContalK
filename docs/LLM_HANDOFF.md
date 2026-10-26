@@ -1,4 +1,12 @@
-# Retomada do ConTALK — preparação 0.1.19
+# Retomada do ConTALK — após a publicação 0.1.19
+
+## Trabalho atual em dev/caliari: APIs de outras LLMs
+
+Após a release pública [v0.1.19](https://github.com/ContalApps/ContalK/releases/tag/v0.1.19), o usuário pediu suporte a APIs além da OpenAI. A branch `dev/caliari` contém conectores nativos para Claude/Anthropic, Gemini/Google e Grok/xAI, perfis para endpoints compatíveis com OpenAI Responses e Chat Completions, seleção de provedor por canal/projeto e chaves pessoais separadas por provedor. Hosts personalizados precisam ser autorizados pelo administrador em `CONTALK_AI_ALLOWED_HOSTS`. Consulte [ai-projects.md](ai-projects.md) para os limites de protocolo, anexos e contagem. **Estas alterações posteriores à 0.1.19 ainda não foram integradas, publicadas nem implantadas na VPS.** O usuário não pediu PR/merge para esta etapa. Não substituir a release 0.1.19.
+
+Tipos, 282 testes e build passaram localmente com provedores simulados. A implementação não recebeu chaves reais nem acesso à VPS. Os arquivos locais `native/audio-capture/main.cpp` e `Sistema de Cargos.docx` permanecem fora dos commits. A implantação e validação na VPS continuam adiadas a pedido do usuário.
+
+## Histórico da primeira entrega de IA
 
 ## Trabalho posterior na branch dev/caliari
 

@@ -1,6 +1,7 @@
 import {canJoinStage,canModerateStage,pruneStage} from '../../src/roles/stages.ts'
-import {activeProject,validAiModel} from '../../src/roles/ai.ts'
-import {MAX_AI_BYTES,validateAiFiles,openAiProvider} from './ai.mjs'
+import {activeProject,parseAiModel,validAiModel,validAiEndpoint} from '../../src/roles/ai.ts'
+import {MAX_AI_BYTES,validateAiFiles} from './ai.mjs'
+import {multiAiProvider} from './ai-providers.mjs'
 import {canManageExpression,expressionName} from '../../src/roles/expressions.ts'
 import {WebhookError,authorizeWebhook,visibleWebhooks,manageWebhook,publishWebhook} from './webhooks.mjs'
 import { canCreateEvent, canManageEvent, canViewEvent, eventStatus, eventDeadline, normalizeEventDraft } from '../../src/roles/events.ts'
@@ -65,7 +66,14 @@ export function jsonCommunityStorage(filename) {
   }
 }
 
-export function createCommunityService({ tokens, storage, initialState, voice, files, internalToken, allowedOrigins = [], aiProvider=openAiProvider() }) {
+export function createCommunityService({ tokens, storage, initialState, voice, files, internalToken, allowedOrigins = [], aiAllowedHosts=process.env.CONTALK_AI_ALLOWED_HOSTS||'', aiProvider=multiAiProvider() }) {
+  const endpointHosts=new Set(String(aiAllowedHosts).split(',').map(value=>value.trim().toLowerCase()).filter(Boolean))
+  const allowedAiEndpoint=value=>validAiEndpoint(value)&&endpointHosts.has(new URL(value).hostname.toLowerCase())
+  const requireAiEndpoint=(model,endpoint)=>{
+    const provider=parseAiModel(model)?.provider
+    if(provider?.startsWith('compatible-'))requireValue(allowedAiEndpoint(endpoint),'O endpoint HTTPS precisa estar autorizado em CONTALK_AI_ALLOWED_HOSTS na VPS.',400)
+    else requireValue(endpoint===undefined||endpoint===null,'Este provedor usa o endpoint oficial.',400)
+  }
   requireValue(tokens && typeof tokens === 'object' && !Array.isArray(tokens), 'Configure as chaves individuais do serviço.')
   const credentials = new Map()
   for (const [token, member] of Object.entries(tokens)) {
@@ -88,7 +96,8 @@ export function createCommunityService({ tokens, storage, initialState, voice, f
     for(const channel of server.channels){requireValue(identifier(channel.id)&&!channelIds.has(channel.id)&&channel.serverId===server.id,'Os canais precisam de identificadores únicos.');channelIds.add(channel.id)}
     for(const channel of server.channels)requireValue(!channel.parentId||server.policy.threads?.[channel.id]?.parentId===channel.parentId||channel.project===true&&server.policy.projects?.[channel.id]?.parentId===channel.parentId,'Metadados do tópico ausentes.')
     for(const [id,thread]of Object.entries(server.policy.threads||{})){const channel=server.channels.find(channel=>channel.id===id),parent=server.channels.find(channel=>channel.id===thread.parentId);requireValue(channel?.parentId===thread.parentId&&parent?.type==='text'&&!parent.parentId&&identifier(thread.ownerId)&&Array.isArray(thread.members)&&thread.members.every(member=>identifier(member))&&threadDurations.includes(thread.autoArchiveMinutes)&&Number.isFinite(thread.lastActivityAt)&&['private','archived','locked','invitable'].every(key=>typeof thread[key]==='boolean'),'Dados de tópico inválidos.')}
-    for(const [id,project]of Object.entries(server.policy.projects||{})){const channel=server.channels.find(channel=>channel.id===id),parent=server.channels.find(channel=>channel.id===project.parentId);requireValue(identifier(id)&&channel?.project===true&&channel.parentId===project.parentId&&parent?.type==='text'&&!parent.parentId&&identifier(project.ownerId)&&project.members?.[project.ownerId]==='manager'&&Object.entries(project.members).every(([member,access])=>identifier(member)&&['reader','collaborator','manager'].includes(access))&&(!project.model||validAiModel(project.model)),'Dados de projeto inválidos.')}
+    for(const channel of server.channels)requireValue((!channel.aiModel||validAiModel(channel.aiModel))&&(!channel.aiEndpoint||validAiEndpoint(channel.aiEndpoint)),'Configuração de IA do canal inválida.')
+    for(const [id,project]of Object.entries(server.policy.projects||{})){const channel=server.channels.find(channel=>channel.id===id),parent=server.channels.find(channel=>channel.id===project.parentId);requireValue(identifier(id)&&channel?.project===true&&channel.parentId===project.parentId&&parent?.type==='text'&&!parent.parentId&&identifier(project.ownerId)&&project.members?.[project.ownerId]==='manager'&&Object.entries(project.members).every(([member,access])=>identifier(member)&&['reader','collaborator','manager'].includes(access))&&(!project.model||validAiModel(project.model))&&(!project.endpoint||validAiEndpoint(project.endpoint)),'Dados de projeto inválidos.')}
     requireValue(!server.events||typeof server.events==='object'&&!Array.isArray(server.events),'Dados de eventos inválidos.')
     for(const [id,event]of Object.entries(server.events||{}))requireValue(identifier(id)&&event.id===id&&identifier(event.creator)&&['scheduled','active','completed','cancelled'].includes(event.status)&&typeof event.name==='string'&&event.name.length<=100&&typeof event.description==='string'&&typeof event.location==='string'&&Number.isSafeInteger(event.startsAt)&&(event.endsAt===null||Number.isSafeInteger(event.endsAt)&&event.endsAt>event.startsAt)&&(!event.channelId?event.endsAt!==null:server.channels.some(channel=>channel.id===event.channelId&&channel.type==='voice'))&&Array.isArray(event.interested)&&event.interested.every(member=>identifier(member)),'Dados de evento inválidos.')
     for (const role of server.policy.roles) readMask(role.permissions)
@@ -208,7 +217,8 @@ export function createCommunityService({ tokens, storage, initialState, voice, f
           const channel=server.channels.find(item=>item.id===action.channelId&&item.type==='text'&&!item.parentId)
           requireValue(channel,'Canal de texto principal não encontrado.',404);requirePermission(server,actor,'MANAGE_CHANNELS',channel.id)
           requireValue(action.model===null||validAiModel(action.model),'Escolha um identificador de modelo válido.')
-          if(action.model===null)delete channel.aiModel;else channel.aiModel=action.model
+          requireAiEndpoint(action.model,action.endpoint)
+          if(action.model===null){delete channel.aiModel;delete channel.aiEndpoint}else{channel.aiModel=action.model;if(action.endpoint)channel.aiEndpoint=action.endpoint;else delete channel.aiEndpoint}
           target=channel.id;event=action.type;break
         }
         case 'project-create':{
@@ -218,8 +228,9 @@ export function createCommunityService({ tokens, storage, initialState, voice, f
           requireValue(!!parent.aiModel,'Configure a IA do canal antes de criar um projeto.',409)
           requireValue(identifier(action.id)&&!server.channels.some(item=>item.id===action.id)&&!server.deletedChannels?.includes(action.id),'Identificador de projeto inválido ou já utilizado.')
           requireValue(!action.model||validAiModel(action.model),'Modelo inválido.')
+          if(action.model)requireAiEndpoint(action.model,action.endpoint)
           requireValue(Object.keys(policy.projects||{}).length<1000,'Limite de projetos atingido.')
-          policy.projects||={};policy.projects[action.id]={parentId:parent.id,ownerId:actor,members:{[actor]:'manager'},...(action.model?{model:action.model}:{}),createdAt:Date.now()}
+          policy.projects||={};policy.projects[action.id]={parentId:parent.id,ownerId:actor,members:{[actor]:'manager'},...(action.model?{model:action.model}:{}),...(action.endpoint?{endpoint:action.endpoint}:{}),createdAt:Date.now()}
           server.channels.push({id:action.id,name:text(action.name,60),type:'text',serverId:id,parentId:parent.id,project:true,slowmodeSeconds:parent.slowmodeSeconds||0});server.messages[action.id]=[]
           target=action.id;event=action.type;auditThread={parentId:action.id,private:true};break
         }
@@ -241,7 +252,8 @@ export function createCommunityService({ tokens, storage, initialState, voice, f
           }
           if(action.type==='project-model'){
             requireValue(action.model===null||validAiModel(action.model),'Modelo inválido.')
-            if(action.model===null)delete project.model;else project.model=action.model
+            if(action.model)requireAiEndpoint(action.model,action.endpoint)
+            if(action.model===null){delete project.model;delete project.endpoint}else{project.model=action.model;if(action.endpoint)project.endpoint=action.endpoint;else delete project.endpoint}
           }else if(action.type==='project-rename')channel.name=text(action.name,60)
           else removeChannels(server,[action.id])
           target=action.id;event=action.type;break
@@ -676,7 +688,7 @@ export function createCommunityService({ tokens, storage, initialState, voice, f
     });queue=task.catch(()=>{});return task
   }
   let drainAi
-  const executeAi=async({id,channel,actor,key,model,run,text,files,contextTokens,maxOutputTokens,controller})=>{
+  const executeAi=async({id,channel,actor,key,model,provider,endpoint,run,text,files,contextTokens,maxOutputTokens,controller})=>{
     let content='',usage={inputTokens:0,outputTokens:0},status='completed',error
     try{
       const previous=state.servers[id],history=(previous.messages[channel]||[]).filter(message=>!message.ai||message.ai.status==='completed')
@@ -696,7 +708,7 @@ export function createCommunityService({ tokens, storage, initialState, voice, f
         for(const messages of batches){
           const remaining=maxOutputTokens-usage.outputTokens
           if(remaining<256)throw new Error('O limite pessoal de saída não comporta o resumo deste histórico.')
-          const result=await aiProvider.summarize({key,model,summary,messages,maxOutputTokens:Math.min(512,remaining-128),signal:controller.signal})
+          const result=await aiProvider.summarize({key,model,provider,endpoint,summary,messages,maxOutputTokens:Math.min(512,remaining-128),signal:controller.signal})
           summary=result.text.slice(0,Math.min(6000,contextTokens*2));usage.inputTokens+=result.usage.input_tokens||0;usage.outputTokens+=result.usage.output_tokens||0
         }
         const task=queue.then(async()=>{
@@ -706,9 +718,9 @@ export function createCommunityService({ tokens, storage, initialState, voice, f
         });queue=task.catch(()=>{});await task
       }
       if(maxOutputTokens-usage.outputTokens<128)throw new Error('O limite pessoal de saída foi consumido ao resumir o contexto.')
-      const inputTokens=await aiProvider.count({key,model,messages:recent,summary,files,signal:controller.signal})
+      const inputTokens=await aiProvider.count({key,model,provider,endpoint,messages:recent,summary,files,signal:controller.signal})
       if(inputTokens>contextTokens)throw new Error('Este pedido precisa de '+inputTokens+' tokens de contexto e ultrapassa o seu limite de '+contextTokens+'. Reduza anexos ou altere seu limite pessoal.')
-      const result=await aiProvider.generate({key,model,messages:recent,summary,files,maxOutputTokens:maxOutputTokens-usage.outputTokens,signal:controller.signal,onDelta:delta=>{
+      const result=await aiProvider.generate({key,model,provider,endpoint,messages:recent,summary,files,maxOutputTokens:maxOutputTokens-usage.outputTokens,signal:controller.signal,onDelta:delta=>{
         content+=delta;activeAi.get(aiKey(id,channel))&&(activeAi.get(aiKey(id,channel)).partial=content)
         aiChanges.emit(aiKey(id,channel),{type:'delta',runId:run.id,delta})
       }})
@@ -743,7 +755,7 @@ export function createCommunityService({ tokens, storage, initialState, voice, f
     }).catch(()=>{activeAi.delete(key);drainAi(id,channel)})
   }
   const startAi=(actor,id,body)=>{
-    requireValue(body&&typeof body==='object'&&typeof body.key==='string'&&body.key.length>=20&&body.key.length<=512,'Configure sua chave pessoal da OpenAI.',400)
+    requireValue(body&&typeof body==='object'&&typeof body.key==='string'&&body.key.length>=8&&body.key.length<=512,'Configure sua chave pessoal deste provedor.',400)
     requireValue(identifier(body.channelId)&&typeof body.text==='string'&&body.text.trim()&&body.text.trim().length<=2000,'Envie um prompt de até 2000 caracteres.')
     requireValue(Number.isInteger(body.contextTokens)&&body.contextTokens>=1024&&body.contextTokens<=32768&&Number.isInteger(body.maxOutputTokens)&&body.maxOutputTokens>=128&&body.maxOutputTokens<=8192,'Configure limites válidos para esta solicitação.')
     let files;try{files=validateAiFiles(body.files||[])}catch(error){throw new CommunityError(400,error.message)}
@@ -753,8 +765,12 @@ export function createCommunityService({ tokens, storage, initialState, voice, f
       requirePermission(previous,actor,'VIEW_CHANNEL',channel.id);requirePermission(previous,actor,'SEND_MESSAGES',channel.id)
       const project=previous.policy.projects?.[channel.id]
       requireValue(!project||activeProject(project,previous.policy.members),'Projeto arquivado.',409)
-      const model=project?.model||previous.channels.find(item=>item.id===(project?.parentId||channel.id))?.aiModel
-      requireValue(validAiModel(model),'Configure um modelo de IA nesta conversa.',409)
+      const parent=previous.channels.find(item=>item.id===(project?.parentId||channel.id))
+      const selected=project?.model||parent?.aiModel,parsed=parseAiModel(selected)
+      requireValue(parsed,'Configure um modelo de IA nesta conversa.',409)
+      const {provider,model}=parsed,endpoint=project?.model?project.endpoint:parent?.aiEndpoint
+      requireValue((body.provider||'openai')===provider,'O provedor selecionado mudou. Atualize a conversa.',409)
+      if(provider.startsWith('compatible-'))requireValue(allowedAiEndpoint(endpoint),'Endpoint de IA não autorizado pela VPS.',409)
       const runKey=aiKey(id,channel.id),waiting=activeAi.has(runKey)||(pendingAi.get(runKey)?.length||0)>0
       requireValue((pendingAi.get(runKey)?.length||0)<3,'A fila desta conversa está cheia. Aguarde uma resposta.',409)
       if(waiting)requireValue(pendingAiBytes+files.reduce((total,file)=>total+file.size,0)<=100*1024*1024,'A fila de anexos da IA está cheia. Aguarde uma resposta.',429)
@@ -762,14 +778,14 @@ export function createCommunityService({ tokens, storage, initialState, voice, f
       const deadline=can(previous.policy,actor,'BYPASS_SLOWMODE',channel.id)?0:slowmodeDeadline(channel.slowmodeSeconds,lastSent(previous,channel.id,actor))
       requireValue(deadline<=now,'Modo lento: aguarde '+Math.ceil((deadline-now)/1000)+' segundos.',429)
       const prompt={id:promptId,channelId:channel.id,userId:actor,userName:actor,content:body.text.trim(),timestamp:now,preview:false}
-      const run={id:runId,promptId,channelId:channel.id,actor,model,status:waiting?'queued':'running',files:files.map(({name,size,type})=>({name,size,type}))}
+      const run={id:runId,promptId,channelId:channel.id,actor,model,provider,status:waiting?'queued':'running',files:files.map(({name,size,type})=>({name,size,type}))}
       const answer={id:runId,channelId:channel.id,userId:'ai:'+runId,userName:'IA · '+model,content:'',timestamp:now+1,preview:false,ai:run}
       server.messages[channel.id]=[...(server.messages[channel.id]||[]),prompt,answer]
       server.slowmodeLastSent||={};server.slowmodeLastSent[channel.id]||={};server.slowmodeLastSent[channel.id][actor]=now
       server.revision++
       const next={...state,servers:{...state.servers,[id]:server}}
       await storage?.save(next);state=next
-      const job={id,channel:channel.id,actor,key:body.key,model,run,text:body.text,files,contextTokens:body.contextTokens,maxOutputTokens:body.maxOutputTokens}
+      const job={id,channel:channel.id,actor,key:body.key,model,provider,endpoint,run,text:body.text,files,contextTokens:body.contextTokens,maxOutputTokens:body.maxOutputTokens}
       if(waiting){const pending=pendingAi.get(runKey)||[];pending.push(job);pendingAi.set(runKey,pending);pendingAiBytes+=files.reduce((total,file)=>total+file.size,0)}
       else{const controller=new AbortController();activeAi.set(runKey,{...run,controller,partial:''});queueMicrotask(()=>void executeAi({...job,controller}).catch(()=>{}))}
       changes.emit(id,{message:prompt});if(!waiting)aiChanges.emit(runKey,{type:'started',runId,actor,model})
