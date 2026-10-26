@@ -7,6 +7,23 @@ import path from 'node:path'
 import {loadTypescript} from './load-typescript.mjs'
 import {createCommunityService,createCommunityState} from '../scripts/community/service.mjs'
 
+test('renderer bridge forwards personal limits and the queued run selected for cancellation',async()=>{
+  const calls=[]
+  let bridge
+  loadTypescript('electron/preload.ts',{
+    electron:{
+      contextBridge:{exposeInMainWorld:(_name,value)=>{bridge=value}},
+      ipcRenderer:{invoke:(...args)=>{calls.push(args);return Promise.resolve({})}},
+      webFrame:{setZoomFactor:()=>{}},
+    },
+  })
+  const limits={contextTokens:4096,maxOutputTokens:512}
+  await bridge.communityAiStart('srv-1','project-1','Explique',[],limits)
+  await bridge.communityAiStop('srv-1','project-1','run-2')
+  assert.deepEqual(calls[0],['community-ai-start','srv-1','project-1','Explique',[],limits])
+  assert.deepEqual(calls[1],['community-ai-stop','srv-1','project-1','run-2'])
+})
+
 test('personal AI credentials and selected files remain bound to the local account',async t=>{
   const directory=fs.mkdtempSync(path.join(os.tmpdir(),'contalk-ai-desktop-'))
   const selected=path.join(directory,'notes.txt');fs.writeFileSync(selected,'Plan')
