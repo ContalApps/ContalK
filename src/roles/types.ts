@@ -29,10 +29,10 @@ export interface CommunitySnapshot {
   audit:Array<{id:string;actor:string;event:string;target?:string;targetName?:string;member?:string;reason?:string;timestamp:number}>
 }
 export type CommunityAction =
-  | {type:'ai-channel-model';channelId:string;model:string|null}
-  | {type:'project-create';id:string;parentId:string;name:string;model?:string}
+  | {type:'ai-channel-model';channelId:string;model:string|null;endpoint?:string|null}
+  | {type:'project-create';id:string;parentId:string;name:string;model?:string;endpoint?:string|null}
   | {type:'project-member';id:string;member:string;access:import('./ai').ProjectAccess|null}
-  | {type:'project-model';id:string;model:string|null}
+  | {type:'project-model';id:string;model:string|null;endpoint?:string|null}
   | {type:'project-rename';id:string;name:string}
   | {type:'project-delete';id:string}
   | {type:'project-restore';id:string}

@@ -12,6 +12,7 @@ services:
       CONTALK_COMMUNITY_HOST: 0.0.0.0
       CONTALK_COMMUNITY_PORT: "8789"
       CONTALK_COMMUNITY_DATA: /app/data
+      CONTALK_AI_ALLOWED_HOSTS: ${CONTALK_AI_ALLOWED_HOSTS:-}
     ports:
       - "127.0.0.1:8789:8789"
     volumes:
