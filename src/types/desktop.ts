@@ -26,8 +26,9 @@ export interface DesktopBridge {
   communityAiSubscribe:(serverId:string,channelId:string)=>Promise<void>
   communityAiUnsubscribe:()=>Promise<void>
   onCommunityAiEvent:(listener:(event:import('../roles/ai').AiEvent)=>void)=>()=>void
-  communityStatus:()=>Promise<{configured:boolean;url?:string}>
-  configureCommunity:(value:{url:string;token:string})=>Promise<void>
+  communityStatus:()=>Promise<{configured:boolean;url?:string;reason?:string}>
+  communityServers:()=>Promise<Array<{id:string;name:string}>>
+  createCommunityServer:(name:string)=>Promise<import('../roles/types').CommunitySnapshot>
   communitySnapshot:(serverId:string)=>Promise<import('../roles/types').CommunitySnapshot>
   communityInvitePreview:(code:string)=>Promise<import('../roles/invites').InvitePreview>
   communityInviteAccept:(code:string)=>Promise<import('../roles/types').CommunitySnapshot>
@@ -50,7 +51,6 @@ export interface DesktopBridge {
   uploadInlineAttachment:(attachment:import('../store/useAppStore').Attachment)=>Promise<import('../store/useAppStore').Attachment>
   claimMessageView:(id:string)=>Promise<boolean>
   storageStatus:()=>Promise<boolean>
-  configureStorage:(config:{url:string;token:string})=>Promise<void>
   selectStorageFile:()=>Promise<{id:string;name:string;size:number;type:string;thumbnail?:string}|null>
   uploadStorageFile:(id:string)=>Promise<import('../store/useAppStore').Attachment>
   openStorageFile:(id:string)=>Promise<void>

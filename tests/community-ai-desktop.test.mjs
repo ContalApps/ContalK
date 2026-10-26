@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict'
+import { createHash } from 'node:crypto'
 import {test} from 'node:test'
 import {EventEmitter,once} from 'node:events'
 import fs from 'node:fs'
@@ -71,7 +72,7 @@ test('Electron sends a personal request to the community service and receives a 
   },{Buffer,URL,AbortSignal,fetch})
   setupCommunity(window,()=>'alice')
   const event={sender:window.webContents,senderFrame:window.webContents.mainFrame},call=(name,...args)=>Promise.resolve().then(()=>handlers.get(name)(event,...args))
-  await call('community-configure',{url:endpoint,token})
+  fs.writeFileSync(path.join(directory,'community-'+createHash('sha256').update('alice').digest('hex')+'.enc'),Buffer.from(JSON.stringify({url:endpoint,token})).reverse())
   await call('community-ai-configure',{key:'alice-secret-api-key',contextTokens:2048,maxOutputTokens:256})
   const snapshot=await call('community-snapshot','srv-1')
   await call('community-command','srv-1',snapshot.revision,{type:'ai-channel-model',channelId:'ch-general',model:'model-alpha'})
@@ -92,4 +93,35 @@ test('Electron sends a personal request to the community service and receives a 
   assert.ok(claude.runId)
   for(let index=0;index<100&&!usedKeys.some(item=>item.provider==='anthropic');index++)await new Promise(resolve=>setTimeout(resolve,10))
   assert.deepEqual(usedKeys,[{key:'alice-secret-api-key',provider:'openai'},{key:'alice-claude-secret-value',provider:'anthropic'}])
+})
+
+test('Electron signs up, signs in by e-mail and signs out against the server, with no keys typed and no legacy tokens',async t=>{
+  const directory=fs.mkdtempSync(path.join(os.tmpdir(),'contalk-account-link-'))
+  const service=createCommunityService({tokens:{}})
+  service.server.listen(0,'127.0.0.1');await once(service.server,'listening')
+  const endpoint='http://127.0.0.1:'+service.server.address().port
+  const handlers=new Map(),window=new EventEmitter();window.webContents={mainFrame:{},isDestroyed:()=>false,send:()=>{}}
+  t.after(async()=>{window.emit('closed');service.server.closeAllConnections();await new Promise(resolve=>service.server.close(resolve));fs.rmSync(directory,{recursive:true,force:true})})
+  const {setupCommunity,signUpCommunity,signInCommunity,signOutCommunity,readCommunityConfig}=loadTypescript('electron/community.ts',{
+    electron:{app:{getPath:()=>directory},dialog:{},ipcMain:{handle:(name,handler)=>handlers.set(name,handler),removeHandler:name=>handlers.delete(name)},safeStorage:{isEncryptionAvailable:()=>true,encryptString:value=>Buffer.from(value).reverse(),decryptString:value=>Buffer.from(value).reverse().toString()}},
+    '../src/roles/invites':{validInviteCode:()=>false},'../src/roles/ai':{aiProviders:['openai'],aiFileMime:()=>null},
+  },{Buffer,URL,AbortSignal,fetch,process:{env:{CONTALK_COMMUNITY_URL:endpoint}}})
+  let owner='bia';setupCommunity(window,()=>owner)
+  const event={sender:window.webContents,senderFrame:window.webContents.mainFrame},call=(name,...args)=>Promise.resolve().then(()=>handlers.get(name)(event,...args))
+  assert.equal((await call('community-status')).configured,false)
+  await assert.rejects(signInCommunity('bia','senha-forte-1'),/Conta não encontrada/)
+  assert.equal(JSON.stringify(await signUpCommunity('Bia','Bia@Teste.dev','senha-forte-1')),JSON.stringify({username:'bia',email:'bia@teste.dev'}))
+  await assert.rejects(signUpCommunity('bia','outra@teste.dev','senha-forte-1'),/já está em uso/)
+  assert.equal((await call('community-status')).configured,true)
+  assert.deepEqual(await call('community-servers'),[])
+  const created=await call('community-create-server','Casa da Bia')
+  assert.equal(created.name,'Casa da Bia')
+  assert.deepEqual((await call('community-servers')).map(item=>item.name),['Casa da Bia'])
+  const first=readCommunityConfig('bia').token
+  await signOutCommunity('bia')
+  assert.equal(readCommunityConfig('bia'),null)
+  const old=await fetch(endpoint+'/identity',{headers:{Authorization:'Bearer '+first}});assert.equal(old.status,401)
+  await assert.rejects(signInCommunity('bia@teste.dev','senha-errada-1'),/Senha incorreta/)
+  assert.equal((await signInCommunity('BIA@teste.dev','senha-forte-1')).username,'bia')
+  assert.deepEqual((await call('community-servers')).map(item=>item.name),['Casa da Bia'])
 })

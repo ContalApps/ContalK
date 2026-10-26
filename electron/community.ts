@@ -7,20 +7,47 @@ import { validInviteCode } from '../src/roles/invites'
 import { aiFileMime,aiProviders,type AiProviderId } from '../src/roles/ai'
 
 const validId = (value:unknown):value is string => typeof value==='string' && /^[\w:-]{1,100}$/.test(value) && !['__proto__','constructor','prototype'].includes(value)
+// The app always talks to the central ConTALK community; people only create an account or sign in.
+// CONTALK_COMMUNITY_URL only exists for local development against a test backend.
+const COMMUNITY_URL = (typeof process !== 'undefined' && process.env.CONTALK_COMMUNITY_URL) || 'https://comunidade.contalapps.com.br'
+type CommunityConfig = { url: string; token: string }
+const configFile = (owner: string) => path.join(app.getPath('userData'), 'community-' + createHash('sha256').update(owner).digest('hex') + '.enc')
+export function readCommunityConfig(owner: string | null): CommunityConfig | null {
+  if (!owner || !safeStorage.isEncryptionAvailable() || !fs.existsSync(configFile(owner))) return null
+  try { return JSON.parse(safeStorage.decryptString(fs.readFileSync(configFile(owner)))) } catch { return null }
+}
+function storeSession(owner: string, token: string) {
+  if (!safeStorage.isEncryptionAvailable()) throw new Error('Proteção de credenciais do sistema indisponível.')
+  fs.writeFileSync(configFile(owner), safeStorage.encryptString(JSON.stringify({ url: COMMUNITY_URL, token })))
+}
+async function accountRequest(route: 'login' | 'register', body: Record<string, unknown>) {
+  let response: Response
+  try { response = await fetch(new URL('/' + route, COMMUNITY_URL), { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body), signal: AbortSignal.timeout(15000) }) }
+  catch { throw new Error('Não foi possível falar com o servidor do ConTALK. Verifique sua conexão.') }
+  const data = await response.json().catch(() => ({})) as { username?: string; email?: string; token?: string; error?: string }
+  if (!response.ok || !data.token || !data.username) throw new Error(data.error || 'Não foi possível acessar sua conta.')
+  storeSession(data.username, data.token)
+  return { username: data.username, email: data.email || '' }
+}
+// Accounts exist only on the server: creating one and signing in always go there.
+export const signUpCommunity = (username: string, email: string, password: string) => accountRequest('register', { username, email, password })
+export const signInCommunity = (identifier: string, password: string) => accountRequest('login', { identifier, password })
+export async function signOutCommunity(owner: string) {
+  const saved = readCommunityConfig(owner)
+  if (fs.existsSync(configFile(owner))) fs.unlinkSync(configFile(owner))
+  if (saved) await fetch(new URL('/logout', saved.url), { method: 'POST', headers: { Authorization: 'Bearer ' + saved.token }, signal: AbortSignal.timeout(5000) }).catch(() => {})
+}
 export function setupCommunity(window:BrowserWindow,getUsername:()=>string|null) {
   const contents=window.webContents
   let stream:AbortController|undefined
   let aiStream:AbortController|undefined
   const selectedAiFiles=new Map<string,{file:string;owner:string;size:number;type:string}>()
-  const configPath=()=>{
+  const config=():CommunityConfig=>{
     const owner=getUsername()
     if(!owner)throw new Error('Entre no ConTALK.')
-    return path.join(app.getPath('userData'),'community-'+createHash('sha256').update(owner).digest('hex')+'.enc')
-  }
-  const config=():{url:string;token:string}=>{
-    if(!getUsername())throw new Error('Entre no ConTALK.')
-    if(!safeStorage.isEncryptionAvailable()||!fs.existsSync(configPath()))throw new Error('Conecte o serviço da comunidade antes de administrar cargos.')
-    return JSON.parse(safeStorage.decryptString(fs.readFileSync(configPath())))
+    const saved=readCommunityConfig(owner)
+    if(!saved)throw new Error('Sua sessão terminou. Saia e entre novamente.')
+    return saved
   }
   const aiPath=()=>path.join(app.getPath('userData'),'ai-'+createHash('sha256').update(getUsername()||'').digest('hex')+'.enc')
   const aiConfig=():{keys:Partial<Record<AiProviderId,string>>;contextTokens:number;maxOutputTokens:number}|null=>{
@@ -34,6 +61,7 @@ export function setupCommunity(window:BrowserWindow,getUsername:()=>string|null)
     const response=await fetch(new URL(route,url),{method:body?'POST':'GET',headers:{Authorization:'Bearer '+token,...(body?{'Content-Type':'application/json'}:{})},...(body?{body:JSON.stringify(body)}:{}),signal:AbortSignal.timeout(timeout)})
     const result=await response.json()
     if(getUsername()!==owner)throw new Error('A conta foi alterada durante a solicitação.')
+    if(response.status===401)throw new Error('Sua sessão na comunidade expirou. Saia e entre novamente.')
     if(!response.ok)throw new Error(typeof result.error==='string'?result.error:'Não foi possível acessar a comunidade.')
     return result
   }
@@ -89,7 +117,9 @@ export function setupCommunity(window:BrowserWindow,getUsername:()=>string|null)
     }
   }
   const handlers:Record<string,(...args:any[])=>unknown>={
-    'community-status':()=>{try{return {configured:true,url:config().url}}catch{return {configured:false}}},
+    'community-status':()=>{const owner=getUsername();return owner&&readCommunityConfig(owner)?{configured:true,url:COMMUNITY_URL}:{configured:false,url:COMMUNITY_URL}},
+    'community-servers':async()=>(await request('/identity')).servers as Array<{id:string;name:string}>,
+    'community-create-server':async(name:string)=>{if(typeof name!=='string'||!name.trim()||name.trim().length>60)throw new Error('Use um nome de 1 a 60 caracteres.');return request('/servers',{name:name.trim()})},
     'community-ai-status':()=>{const value=aiConfig();return {configured:!!value?.keys.openai,providers:aiProviders.filter(provider=>!!value?.keys[provider]),contextTokens:value?.contextTokens||8192,maxOutputTokens:value?.maxOutputTokens||2048}},
     'community-ai-configure':(value:{provider?:AiProviderId;key?:string;contextTokens:number;maxOutputTokens:number})=>{
       if(!value||!Number.isInteger(value.contextTokens)||value.contextTokens<1024||value.contextTokens>32768||!Number.isInteger(value.maxOutputTokens)||value.maxOutputTokens<128||value.maxOutputTokens>8192)throw new Error('Defina limites válidos para o uso da IA.')
@@ -125,18 +155,6 @@ export function setupCommunity(window:BrowserWindow,getUsername:()=>string|null)
     'community-ai-stop':(serverId:string,channelId:string,runId?:string)=>{if(!validId(serverId)||!validId(channelId)||(runId&&!validId(runId)))throw new Error('Execução inválida.');return request(`/servers/${serverId}/ai-runs/${channelId}/stop`,runId?{runId}:{})},
     'community-ai-subscribe':(serverId:string,channelId:string)=>{if(!validId(serverId)||!validId(channelId))throw new Error('Conversa inválida.');config();aiStream?.abort();aiStream=new AbortController();void subscribeAi(serverId,channelId,getUsername()!,aiStream)},
     'community-ai-unsubscribe':()=>{aiStream?.abort();aiStream=undefined},
-    'community-configure':async(value:{url:string;token:string})=>{
-      if(!value||typeof value.url!=='string'||typeof value.token!=='string'||value.token.length<32||value.token.length>512)throw new Error('Informe o endereço e sua chave individual da comunidade.')
-      const url=new URL(value.url)
-      if(!['http:','https:'].includes(url.protocol)||(url.protocol==='http:'&&!['localhost','127.0.0.1','[::1]'].includes(url.hostname))||url.username||url.password)throw new Error('Use HTTPS ou um serviço local neste computador.')
-      if(!safeStorage.isEncryptionAvailable())throw new Error('Proteção de credenciais indisponível.')
-      const owner=getUsername()
-      const response=await fetch(new URL('/identity',url),{headers:{Authorization:'Bearer '+value.token},signal:AbortSignal.timeout(10000)})
-      const identity=await response.json()
-      if(!response.ok||identity.username!==owner||getUsername()!==owner)throw new Error('A chave da comunidade não corresponde à sua conta ConTALK.')
-      stream?.abort()
-      fs.writeFileSync(configPath(),safeStorage.encryptString(JSON.stringify({url:url.origin,token:value.token})))
-    },
     'community-snapshot':async(serverId:string)=>{if(!validId(serverId))throw new Error('Servidor inválido.');return request(`/servers/${serverId}`)},
     'community-invite-preview':async(code:string)=>{if(!validInviteCode(code))throw new Error('Convite inválido.');return request(`/invites/${code}`)},
     'community-invite-accept':async(code:string)=>{if(!validInviteCode(code))throw new Error('Convite inválido.');return request(`/invites/${code}/accept`,{})},

@@ -1,34 +1,23 @@
 import { app, BrowserWindow, dialog, ipcMain, safeStorage, shell, nativeImage } from 'electron'
 import { createReadStream, unlinkSync, statSync, readFileSync, writeFileSync, existsSync } from 'node:fs'
 import path from 'node:path'
-import { createHash, randomUUID } from 'node:crypto'
+import { randomUUID } from 'node:crypto'
+import { readCommunityConfig } from './community'
 
 export function setupStorage(window:BrowserWindow,getUsername:()=>string|null) {
   const selected=new Map<string,{file:string;owner:string}>()
-  const configPath=()=>{
-    const username=getUsername()
-    if(!username)throw new Error('Entre no ConTALK antes de configurar o armazenamento.')
-    return path.join(app.getPath('userData'),'storage-'+createHash('sha256').update(username).digest('hex')+'.enc')
-  }
   let uploading=false
   const mime=(file:string)=>({'.png':'image/png','.jpg':'image/jpeg','.jpeg':'image/jpeg','.gif':'image/gif','.webp':'image/webp','.txt':'text/plain','.pdf':'application/pdf','.webm':'audio/webm;codecs=opus'}[path.extname(file).toLowerCase()]||'application/octet-stream')
   const thumbnail=async(file:string)=>{if(!mime(file).startsWith('image/'))return undefined;try{return (await nativeImage.createThumbnailFromPath(file,{width:240,height:180})).toJPEG(60).toString('base64')}catch{return undefined}}
   const trusted=(event:Electron.IpcMainInvokeEvent)=>{if(event.sender!==window.webContents||event.senderFrame!==window.webContents.mainFrame)throw new Error('Origem inválida.')}
+  // Files live on the same server as the community, reached with the same account session.
   const config=()=>{
-    if(process.env.CONTALK_STORAGE_URL&&process.env.CONTALK_STORAGE_TOKEN)return {url:process.env.CONTALK_STORAGE_URL,token:process.env.CONTALK_STORAGE_TOKEN}
-    if(!existsSync(configPath())||!safeStorage.isEncryptionAvailable())throw new Error('Configure o armazenamento central antes de anexar arquivos.')
-    return JSON.parse(safeStorage.decryptString(readFileSync(configPath()))) as {url:string;token:string}
+    const saved=readCommunityConfig(getUsername())
+    if(!saved)throw new Error('Sua conta ainda não está conectada ao servidor. Saia e entre novamente com a internet ligada.')
+    return saved
   }
   const handlers:Record<string,(event:Electron.IpcMainInvokeEvent,...args:any[])=>unknown>={
     'storage-status':()=>{try{config();return true}catch{return false}},
-    'storage-configure':async(_event,value:{url:string;token:string})=>{
-      const url=new URL(value.url)
-      if((url.protocol!=='https:'&&!['localhost','127.0.0.1'].includes(url.hostname))||url.username||url.password||!/^https?:$/.test(url.protocol)||!value.token?.trim())throw new Error('Informe um endereço HTTPS e sua chave de acesso.')
-      if(!safeStorage.isEncryptionAvailable())throw new Error('Proteção de credenciais do sistema indisponível.')
-      const identity=await fetch(new URL('/identity',url),{headers:{Authorization:'Bearer '+value.token.trim()}})
-      if(!identity.ok || (await identity.json()).username!==getUsername())throw new Error('A chave de armazenamento não corresponde ao seu usuário ConTALK.')
-      writeFileSync(configPath(),safeStorage.encryptString(JSON.stringify({url:url.origin,token:value.token.trim()})))
-    },
     'storage-select':async()=>{
       const owner=getUsername()!
       config()
@@ -51,7 +40,7 @@ export function setupStorage(window:BrowserWindow,getUsername:()=>string|null) {
       uploading=true
       try{
         const response=await fetch(new URL('/files',url),{method:'POST',headers:{Authorization:'Bearer '+token,'Content-Length':String(size),'X-File-Name':encodeURIComponent(path.basename(file)),'X-File-Type':mime(file)},body:createReadStream(file) as unknown as BodyInit,duplex:'half'} as RequestInit)
-        if(!response.ok)throw new Error('Falha no upload ('+response.status+'). Confira o serviço central e a chave de acesso.')
+        if(!response.ok)throw new Error(response.status===413?(await response.json().catch(()=>({}))).error||'Arquivo grande demais.':'Falha no upload ('+response.status+'). Tente novamente.')
         const result=await response.json();selected.delete(id)
         if(getUsername()!==owner)throw new Error('A conta foi alterada durante o upload.')
         return {name:result.name,size:result.size,type:result.type,data:'',storageId:result.id,thumbnail:await thumbnail(file)}
@@ -75,7 +64,6 @@ export function setupStorage(window:BrowserWindow,getUsername:()=>string|null) {
       if(!/^[0-9a-f-]{36}$/.test(id)||typeof recipient!=='string'||!/^[\w:-]{1,100}$/.test(recipient)||['__proto__','constructor','prototype'].includes(recipient))throw new Error('Arquivo ou destinatário inválido.')
       const {url,token}=config()
       const response=await fetch(new URL('/files/'+id+'/share',url),{method:'POST',headers:{Authorization:'Bearer '+token,'Content-Type':'application/json'},body:JSON.stringify({recipient}),signal:AbortSignal.timeout(15000)})
-      if(response.status===404){const identity=await fetch(new URL('/identity',url),{headers:{Authorization:'Bearer '+token},signal:AbortSignal.timeout(10000)});if(identity.ok&&(await identity.json()).version===undefined)return}
       if(!response.ok)throw new Error('Não foi possível autorizar o destinatário do arquivo.')
     },
     'storage-selected-audio':(_event,id:string)=>{
@@ -90,7 +78,7 @@ export function setupStorage(window:BrowserWindow,getUsername:()=>string|null) {
       const owner=getUsername(),{url,token}=config(),signal=AbortSignal.timeout(15000)
       const link=await fetch(new URL('/links/'+id,url),{headers:{Authorization:'Bearer '+token},signal})
       if(!link.ok)throw new Error('Não foi possível autorizar a mensagem de voz.')
-      const result=await link.json(),target=new URL(result.url)
+      const result=await link.json(),target=new URL(result.url,url)
       if(target.origin!==new URL(url).origin||target.username||target.password)throw new Error('Endereço de áudio inválido.')
       const response=await fetch(target,{signal,redirect:'error'})
       if(!response.ok||!response.body||Number(response.headers.get('Content-Length'))>1048576)throw new Error('Mensagem de voz indisponível ou grande demais.')
@@ -106,7 +94,7 @@ export function setupStorage(window:BrowserWindow,getUsername:()=>string|null) {
       const {url,token}=config()
       const response=await fetch(new URL('/links/'+id,url),{headers:{Authorization:'Bearer '+token}})
       if(!response.ok)throw new Error('Não foi possível abrir o arquivo.')
-      const result=await response.json();const target=new URL(result.url)
+      const result=await response.json();const target=new URL(result.url,url)
       if(target.origin!==new URL(url).origin)throw new Error('Endereço de download inválido.')
       await shell.openExternal(target.href)
     },

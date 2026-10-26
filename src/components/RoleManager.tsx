@@ -7,7 +7,7 @@ import { auditLabels } from '../roles/audit'
 import { can, canAssignRole, canRemoveRole, canManageRole, isOwner, highestPosition, permissionsFor, Permission, readMask, type Role } from '../roles/permissions'
 import { permissionCatalogue } from '../roles/catalogue'
 import type { RoleCommand } from '../roles/commands'
-import { CommunityConnection } from './CommunityConnection'
+function CommunityStatus(){const state=useRoleStore();return <p role={state.error?'alert':'status'}>{state.error||(state.configured?'Carregando o servidor…':'Conectando à comunidade…')}</p>}
 import { BanManager } from './BanManager'
 import { InviteManager } from './InviteManager'
 
@@ -58,7 +58,7 @@ export function RoleManager({onClose}:{onClose:()=>void}) {
     if(event.key==='Escape'){event.stopPropagation();if(confirm)setConfirm(false);else onClose()}
     if(event.key==='Tab'){const controls=[...event.currentTarget.querySelectorAll<HTMLElement>('button:not(:disabled),input:not(:disabled),select:not(:disabled)')];const first=controls[0],last=controls[controls.length-1];if(event.shiftKey&&document.activeElement===first){event.preventDefault();last?.focus()}else if(!event.shiftKey&&document.activeElement===last){event.preventDefault();first?.focus()}}
   }
-  if(!snapshot)return <div className="ct-modal-backdrop"><section ref={panel} tabIndex={-1} onKeyDown={handleKeys} className="ct-role-dialog" role="dialog" aria-modal="true" aria-labelledby="ct-role-heading"><header><h2 id="ct-role-heading">Configurações do servidor</h2><button aria-label="Fechar configurações do servidor" onClick={onClose}>×</button></header><CommunityConnection/></section></div>
+  if(!snapshot)return <div className="ct-modal-backdrop"><section ref={panel} tabIndex={-1} onKeyDown={handleKeys} className="ct-role-dialog" role="dialog" aria-modal="true" aria-labelledby="ct-role-heading"><header><h2 id="ct-role-heading">Configurações do servidor</h2><button aria-label="Fechar configurações do servidor" onClick={onClose}>×</button></header><CommunityStatus/></section></div>
   const {policy,actor}=snapshot
   const run=async(command:RoleCommand)=>{setError('');try{await state.command({type:'role',command});return true}catch(error){setError(error instanceof Error?error.message:'Não foi possível salvar.');return false}}
   return <div className="ct-modal-backdrop"><section ref={panel} tabIndex={-1} className="ct-role-dialog" role="dialog" aria-modal="true" aria-labelledby="ct-role-heading" onKeyDown={handleKeys}><header><div><small>{snapshot.name}</small><h2 id="ct-role-heading">Configurações do servidor</h2></div><button aria-label="Fechar configurações do servidor" onClick={onClose}>×</button></header>{policy.ownership==='all-members'&&<p className="ct-muted">Nesta fase, todos os membros são coproprietários e têm acesso total. A prévia mostra as regras sem esse privilégio.</p>}{snapshot.voiceSync==='pending'&&<p role="status">As permissões de voz aguardam confirmação do serviço. Novas entradas ficam bloqueadas até a confirmação.</p>}{state.status==='error'&&<p role="alert">{state.error} <button onClick={()=>void state.refresh().catch(()=>{})}>Tentar novamente</button></p>}

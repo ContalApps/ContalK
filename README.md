@@ -8,7 +8,7 @@ O backend Node 24 mantém mensagens/cargos via HTTP e SSE, presença/dados via W
 
 Instale dependências com `npm ci`, valide com `npm run verify` e inicie com `npm run dev`. O cliente suportado para comunidade é Electron. O código Tauri legado conserva autenticação local, mas ainda não implementa a ponte de comunidade e não deve ser publicado como cliente equivalente.
 
-Para preparar um backend de teste, execute `npm run community:setup -- --member seu_username`, configure o arquivo privado gerado conforme [.env.example](.env.example) e execute `npm run community:start`. Para teste local, use `CONTALK_REALTIME_URL=ws://127.0.0.1:8789/realtime` e IP de mídia 127.0.0.1. No aplicativo, conecte a comunidade com endereço HTTP loopback e a chave individual do username correspondente. Nenhuma conta demo é criada.
+Para preparar um backend de teste, execute `npm run community:setup -- --member seu_username`, configure o arquivo privado gerado conforme [.env.example](.env.example) e execute `npm run community:start`. Para teste local, use `CONTALK_REALTIME_URL=ws://127.0.0.1:8789/realtime` e IP de mídia 127.0.0.1. Para apontar o aplicativo para esse backend, inicie-o com `CONTALK_COMMUNITY_URL=http://127.0.0.1:8789` e registre uma conta normalmente; sem a variável ele usa a comunidade central e ninguém informa endereço ou chave. Nenhuma conta demo é criada.
 
 Instalação de produção, DNS, portas, preservação de volumes, rollback e aceite com quatro usuários: [Meteor Cloud / Coolify](docs/meteor-voice.md). Não use o Compose de produção sem identificar primeiro o volume já existente. `npm run build:electron` gera o instalador Windows; a publicação segue o fluxo abaixo.
 

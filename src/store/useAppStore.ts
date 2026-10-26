@@ -76,6 +76,7 @@ interface AppState {
   removeChannel: (serverId: string, channelId: string) => void
   setCurrentUser: (user: User) => void
   addServer: (server: Server) => void
+  syncServers: (list: Array<{id:string;name:string}>) => void
   setActiveServer: (serverId: string) => void
   setActiveChannel: (channelId: string) => void
   addMessage: (channelId: string, content: string, user: { username: string; display_name: string }, attachment?: Attachment, options?: MessageOptions) => void
@@ -140,7 +141,9 @@ export const useAppStore = create<AppState>()(persist((set) => ({
   }),
 
   setCurrentUser: (user) => set({ currentUser: user }),
-  addServer: (server) => set((state) => ({ servers: [...state.servers, server] })),
+  addServer: (server) => set((state) => ({ servers: [...state.servers.filter(item => item.id !== server.id), server] })),
+  // The account's server list on the community is the truth; cached channels are kept for servers still in it.
+  syncServers: (list) => set((state) => ({ servers: list.map(item => state.servers.find(server => server.id === item.id) ?? { id: item.id, name: item.name, channels: [] }) })),
   setActiveServer: (serverId) => set({ activeServerId: serverId }),
   setActiveChannel: (channelId) => set({ activeChannelId: channelId }),
 

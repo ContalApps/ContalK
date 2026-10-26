@@ -2,8 +2,9 @@
 
 ## Branches
 
-- Trabalhar exclusivamente na branch `dev/caliari`. Não criar outras branches.
-- Manter apenas `main` e `dev/caliari`, localmente e no remoto. Integrar as alterações por PR de `dev/caliari` para `main` e sincronizar `dev/caliari` após o merge.
+- Branches de trabalho: `dev/vg` (do VG, dono do projeto) e `dev/caliari` (do Caliari). Trabalhe na branch de quem pediu; na dúvida, pergunte. Nunca altere, apague ou force push na branch da outra pessoa. Não crie outras branches.
+- Manter apenas `main`, `dev/vg` e `dev/caliari`, localmente e no remoto. Integrar as alterações por PR da branch de trabalho para `main` e sincronizá-la após o merge.
+- O merge na `main` faz deploy automático do serviço da comunidade no Coolify.
 - Nunca editar diretamente a `main`; ela recebe as alterações pelo PR, respeitando as proteções existentes.
 
 Quando o usuário pedir PR e merge na main, isso também autoriza e exige gerar e publicar uma nova versão estável do aplicativo, salvo se ele excluir explicitamente a publicação.

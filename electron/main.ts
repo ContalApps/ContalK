@@ -3,7 +3,6 @@ import path from 'node:path'
 import fs from 'node:fs'
 import { randomUUID } from 'node:crypto'
 import { fileURLToPath } from 'node:url'
-import bcrypt from 'bcryptjs'
 import { setupSingleInstance, showMainWindow } from './single-instance'
 import { setupStorage } from './storage'
 import { setupTray } from './tray'
@@ -12,7 +11,7 @@ import { setupTitleBar, titleBarOptions } from './title-bar'
 import { setupSpeech } from './speech'
 import { setupPushToTalk } from './push-to-talk'
 import { setupNotifications } from './notifications'
-import { setupCommunity } from './community'
+import { readCommunityConfig, setupCommunity, signInCommunity, signOutCommunity, signUpCommunity } from './community'
 import { setupCaptureAudio } from './capture-audio'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
@@ -52,6 +51,8 @@ interface StoredUser {
   avatar?: string
   bio?: string
   created_at: string
+  // Profiles created before accounts moved to the server are ignored and replaced.
+  server?: true
 }
 
 function loadUsers(): Record<string, StoredUser> {
@@ -70,7 +71,6 @@ function saveUsers(users: Record<string, StoredUser>) {
 }
 
 function publicUser(u: StoredUser) { const { password_hash, ...safe } = u; return safe }
-function isLegacyDemo(u: StoredUser) { return ['alice','bob','carol','dave'].includes(u.username) && u.id === 'usr_' + u.username && u.email === u.username + '@contalk.app' }
 let sessionUser: string | null = null
 function issueSession(username: string) {
   username = username.toLowerCase()
@@ -83,13 +83,18 @@ ipcMain.handle('auth-session', (_event, token) => {
   try {
     const saved = JSON.parse(fs.readFileSync(path.join(app.getPath('userData'), 'session.json'), 'utf8'))
     const user = loadUsers()[saved.username]
-    if (saved.token !== token || !user || isLegacyDemo(user)) return null
+    if (saved.token !== token || !user?.server || !readCommunityConfig(saved.username)) return null
     sessionUser = saved.username
     return publicUser(user)
   } catch { return null }
 })
-ipcMain.handle('auth-logout', () => { sessionUser = null; fs.writeFileSync(path.join(app.getPath('userData'), 'session.json'), '{}') })
-ipcMain.handle('auth-accounts', () => Object.values(loadUsers()).filter(u => !isLegacyDemo(u)).map(publicUser))
+ipcMain.handle('auth-logout', async () => {
+  const owner = sessionUser
+  sessionUser = null
+  fs.writeFileSync(path.join(app.getPath('userData'), 'session.json'), '{}')
+  if (owner) await signOutCommunity(owner)
+})
+ipcMain.handle('auth-accounts', () => Object.values(loadUsers()).filter(u => u.server).map(publicUser))
 ipcMain.handle('auth-profile', (_event, profile) => {
   if (!sessionUser) throw new Error('Entre na sua conta.')
   const users = loadUsers(); const current = users[sessionUser]
@@ -181,65 +186,23 @@ ipcMain.handle('get-desktop-sources', async () => {
 })
 
 // ─── IPC: Autenticação de Usuários ──────────────────────────────────
+// Accounts exist only on the ConTALK server; this computer keeps the session and a profile cache (name, photo, bio).
+function rememberProfile(remote: { username: string; email: string }, fresh: boolean) {
+  const users = loadUsers(), cached = users[remote.username]
+  const profile: StoredUser = !fresh && cached?.server ? { ...cached, email: remote.email } : { id: `usr_${Date.now()}`, username: remote.username, display_name: remote.username, email: remote.email, password_hash: '', created_at: new Date().toISOString(), server: true }
+  users[remote.username] = profile
+  saveUsers(users)
+  return { type: 'Success', data: { token: issueSession(profile.username), user: publicUser(profile) } }
+}
 ipcMain.handle('auth-login', async (_event, { identifier, password }) => {
-  const users = loadUsers()
-  const lower = identifier.toLowerCase()
-  const found = Object.values(users).find(
-    (u) => u.username.toLowerCase() === lower || u.email.toLowerCase() === lower
-  )
-
-  if (!found || isLegacyDemo(found)) {
-    return { type: 'Error', data: 'Usuário ou e-mail não encontrado' }
-  }
-
-  const valid = bcrypt.compareSync(password, found.password_hash)
-  if (!valid) {
-    return { type: 'Error', data: 'Senha incorreta' }
-  }
-
-  const userSafe = publicUser(found)
-
-  return {
-    type: 'Success',
-    data: {
-      token: issueSession(found.username),
-      user: userSafe,
-    },
+  try { return rememberProfile(await signInCommunity(identifier, password), false) } catch (error) {
+    return { type: 'Error', data: error instanceof Error ? error.message : 'Não foi possível entrar.' }
   }
 })
 
 ipcMain.handle('auth-register', async (_event, { username, email, password }) => {
-  const users = loadUsers()
-  const lower = username.toLowerCase()
-
-  if (users[lower] && !isLegacyDemo(users[lower])) {
-    return { type: 'Error', data: 'Nome de usuário já está em uso' }
-  }
-
-  const hash = bcrypt.hashSync(password, 10)
-  const newUser: StoredUser = {
-    id: `usr_${Date.now()}`,
-    username,
-    display_name: username,
-    email,
-    password_hash: hash,
-    created_at: new Date().toISOString(),
-  }
-
-  users[lower] = newUser
-  saveUsers(users)
-
-  return {
-    type: 'Success',
-    data: {
-      token: issueSession(newUser.username),
-      user: {
-        id: newUser.id,
-        username: newUser.username,
-        display_name: newUser.display_name,
-        email: newUser.email,
-      },
-    },
+  try { return rememberProfile(await signUpCommunity(username, email, password), true) } catch (error) {
+    return { type: 'Error', data: error instanceof Error ? error.message : 'Não foi possível criar a conta.' }
   }
 })
 

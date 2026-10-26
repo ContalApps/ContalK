@@ -130,7 +130,7 @@ export const useCommunityStore = create<{ members: Member[]; status: string; pro
       if(version!==generation)return
       if(local) set({members:[...new Map([...get().members,...local.map(m=>({...m,online:false}))].map(m=>[m.username,m])).values()]})
       const authority=await centralPresenceToken(user.display_name)
-      if(!authority)throw new Error('Configure sua conexão com a comunidade.')
+      if(!authority)throw new Error('Sua conta ainda não está conectada à comunidade. Saia e entre novamente com a internet ligada.')
       const token=authority.token
       if(version!==generation)return
       await connection.connect(authority.url,token)
