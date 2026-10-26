@@ -23,7 +23,7 @@ export function VoiceMessageRecorder({channelId,onSend,onClose}:{channelId:strin
  const start=async()=>{
   if(status!=='idle')return;setError('');setStatus('starting');try{
    if(!permitted())throw new Error('Seu cargo não permite gravar neste canal.')
-   if(!window.contalkDesktop||!await window.contalkDesktop.storageStatus())throw new Error('Configure o armazenamento central pelo botão de anexar antes de gravar.')
+   if(!window.contalkDesktop||!await window.contalkDesktop.storageStatus())throw new Error('Sua conta ainda não está conectada ao servidor. Saia e entre novamente com a internet ligada.')
    if(!MediaRecorder.isTypeSupported('audio/webm;codecs=opus'))throw new Error('Esta instalação não suporta gravação de voz Opus.')
    const captured=await navigator.mediaDevices.getUserMedia({audio:microphoneOptions(useVoiceStore.getState().microphoneDeviceId),video:false})
    if(!permitted()){captured.getTracks().forEach(track=>track.stop());return}

@@ -308,7 +308,7 @@ export const useVoiceStore = create<VoiceState>((set, get) => ({
     try {
       // 1. Obter ticket de sessão autenticado.
       const authority=move?{...move.authority,serverId:move.serverId}:await centralVoiceToken(channelId)
-      if (!authority) throw new Error('Configure sua conexão com a comunidade para entrar na chamada.')
+      if (!authority) throw new Error('Sua conta ainda não está conectada à comunidade. Saia e entre novamente com a internet ligada.')
       const token = authority.token
       if (!token || typeof token !== 'string') {
         throw new Error('Não foi possível gerar um token de acesso para a sala.')

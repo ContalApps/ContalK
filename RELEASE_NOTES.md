@@ -1,13 +1,13 @@
-# ConTALK 0.1.20
+# ConTALK 0.1.21
 
-- Seleção de provedor e modelo por canal de texto ou projeto: OpenAI, Claude, Gemini e Grok.
-- Suporte a APIs que implementam OpenAI Responses ou Chat Completions, com endpoint HTTPS autorizado pelo administrador da VPS.
-- Chaves pessoais separadas por provedor, protegidas no armazenamento seguro do Electron; a chave OpenAI anterior é migrada automaticamente.
-- Verificação prévia de anexos e limites por provedor, com falhas identificadas antes de iniciar uma geração incompatível.
-- Streaming, contagem e consumo dos provedores integrados ao histórico compartilhado, preservando as regras de acesso dos projetos.
+- Contas no servidor do ConTALK: criar conta e entrar (com usuário ou e-mail) vão direto à VPS. Ninguém configura endereço, chave, token ou armazenamento.
+- Botão "+" da lateral: criar o seu servidor (com um canal de texto e um de voz) ou entrar no servidor de um amigo com um convite.
+- Arquivos, imagens e mensagens de voz guardados no próprio servidor, com acesso controlado por canal e por destinatário. Não há mais Telegram nem serviço de arquivos separado.
+- Removidas as abas Comunidade e Arquivos das Configurações e o formulário de armazenamento do chat.
+- Regras de cadastro: usuário de 3 a 32 letras, números, `_` ou `-`; senha com pelo menos 8 caracteres; e-mail único.
 
-**Ativação:** é necessário implantar esta mesma revisão do serviço da comunidade na VPS/Coolify. A implantação e os testes com APIs reais foram adiados pelo responsável pelo servidor; o instalador não atualiza a VPS nem configura chaves pessoais. Até a implantação, os recursos de IA não estarão ativos no servidor existente.
+**Começo do zero:** esta versão usa uma base nova no servidor. Contas e dados das versões anteriores não são migrados; depois de atualizar, cada pessoa cria a conta de novo. Versões anteriores do aplicativo deixam de conectar ao servidor.
 
-Uma API com protocolo próprio exige um adaptador específico; informar sua URL não garante compatibilidade. Agentes, MCP, execução de comandos, alterações de arquivos, assinaturas e cobrança não fazem parte desta versão.
+Limites desta fase de testes: até 10 servidores por conta, 2 GB por arquivo e 5 GB por pessoa. Não há recuperação nem troca de senha, e nome de exibição e foto continuam salvos no computador.
 
-Validação local: tipos, 282 testes e build. Os testes dos provedores usam respostas simuladas; não houve chamada paga real nem implantação na VPS nesta entrega.
+Validação: tipos, 289 testes e build. Os testes de interface em Electron não foram executados nesta entrega.

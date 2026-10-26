@@ -2,6 +2,7 @@ import { create } from 'zustand'
 import type { CommunityAction, CommunitySnapshot } from '../roles/types'
 import type { Message } from './useAppStore'
 import { mergeHistory } from '../roles/history'
+import { useAppStore } from './useAppStore'
 
 interface RoleState {
   owner:string|null
@@ -17,7 +18,7 @@ interface RoleState {
   historyMore:Record<string,boolean>
   historyBusy:boolean
   activate:(owner:string|null,serverId?:string)=>Promise<void>
-  configure:(value:{url:string;token:string})=>Promise<void>
+  createServer:(name:string)=>Promise<CommunitySnapshot>
   command:(action:CommunityAction)=>Promise<void>
   refresh:()=>Promise<void>
   loadHistory:(channelId:string)=>Promise<void>
@@ -41,8 +42,22 @@ export const useRoleStore=create<RoleState>((set,get)=>({
     try{
       const configuration=await bridge.communityStatus()
       if(version!==generation)return
-      set({configured:configuration.configured,url:configuration.url||'',status:configuration.configured?'loading':'off'})
+      set({configured:configuration.configured,url:configuration.url||'',status:configuration.configured?'loading':'off',error:configuration.configured?'':configuration.reason||''})
       if(!configuration.configured)return
+      // Only servers the account belongs to are listed; fall back to the first one (or none) when the remembered one is gone.
+      let list:Array<{id:string;name:string}>|undefined
+      try{list=await bridge.communityServers()}catch{/* Offline: keep the cached list. */}
+      if(version!==generation)return
+      if(list){
+        useAppStore.getState().syncServers(list)
+        if(!list.some(item=>item.id===serverId)){
+          const next=list[0]?.id||''
+          if(!next){set({serverId:null,status:'connected',snapshot:null});useAppStore.setState({activeServerId:'',activeChannelId:''});return}
+          useAppStore.getState().setActiveServer(next)
+          await get().activate(owner,next)
+          return
+        }
+      }
       unsubscribe=bridge.onCommunityState(event=>{
         if(version!==generation||event.serverId!==serverId)return
         if(event.accessRevoked){generation++;unsubscribe?.();unsubscribe=undefined;set({status:'revoked',snapshot:null,olderMessages:{},historyMore:{},historyBusy:false,busy:false,error:'Seu acesso a este servidor foi removido.'});return}
@@ -55,26 +70,22 @@ export const useRoleStore=create<RoleState>((set,get)=>({
       await bridge.subscribeCommunity(serverId)
     }catch(error){if(version===generation)set({status:'error',error:error instanceof Error?error.message:'Não foi possível acessar a comunidade.'})}
   },
-  configure:async value=>{
+  createServer:async name=>{
     const bridge=window.contalkDesktop
-    if(!bridge?.configureCommunity)throw new Error('Use o aplicativo desktop para conectar a comunidade.')
-    const {owner,serverId}=get(),version=generation
-    if(!owner)throw new Error('Entre no ConTALK.')
-    await bridge.configureCommunity(value)
-    if(version!==generation)return
-    set({owner:null,serverId:null,connectionVersion:get().connectionVersion+1})
-    await get().activate(owner,serverId||'srv-1')
+    if(!bridge?.createCommunityServer)throw new Error('Use o aplicativo desktop para criar um servidor.')
+    if(!get().owner||!get().configured)throw new Error(get().error||'Sua conta ainda não está conectada à comunidade.')
+    return bridge.createCommunityServer(name)
   },
   previewInvite:async code=>{
     const {owner,configured}=get(),bridge=window.contalkDesktop,version=generation
-    if(!owner||!configured||!bridge?.communityInvitePreview)throw new Error('Conecte a comunidade para usar um convite.')
+    if(!owner||!configured||!bridge?.communityInvitePreview)throw new Error('Sua conta ainda não está conectada à comunidade.')
     const preview=await bridge.communityInvitePreview(code)
     if(version!==generation||get().owner!==owner)throw new Error('A conta ou a comunidade foi alterada. Confira o convite novamente.')
     return preview
   },
   acceptInvite:async code=>{
     const {owner,configured,busy}=get(),bridge=window.contalkDesktop,version=generation
-    if(!owner||!configured||!bridge?.communityInviteAccept)throw new Error('Conecte a comunidade para usar um convite.')
+    if(!owner||!configured||!bridge?.communityInviteAccept)throw new Error('Sua conta ainda não está conectada à comunidade.')
     if(busy)throw new Error('Aguarde a alteração atual.')
     set({busy:true})
     try{

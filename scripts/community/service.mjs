@@ -15,6 +15,8 @@ import path from 'node:path'
 import { applyRoleCommand } from '../../src/roles/commands.ts'
 import { can, canActOnMember, canMentionRole, initialPolicy, permissionsFor, readMask, threadArchived } from '../../src/roles/permissions.ts'
 import { validFileId, validInternalToken } from './files.mjs'
+import { AccountError, createAccounts } from './accounts.mjs'
+import { FileError } from './local-files.mjs'
 import { activeInvite, canManageInvite, validInviteCode } from '../../src/roles/invites.ts'
 import { canEditThread, canMutateThread, threadDurations, validThreadPatch } from '../../src/roles/threads.ts'
 import { normalizePoll, pollOpen } from '../../src/roles/polls.ts'
@@ -66,7 +68,7 @@ export function jsonCommunityStorage(filename) {
   }
 }
 
-export function createCommunityService({ tokens, storage, initialState, voice, files, internalToken, allowedOrigins = [], aiAllowedHosts=process.env.CONTALK_AI_ALLOWED_HOSTS||'', aiProvider=multiAiProvider() }) {
+export function createCommunityService({ tokens, storage, initialState, voice, files:externalFiles, localFiles, accounts=createAccounts(), internalToken, allowedOrigins = [], aiAllowedHosts=process.env.CONTALK_AI_ALLOWED_HOSTS||'', aiProvider=multiAiProvider() }) {
   const endpointHosts=new Set(String(aiAllowedHosts).split(',').map(value=>value.trim().toLowerCase()).filter(Boolean))
   const allowedAiEndpoint=value=>validAiEndpoint(value)&&endpointHosts.has(new URL(value).hostname.toLowerCase())
   const requireAiEndpoint=(model,endpoint)=>{
@@ -80,11 +82,18 @@ export function createCommunityService({ tokens, storage, initialState, voice, f
     requireValue(token.length >= 32 && token.length <= 512 && identifier(member), 'Chave ou usuário inválido na configuração do serviço.')
     credentials.set(digest(token), member)
   }
-  requireValue(credentials.size > 0, 'Configure pelo menos uma chave individual.')
   if(internalToken)requireValue(validInternalToken(internalToken,internalToken)&&!own(tokens,internalToken),'Use uma chave interna diferente das chaves dos usuários.')
   const changes = new EventEmitter(); changes.setMaxListeners(1000)
   const aiChanges = new EventEmitter(); aiChanges.setMaxListeners(1000)
   let state = storage?.load() || initialState || createCommunityState([...new Set(credentials.values())])
+  const lower = value => String(value).toLowerCase()
+  // Personal keys from CONTALK_COMMUNITY_TOKENS keep working; accounts created in the app sign in with a session key instead.
+  const actorFor = token => credentials.get(digest(token)) ?? accounts.authenticate(token)
+  const userExists = name => accounts.has(name) || [...credentials.values()].includes(name)
+  // A new account may never inherit memberships, bans or ownership recorded under the same name.
+  const identityTaken = name => [...credentials.values()].some(member => lower(member) === name) || Object.values(state.servers).some(server => [...server.policy.members, ...(server.removedMembers || []), ...server.policy.ownerIds, ...Object.keys(server.bans || {})].some(member => lower(member) === name))
+  const canReadFile = (username, storageId) => !!(voice?.canReadSound?.(username, storageId) || Object.values(state.servers).some(server => server.policy.members.includes(username) && (Object.values(server.expressions || {}).some(item => item.attachment.storageId === storageId) || Object.entries(server.messages).some(([channel, list]) => can(server.policy, username, 'VIEW_CHANNEL', channel) && list.some(message => message.attachment?.storageId === storageId && (can(server.policy, username, 'READ_MESSAGE_HISTORY', channel) || server.fileDeliveries?.[message.id]?.includes(username)))))))
+  const files = externalFiles ?? (localFiles && { canReference: (actor, id) => localFiles.canReference(actor, id, canReadFile) })
   let interrupted=false
   for(const server of Object.values(state.servers||{}))for(const list of Object.values(server.messages||{}))for(const message of list)if(['running','queued'].includes(message.ai?.status)){message.ai.status='interrupted';message.ai.error='O serviço foi reiniciado antes da conclusão da geração.';interrupted=true}
   if(interrupted)storage?.save(state)
@@ -114,7 +123,7 @@ export function createCommunityService({ tokens, storage, initialState, voice, f
     state = next
   }
   let archivedProjects=false
-  for(const server of Object.values(state.servers))for(const project of Object.values(server.policy.projects||{}))if(!project.archived&&!Object.entries(project.members).some(([member,access])=>access==='manager'&&server.policy.members.includes(member)&&provisioned.includes(member))){
+  for(const server of Object.values(state.servers))for(const project of Object.values(server.policy.projects||{}))if(!project.archived&&!Object.entries(project.members).some(([member,access])=>access==='manager'&&server.policy.members.includes(member)&&userExists(member))){
     project.archived=true;archivedProjects=true
   }
   if(archivedProjects)storage?.save(state)
@@ -836,6 +845,26 @@ export function createCommunityService({ tokens, storage, initialState, voice, f
     })
     queue=task.catch(()=>{});return task
   }
+  const MAX_OWNED_SERVERS = 10
+  const createServer = (actor, name) => {
+    const task = queue.then(async () => {
+      name = text(name, 60)
+      requireValue(!/[\p{Cc}\p{Zl}\p{Zp}]/u.test(name), 'Use um nome sem controles ou quebras de linha.')
+      requireValue(Object.values(state.servers).filter(server => server.policy.ownerIds.includes(actor)).length < MAX_OWNED_SERVERS, 'Você já criou o máximo de ' + MAX_OWNED_SERVERS + ' servidores.', 409)
+      requireValue(Object.keys(state.servers).length < 5000, 'O serviço atingiu o limite de servidores.', 503)
+      let id; do id = 'srv-' + randomBytes(6).toString('hex'); while (own(state.servers, id))
+      const suffix = randomBytes(4).toString('hex')
+      const channels = [['ch-' + suffix, 'geral', 'text'], ['vc-' + suffix, 'Sala Geral', 'voice']].map(([channelId, channelName, type]) => ({ id: channelId, name: channelName, type, serverId: id }))
+      const policy = initialPolicy(id, [actor]); policy.ownerIds = [actor]
+      const server = { id, name, revision: 0, policy, channels, messages: {}, audit: [{ id: randomUUID(), actor, event: 'server.create', timestamp: Date.now() }] }
+      const next = { ...state, servers: { ...state.servers, [id]: server } }
+      await storage?.save(next); state = next
+      return snapshot(actor, id)
+    })
+    queue = task.catch(() => {}); return task
+  }
+  // Behind the Coolify proxy the last X-Forwarded-For entry is the address the proxy saw.
+  const clientAddress = request => String(request.headers['x-forwarded-for'] || '').split(',').pop().trim() || request.socket.remoteAddress || 'unknown'
   const readBody = async request => {
     let length = 0; const chunks = []
     for await (const chunk of request) { length += chunk.length; requireValue(length <= 100000, 'Solicitação grande demais.', 413); chunks.push(chunk) }
@@ -849,6 +878,8 @@ export function createCommunityService({ tokens, storage, initialState, voice, f
   const handler = async (request, response) => {
     try {
       response.setHeader('X-Content-Type-Options', 'nosniff')
+      // The server has no global request timeout so large uploads can finish; every other request must arrive within 2 minutes.
+      if (!(request.method === 'POST' && request.url === '/files')) setTimeout(() => { if (!request.complete) request.socket.destroy() }, 120000).unref()
       const origin = request.headers.origin
       if (origin && allowedOrigins.includes(origin)) { response.setHeader('Access-Control-Allow-Origin', origin); response.setHeader('Vary', 'Origin') }
       if (request.method === 'OPTIONS') { requireValue(origin && allowedOrigins.includes(origin), 'Origem inválida.', 403); response.writeHead(204, { 'Access-Control-Allow-Methods': 'GET, POST, OPTIONS', 'Access-Control-Allow-Headers': 'Authorization, Content-Type' }); response.end(); return }
@@ -868,14 +899,32 @@ export function createCommunityService({ tokens, storage, initialState, voice, f
         requireValue(validInternalToken(token,internalToken),'Origem interna inválida.',401)
         const {username,storageId}=await readBody(request)
         requireValue(identifier(username)&&validFileId(storageId),'Usuário ou arquivo inválido.')
-        const allowed=[...credentials.values()].includes(username)&&(voice?.canReadSound?.(username,storageId)||Object.values(state.servers).some(server=>server.policy.members.includes(username)&&(Object.values(server.expressions||{}).some(item=>item.attachment.storageId===storageId)||Object.entries(server.messages).some(([channel,list])=>can(server.policy,username,'VIEW_CHANNEL',channel)&&list.some(message=>message.attachment?.storageId===storageId&&(can(server.policy,username,'READ_MESSAGE_HISTORY',channel)||server.fileDeliveries?.[message.id]?.includes(username)))))))
+        const allowed=userExists(username)&&canReadFile(username,storageId)
         json(response,200,{allowed});return
       }
-      requireValue(token.length >= 32 && token.length <= 512, 'Entre com sua chave individual.', 401)
+      const fileDownload = /^\/files\/([0-9a-f-]{36})$/.exec(url.pathname)
+      if (request.method === 'GET' && fileDownload && localFiles) { await localFiles.download(fileDownload[1], url.searchParams, canReadFile, response); return }
+      if (request.method === 'POST' && (url.pathname === '/register' || url.pathname === '/login')) {
+        const body = await readBody(request); requireValue(body && typeof body === 'object', 'Solicitação inválida.')
+        json(response, 200, await (url.pathname === '/register' ? accounts.register(body.username, body.email, body.password, clientAddress(request), identityTaken) : accounts.login(body.identifier, body.password, clientAddress(request)))); return
+      }
+      requireValue(token.length >= 32 && token.length <= 512, 'Entre com sua conta.', 401)
       const hookRoute=/^\/hooks\/([\w:-]{1,100})\/([\w:-]{1,100})$/.exec(url.pathname)
       if(request.method==='POST'&&hookRoute){requireValue(token,'Credencial de webhook inválida.',401);const body=await readBody(request);json(response,200,await webhookOperation(null,hookRoute[1],null,{id:hookRoute[2],body},token));return}
-      const actor = credentials.get(digest(token))
-      requireValue(actor, 'Chave de acesso inválida.', 401)
+      const actor = actorFor(token)
+      requireValue(actor, 'Sessão inválida. Entre novamente.', 401)
+      if (request.method === 'POST' && url.pathname === '/logout') { accounts.revoke(token); json(response, 200, {}); return }
+      if (request.method === 'POST' && url.pathname === '/servers') { const body = await readBody(request); requireValue(body && typeof body === 'object', 'Solicitação inválida.'); json(response, 200, await createServer(actor, body.name)); return }
+      if (localFiles) {
+        const fileRoute = /^\/(files|links|views)(?:\/([0-9a-f-]{36})(?:\/(share))?)?$/.exec(url.pathname)
+        if (fileRoute) {
+          const [, kind, id, share] = fileRoute
+          if (request.method === 'POST' && kind === 'files' && !id) { json(response, 201, await localFiles.upload(actor, request)); return }
+          if (request.method === 'GET' && kind === 'links' && id) { json(response, 200, { url: await localFiles.link(actor, id, canReadFile) }); return }
+          if (request.method === 'POST' && kind === 'views' && id) { json(response, 200, { allowed: localFiles.view(actor, id) }); return }
+          if (request.method === 'POST' && kind === 'files' && id && share) { const body = await readBody(request); requireValue(body && typeof body.recipient === 'string' && identifier(body.recipient), 'Destinatário inválido.'); await localFiles.share(actor, id, body.recipient, userExists, canReadFile); json(response, 200, { shared: true }); return }
+        }
+      }
       const aiStart=/^\/servers\/([\w:-]{1,100})\/ai-runs$/.exec(url.pathname)
       if(request.method==='POST'&&aiStart){const body=await readAiBody(request);json(response,202,await startAi(actor,aiStart[1],body));return}
       const aiStop=/^\/servers\/([\w:-]{1,100})\/ai-runs\/([\w:-]{1,100})\/stop$/.exec(url.pathname)
@@ -898,7 +947,7 @@ export function createCommunityService({ tokens, storage, initialState, voice, f
       const inviteRoute=/^\/invites\/([a-f0-9]{48})(?:\/(accept))?$/.exec(url.pathname)
       if(inviteRoute&&request.method==='GET'&&!inviteRoute[2]){json(response,200,previewInvite(actor,inviteRoute[1]));return}
       if(inviteRoute&&request.method==='POST'&&inviteRoute[2]==='accept'){await readBody(request);json(response,200,await acceptInvite(actor,inviteRoute[1]));return}
-      if (request.method === 'GET' && url.pathname === '/identity') { json(response, 200, { username: actor, serverIds: Object.values(state.servers).filter(server => server.policy.members.includes(actor)).map(server => server.id) }); return }
+      if (request.method === 'GET' && url.pathname === '/identity') { { const mine = Object.values(state.servers).filter(server => server.policy.members.includes(actor) && !own(server.bans || {}, actor)); json(response, 200, { username: actor, serverIds: mine.map(server => server.id), servers: mine.map(server => ({ id: server.id, name: server.name })) }) }; return }
       if(request.method==='POST'&&url.pathname==='/presence-token'){requireValue(voice?.presenceToken,'O serviço de presença ainda não está configurado.',503);const body=await readBody(request);json(response,200,await voice.presenceToken(actor,text(body.name||actor,40)));return}
       const hookManagement=/^\/servers\/([\w:-]{1,100})\/webhooks$/.exec(url.pathname)
       if(request.method==='POST'&&hookManagement){const body=await readBody(request);json(response,200,await webhookOperation(actor,hookManagement[1],body.revision,body.action));return}
@@ -968,11 +1017,12 @@ export function createCommunityService({ tokens, storage, initialState, voice, f
       }
       throw new CommunityError(404, 'Rota não encontrada.')
     } catch (error) {
-      if (!response.headersSent) json(response, error instanceof CommunityError ? error.status : 500, { error: error instanceof CommunityError ? error.message : 'Não foi possível concluir a operação.' })
+      const known = error instanceof CommunityError || error instanceof AccountError || error instanceof FileError
+      if (!response.headersSent) json(response, known ? error.status : 500, { error: known ? error.message : 'Não foi possível concluir a operação.' })
       else response.destroy()
     }
   }
-  const server=http.createServer({ requestTimeout: 120000, headersTimeout: 10000, maxHeaderSize: 8192 }, handler)
+  const server=http.createServer({ requestTimeout: 0, headersTimeout: 10000, maxHeaderSize: 8192 }, handler)
   voice?.attach?.(server,(actor,id)=>{const current=serverFor(actor,id);return {policy:current.policy,channels:current.channels,nicknames:current.nicknames||{},expressions:current.expressions||{}}})
   scheduleTimeouts()
   for(const id of Object.keys(state.servers))indexPolls(id)

@@ -33,20 +33,17 @@ test('VPS preparation allows a missing address, generates separate keys and refu
   if(process.platform!=='win32')assert.equal(fs.statSync(path.join(directory,'.env')).mode&0o777,0o600)
 })
 
-test('the production entry point boots from generated VPS configuration and preserves shared roles across restart',async t=>{
+test('the production entry point starts from zero without personal keys and keeps accounts, servers and roles across restart',async t=>{
   let child
   const stop=async()=>{if(child&&child.exitCode===null&&child.signalCode===null){const exited=once(child,'exit');child.kill();await exited}child=null}
-  const root=temporary(t,stop),directory=path.join(root,'deployment')
-  prepareCommunityDeployment({directory,members:['alice','bob'],domain:'comunidade.example.com'})
-  const access=JSON.parse(fs.readFileSync(path.join(directory,'access.json'),'utf8'))
-  assert.ok(access.every(item=>item.url==='https://comunidade.example.com'))
+  const root=temporary(t,stop)
   const listener=net.createServer();listener.listen(0,'127.0.0.1');await once(listener,'listening');const port=listener.address().port;await new Promise(resolve=>listener.close(resolve))
-  const filename=path.join(directory,'.env')
-  fs.writeFileSync(filename,fs.readFileSync(filename,'utf8').replace('CONTALK_COMMUNITY_PORT=8789','CONTALK_COMMUNITY_PORT='+port))
+  const legacy='l'.repeat(64)
   const env={...process.env};for(const key of Object.keys(env))if(key.startsWith('CONTALK_'))delete env[key]
+  Object.assign(env,{CONTALK_COMMUNITY_HOST:'127.0.0.1',CONTALK_COMMUNITY_PORT:String(port),CONTALK_COMMUNITY_DATA:path.join(root,'data'),CONTALK_COMMUNITY_TOKENS:JSON.stringify({[legacy]:'alice'})})
   const entry=fileURLToPath(new URL('../scripts/community-server.mjs',import.meta.url)),base='http://127.0.0.1:'+port
   const start=async()=>{
-    child=spawn(process.execPath,['--env-file='+filename,entry],{cwd:root,env,windowsHide:true,stdio:['ignore','pipe','pipe']})
+    child=spawn(process.execPath,[entry],{cwd:root,env,windowsHide:true,stdio:['ignore','pipe','pipe']})
     let output='',failure;child.on('error',error=>{failure=error});for(const pipe of [child.stdout,child.stderr])pipe.on('data',value=>{output+=value})
     const deadline=Date.now()+10000
     while(Date.now()<deadline){
@@ -57,21 +54,20 @@ test('the production entry point boots from generated VPS configuration and pres
     }
     throw new Error('Community startup timed out: '+output)
   }
-  const request=async(username,route,body)=>{
-    const response=await fetch(base+route,{method:body?'POST':'GET',headers:{...(username?{Authorization:'Bearer '+access.find(item=>item.username===username).token}:{}),...(body?{'Content-Type':'application/json'}:{})},...(body?{body:JSON.stringify(body)}:{})})
+  const request=async(token,route,body)=>{
+    const response=await fetch(base+route,{method:body?'POST':'GET',headers:{...(token?{Authorization:'Bearer '+token}:{}),...(body?{'Content-Type':'application/json'}:{})},...(body?{body:JSON.stringify(body)}:{})})
     return {status:response.status,data:await response.json()}
   }
   await start()
-  const health=await request(null,'/health');assert.equal(health.status,200);assert.deepEqual(health.data,{service:'ConTALK Community',status:'ok'})
-  assert.equal((await request(null,'/servers/srv-1')).status,401)
-  const initial=(await request('alice','/servers/srv-1')).data
-  assert.equal((await request('alice','/servers/srv-1/commands',{revision:initial.revision,action:{type:'role',command:{type:'create',id:'team',name:'Equipe VPS'}}})).status,200)
-  const revised=(await request('bob','/servers/srv-1')).data
-  assert.equal(revised.policy.ownership,'all-members')
-  assert.equal((await request('bob','/servers/srv-1/commands',{revision:revised.revision,action:{type:'role',command:{type:'assign',id:'team',member:'alice'}}})).status,200)
+  assert.equal((await request(legacy,'/identity')).status,401)
+  const alice=(await request(null,'/register',{username:'alice',email:'alice@teste.dev',password:'senha-forte-1'})).data.token
+  assert.ok(alice)
+  const created=(await request(alice,'/servers',{name:'Servidor da Alice'})).data
+  assert.equal((await request(alice,'/servers/'+created.id+'/commands',{revision:created.revision,action:{type:'role',command:{type:'create',id:'team',name:'Equipe VPS'}}})).status,200)
+  assert.ok(fs.existsSync(path.join(root,'data','contalk-v2','accounts.json')))
   await stop();await start()
-  const restored=(await request('alice','/servers/srv-1')).data
+  assert.deepEqual((await request(alice,'/identity')).data.servers,[{id:created.id,name:'Servidor da Alice'}])
+  const restored=(await request(alice,'/servers/'+created.id)).data
   assert.equal(restored.policy.roles.find(role=>role.id==='team').name,'Equipe VPS')
-  assert.deepEqual(restored.policy.memberRoles.alice,['team'])
-  assert.equal(restored.audit.length,2)
+  assert.equal((await request(null,'/login',{identifier:'alice@teste.dev',password:'senha-forte-1'})).status,200)
 })

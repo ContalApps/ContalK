@@ -1,5 +1,11 @@
 # Retomada do ConTALK — entrega 0.1.20
 
+## Trabalho na branch dev/vg: tudo no servidor, do zero
+
+Decisão do VG (dono do projeto): ninguém configura endereço, chave, token ou Telegram, igual ao Discord. As contas existem só no servidor (accounts.mjs; o Electron só guarda sessão e cache de perfil); o "+" da lateral cria um servidor ou entra por convite (ServerDialog.tsx); os arquivos ficam no disco da VPS (local-files.mjs). A base começa do zero em `/app/data/contalk-v2`; contas e dados antigos não são migrados. Fase de testes com cerca de 4 pessoas numa VPS pequena. Veja [community-service.md](community-service.md).
+
+Estado: versão 0.1.21, integrada à `main` por PR da `dev/vg`. O Coolify faz deploy automático da `main`, então o merge atualiza o servidor; a release do aplicativo sai pela tag `v0.1.21` (workflow release.yml). Confirme o deploy e a release no Coolify/GitHub antes de afirmar que estão no ar. Pendentes: recuperação/troca de senha, perfil (nome/foto) ainda local, testes de interface Electron (run-*-smoke) não executados por falta do runtime local, `scripts/community-setup.mjs` obsoleto.
+
 ## Trabalho atual: APIs de outras LLMs
 
 Após a release pública [v0.1.19](https://github.com/ContalApps/ContalK/releases/tag/v0.1.19), o usuário pediu suporte a APIs além da OpenAI. A branch `dev/caliari` contém conectores nativos para Claude/Anthropic, Gemini/Google e Grok/xAI, perfis para endpoints compatíveis com OpenAI Responses e Chat Completions, seleção de provedor por canal/projeto e chaves pessoais separadas por provedor. Hosts personalizados precisam ser autorizados pelo administrador em `CONTALK_AI_ALLOWED_HOSTS`. Consulte [ai-projects.md](ai-projects.md) para os limites de protocolo, anexos e contagem. O usuário pediu PR, merge e release 0.1.20; confirme o resultado no GitHub antes de afirmar que foi publicado. **A VPS ainda não recebeu esta revisão.** Não substituir a release 0.1.19.
@@ -22,7 +28,7 @@ Leia AGENTS.md primeiro. Em 25/10/2026 o usuário decidiu encerrar a implementa�
 
 ## Primeiro passo
 
-Trabalhe exclusivamente em dev/caliari, sem criar branches. Leia git status e preserve arquivos modificados/novos antes de fetch ou sincronização. Não use reset --hard, git clean nem sobrescreva arquivos locais. Confira main/dev remotas, PRs e release atual. A confirmação final desta publicação, com URLs e commit integrado, será registrada localmente em release/HANDOFF_FINAL.md após verificar os arquivos publicados; essa pasta é ignorada pelo Git.
+Trabalhe na branch de quem pediu (`dev/vg` ou `dev/caliari`, veja AGENTS.md), sem criar branches. Leia git status e preserve arquivos modificados/novos antes de fetch ou sincronização. Não use reset --hard, git clean nem sobrescreva arquivos locais. Confira main/dev remotas, PRs e release atual. A confirmação final desta publicação, com URLs e commit integrado, será registrada localmente em release/HANDOFF_FINAL.md após verificar os arquivos publicados; essa pasta é ignorada pelo Git.
 
 A versão preparada nesta etapa é 0.1.20; a entrega anterior foi 0.1.19. A fonte de verdade da publicação é a release GitHub, não o merge: confirme tag, isDraft=false, latest e instalador Windows, blockmap e latest.yml. O AGENTS.md exige publicação estável quando o usuário pede PR e merge, exceto exclusão explícita. Não substitua instaladores de versões existentes.
 

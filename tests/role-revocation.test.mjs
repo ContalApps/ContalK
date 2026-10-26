@@ -8,7 +8,7 @@ test('a snapshot requested before access revocation cannot restore private histo
   const snapshot={actor:'alice',id:'group',revision:1,messages:{text:[{id:'private',content:'Mensagem privada'}]},hasOlder:{text:true},policy:{}}
   const delayed=new Promise(done=>{resolve=done})
   const bridge={communityStatus:async()=>({configured:true,url:'https://community.example.com'}),unsubscribeCommunity:async()=>{},onCommunityState:callback=>{receive=callback;return()=>{unsubscribed++}},subscribeCommunity:async()=>{},communitySnapshot:async()=>{pending=true;return delayed}}
-  const {useRoleStore:store}=loadTypescript('src/store/useRoleStore.ts',{zustand:{create:createStore},'../roles/history':{mergeHistory:()=>({})}},{window:{contalkDesktop:bridge}})
+  const {useRoleStore:store}=loadTypescript('src/store/useRoleStore.ts',{zustand:{create:createStore},'./useAppStore':{useAppStore:{getState:()=>({syncServers(){},setActiveServer(){}}),setState(){}}},'../roles/history':{mergeHistory:()=>({})}},{window:{contalkDesktop:bridge}})
   await store.getState().activate('alice','group')
   receive({serverId:'group',snapshot})
   assert.equal(store.getState().status,'connected')
@@ -23,7 +23,7 @@ test('a snapshot requested before access revocation cannot restore private histo
 
 test('switching servers for the same account retains its connection configuration while clearing the previous snapshot',async()=>{
   const subscribed=[],bridge={communityStatus:async()=>({configured:true,url:'https://community.example.com'}),unsubscribeCommunity:async()=>{},onCommunityState:()=>()=>{},subscribeCommunity:async id=>subscribed.push(id)}
-  const {useRoleStore:store}=loadTypescript('src/store/useRoleStore.ts',{zustand:{create:createStore},'../roles/history':{mergeHistory:()=>({})}},{window:{contalkDesktop:bridge}})
+  const {useRoleStore:store}=loadTypescript('src/store/useRoleStore.ts',{zustand:{create:createStore},'./useAppStore':{useAppStore:{getState:()=>({syncServers(){},setActiveServer(){}}),setState(){}}},'../roles/history':{mergeHistory:()=>({})}},{window:{contalkDesktop:bridge}})
   await store.getState().activate('alice','original')
   const observed=[];const stop=store.subscribe(state=>observed.push({configured:state.configured,url:state.url,snapshot:state.snapshot}))
   await store.getState().activate('alice','other');stop()

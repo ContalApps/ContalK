@@ -1,6 +1,0 @@
-import { useState } from 'react'
-
-export function StorageConnection(){
-  const [url,setUrl]=useState(''),[token,setToken]=useState(''),[busy,setBusy]=useState(false),[status,setStatus]=useState('')
-  return <section className="ct-settings-preferences"><h2>Armazenamento de arquivos</h2><p>Use o endereço e a chave individual fornecidos pelo administrador para guardar e baixar anexos da comunidade.</p><form className="ct-community-connection" onSubmit={async event=>{event.preventDefault();setBusy(true);setStatus('');try{if(!window.contalkDesktop)throw new Error('Use o aplicativo desktop.');await window.contalkDesktop.configureStorage({url,token});setToken('');setStatus('Armazenamento configurado.')}catch(error){setStatus(error instanceof Error?error.message:'Não foi possível configurar.')}finally{setBusy(false)}}}><label>Endereço do armazenamento<input type="url" required value={url} placeholder="https://arquivos.exemplo.com" onChange={event=>setUrl(event.target.value)}/></label><label>Chave individual<input type="password" required autoComplete="off" value={token} onChange={event=>setToken(event.target.value)}/></label><button className="ct-primary" disabled={busy||!url||!token}>{busy?'Salvando…':'Salvar armazenamento'}</button></form>{status&&<p role="status">{status}</p>}</section>
-}

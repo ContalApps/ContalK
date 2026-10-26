@@ -20,14 +20,12 @@ test('desktop storage binds selected files and completed uploads to the account 
  server.listen(0,'127.0.0.1');await once(server,'listening');publicUrl.port=String(server.address().port)
  let owner='alice',picker
  const handlers=new Map(),window=new EventEmitter();window.webContents={mainFrame:{}}
- const {setupStorage}=loadTypescript('electron/storage.ts',{electron:{app:{getPath:name=>name==='userData'?profile:directory},dialog:{showOpenDialog:async()=>{if(picker)await picker;return {canceled:false,filePaths:[file]}}},ipcMain:{handle:(name,handler)=>handlers.set(name,handler),removeHandler:name=>handlers.delete(name)},safeStorage:{isEncryptionAvailable:()=>true,encryptString:value=>Buffer.from('test-only:'+value),decryptString:value=>value.toString().slice(10)},nativeImage:{},shell:{}}},{fetch,URL,Buffer,AbortSignal,process:{env:{}}})
+ const {setupStorage}=loadTypescript('electron/storage.ts',{electron:{app:{getPath:name=>name==='userData'?profile:directory},dialog:{showOpenDialog:async()=>{if(picker)await picker;return {canceled:false,filePaths:[file]}}},ipcMain:{handle:(name,handler)=>handlers.set(name,handler),removeHandler:name=>handlers.delete(name)},safeStorage:{isEncryptionAvailable:()=>true,encryptString:value=>Buffer.from('test-only:'+value),decryptString:value=>value.toString().slice(10)},nativeImage:{},shell:{}},'./community':{readCommunityConfig:name=>name?{url:publicUrl.origin,token:name+'-key'}:null}},{fetch,URL,Buffer,AbortSignal,process:{env:{}}})
  setupStorage(window,()=>owner)
  t.after(async()=>{window.emit('closed');server.closeAllConnections();await new Promise(resolve=>server.close(resolve));const resolved=fs.realpathSync(directory);assert.equal(path.dirname(resolved).toLowerCase(),fs.realpathSync(os.tmpdir()).toLowerCase());assert.ok(path.basename(resolved).startsWith('contalk-storage-desktop-'));fs.rmSync(resolved,{recursive:true,force:true})})
  const event={sender:window.webContents,senderFrame:window.webContents.mainFrame},call=(name,...args)=>Promise.resolve().then(()=>handlers.get(name)(event,...args))
- await assert.rejects(call('storage-configure',{url:publicUrl.origin,token:'wrong-case-key'}),/não corresponde/)
- await call('storage-configure',{url:publicUrl.origin,token:'alice-key'})
  const selected=await call('storage-select')
- owner='bob';await call('storage-configure',{url:publicUrl.origin,token:'bob-key'})
+ owner='bob'
  await assert.rejects(call('storage-upload',selected.id),/nesta conta/);assert.equal(uploads,0)
  let releasePicker;picker=new Promise(resolve=>{releasePicker=resolve});owner='alice'
  const stalePicker=call('storage-select');await new Promise(resolve=>setImmediate(resolve));owner='bob';releasePicker()
