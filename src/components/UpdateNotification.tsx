@@ -1,3 +1,4 @@
+import { ControlIcon } from './ControlIcon'
 import { useState, useEffect, useRef } from 'react'
 import type { UpdateState } from '../types/desktop'
 import { useVoiceStore } from '../store/useVoiceStore'
@@ -158,8 +159,8 @@ export function UpdateNotification({onOpenNotification}:{onOpenNotification?:(id
   return (
     <div ref={container} className="ct-update-bell"><button aria-label="Notificações e atualizações" aria-expanded={!dismissed} aria-controls="ct-update-popup" onClick={()=>setDismissed(!dismissed)}><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9M10 21h4"/></svg>{['available','ready','error'].includes(status)&&<i/>}{unread>0&&<span className="ct-notification-badge">{unread>99?'99+':unread}</span>}</button>{!dismissed&&<div id="ct-update-popup" role="dialog" aria-label="Atualizações" className="ct-update-popup">
       <section className="ct-notification-center" aria-label="Atividade no ConTALK"><header><strong>Notificações</strong><button disabled={!unread} onClick={activity.markAllRead}>Marcar tudo como lido</button></header><div className="ct-notification-items">{activity.entries.length?activity.entries.map(entry=><button key={entry.id} className={entry.read?'read':'unread'} onClick={()=>{activity.markRead(entry.id);onOpenNotification?.(entry.id);setDismissed(true)}}><strong>{entry.title}</strong><span>{entry.body}</span><small>{new Date(entry.createdAt).toLocaleString('pt-BR',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'})}</small></button>):<p>Nenhuma atividade por enquanto. Mensagens, amizades e chamadas aparecerão aqui.</p>}</div>{activity.entries.length>0&&<button onClick={activity.clear}>Limpar histórico</button>}</section><div className="flex items-start justify-between gap-3">
-        <div className="w-10 h-10 rounded-xl bg-purple-600/20 border border-purple-500/30 flex items-center justify-center shrink-0 text-xl">
-          {status === 'ready' ? '🎉' : status === 'downloading' ? '⏳' : status === 'error' ? '⚠️' : '🚀'}
+        <div className="w-10 h-10 rounded-xl bg-white/5 border border-white/10 flex items-center justify-center shrink-0 text-xl">
+          <ControlIcon name={status === 'ready' ? 'check' : status === 'downloading' ? 'download' : status === 'error' ? 'warning' : 'rocket'}/>
         </div>
 
         <div className="flex-1 min-w-0">
@@ -167,7 +168,7 @@ export function UpdateNotification({onOpenNotification}:{onOpenNotification?:(id
             <h4 className="text-sm font-bold text-white flex items-center gap-1.5">
               <span>Atualizações do ConTALK</span>
               {version && (
-                <span className="text-[11px] px-1.5 py-0.5 rounded-full bg-purple-500/20 text-purple-300 border border-purple-500/30 font-mono">
+                <span className="text-[11px] px-1.5 py-0.5 rounded-full bg-neutral-500/20 text-neutral-300 border border-neutral-500/30 font-mono">
                   v{version}
                 </span>
               )}
@@ -176,9 +177,7 @@ export function UpdateNotification({onOpenNotification}:{onOpenNotification?:(id
               onClick={() => setDismissed(true)}
               className="text-gray-400 hover:text-white text-xs p-1 transition"
               title="Fechar aviso"
-            >
-              ✕
-            </button>
+            ><ControlIcon name="close"/></button>
           </div>
 
           {(status==='idle'||status==='checking')&&<p>{status==='checking'?'Buscando atualizações…':'Você está em dia.'}<button onClick={()=>void checkForUpdates(true)}>Verificar agora</button></p>}
@@ -196,11 +195,11 @@ export function UpdateNotification({onOpenNotification}:{onOpenNotification?:(id
             <div className="mt-2 space-y-1.5">
               <div className="flex justify-between text-xs text-gray-300">
                 <span>Baixando atualização...</span>
-                <span className="font-mono text-purple-400">{progress}%</span>
+                <span className="font-mono text-neutral-400">{progress}%</span>
               </div>
-              <div className="w-full bg-[#0a0812] h-2 rounded-full overflow-hidden border border-purple-900/50">
+              <div className="w-full bg-[#090909] h-2 rounded-full overflow-hidden border border-neutral-900/50">
                 <div
-                  className="bg-gradient-to-r from-purple-500 to-indigo-400 h-full transition-all duration-300 rounded-full"
+                  className="bg-white h-full transition-all duration-300 rounded-full"
                   style={{ width: `${progress}%` }}
                 />
               </div>
@@ -224,7 +223,7 @@ export function UpdateNotification({onOpenNotification}:{onOpenNotification?:(id
             {status === 'available' && (
               <button
                 onClick={startDownloadAndInstall}
-                className="w-full py-1.5 px-3 rounded-lg bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white font-medium text-xs shadow-md shadow-purple-900/40 transition active:scale-95 flex items-center justify-center gap-1.5"
+                className="w-full py-1.5 px-3 rounded-lg bg-white hover:bg-neutral-200 text-black! font-medium text-xs transition active:scale-95 flex items-center justify-center gap-1.5"
               >
                 <span>Atualizar e reiniciar automaticamente</span>
               </button>

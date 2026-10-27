@@ -1,5 +1,5 @@
 :root{--ct-titlebar-height:36px}
-.ct-topbar.ct-titlebar{height:var(--ct-titlebar-height);min-height:var(--ct-titlebar-height);flex-shrink:0;width:100%;padding:0;gap:0;position:relative;z-index:40;background:#090c0f;border-bottom:1px solid #ffffff0d;color:#b7becb;-webkit-app-region:drag;user-select:none}
+.ct-topbar.ct-titlebar{height:var(--ct-titlebar-height);min-height:var(--ct-titlebar-height);flex-shrink:0;width:100%;padding:0;gap:0;position:relative;z-index:40;background:#0c0c0c;border-bottom:1px solid #ffffff0d;color:#bebebe;-webkit-app-region:drag;user-select:none}
 .ct-titlebar[data-theme=vice-city]{background:#172b26;color:#eee4cb}
 .ct-titlebar-safe{display:grid;grid-template-columns:minmax(70px,1fr) minmax(0,2fr) minmax(140px,1fr);align-items:center;height:100%;box-sizing:border-box;margin-left:env(titlebar-area-x,0px);width:env(titlebar-area-width,calc(100% - 138px));padding:0 8px;gap:12px}
 .ct-titlebar[data-native-controls=false] .ct-titlebar-safe{width:100%;margin-left:0}
@@ -9,25 +9,25 @@
 .ct-titlebar-navigation>button,.ct-titlebar-actions>button,.ct-titlebar .ct-update-bell>button,.ct-titlebar-popover button{display:grid;place-items:center;background:transparent;border:0;color:inherit;min-width:28px;height:28px;padding:5px;border-radius:5px;cursor:pointer}
 .ct-titlebar button:hover:not(:disabled){background:#ffffff0d;transform:none}
 .ct-titlebar button:disabled{opacity:.28;cursor:default}
-.ct-titlebar button:focus-visible,.ct-titlebar input:focus-visible{outline:2px solid #a28aff;outline-offset:-2px}
-.ct-titlebar button[data-active=true]{color:#b69aff;background:#8b65ff18}
+.ct-titlebar button:focus-visible,.ct-titlebar input:focus-visible{outline:2px solid #9c9c9c;outline-offset:-2px}
+.ct-titlebar button[data-active=true]{color:#aaaaaa;background:#81818118}
 .ct-titlebar button svg{height:16px;width:16px}
 .ct-titlebar-context{display:flex;align-items:center;justify-content:center;gap:8px;min-width:0;font-size:12px;font-weight:500}
 .ct-titlebar-context>span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.ct-titlebar-context .ct-brand-mark{width:20px;height:20px;border:0;border-radius:0;background:transparent;flex-shrink:0;color:#9e80ff}
+.ct-titlebar-context .ct-brand-mark{width:20px;height:20px;border:0;border-radius:0;background:transparent;flex-shrink:0;color:#959595}
 .ct-titlebar-context .ct-brand-mark svg{height:19px;width:19px}
 .ct-titlebar .ct-top-profile .ct-avatar{height:23px;width:23px;font-size:10px;border:0;box-shadow:none}
 .ct-titlebar .ct-top-profile{padding:2px;min-width:28px}
 .ct-titlebar .ct-update-bell>button i{width:5px;height:5px;right:4px;top:4px}
 .ct-titlebar .ct-update-popup{top:calc(100% + 7px);right:-34px}
-.ct-titlebar-popover{position:absolute;top:calc(100% + 6px);right:max(8px,calc(100% - env(titlebar-area-x,0px) - env(titlebar-area-width,calc(100% - 138px)) + 8px));width:min(360px,calc(100vw - 24px));max-height:calc(100vh - 56px);overflow:auto;padding:12px;border:1px solid #ffffff20;background:var(--ct-settings-card,#181c22);color:var(--ct-text,#e4e7ec);box-shadow:0 10px 35px #0007;border-radius:8px;font-size:12px;user-select:text}
+.ct-titlebar-popover{position:absolute;top:calc(100% + 6px);right:max(8px,calc(100% - env(titlebar-area-x,0px) - env(titlebar-area-width,calc(100% - 138px)) + 8px));width:min(360px,calc(100vw - 24px));max-height:calc(100vh - 56px);overflow:auto;padding:12px;border:1px solid #ffffff20;background:var(--ct-settings-card,#1c1c1c);color:var(--ct-text,#e7e7e7);box-shadow:0 10px 35px #0007;border-radius:8px;font-size:12px;user-select:text}
 .ct-titlebar[data-native-controls=false] .ct-titlebar-popover{right:8px}
 .ct-titlebar-popover>div{display:flex;align-items:center;justify-content:space-between;gap:8px}
 .ct-titlebar-search>label{display:block;margin-bottom:8px;font-weight:600}
 .ct-titlebar-search>div{border:1px solid #ffffff25;border-radius:6px;padding-left:8px}
 .ct-titlebar-search input{flex:1;min-width:0;outline:0;border:0;background:transparent;color:inherit;font-size:12px;height:32px}
 .ct-titlebar-popover p{margin:8px 0;line-height:1.5}
-.ct-titlebar-popover small{display:block;color:var(--ct-muted,#a2aab8);font-size:11px;margin-top:8px;line-height:1.5}
+.ct-titlebar-popover small{display:block;color:var(--ct-muted,#a9a9a9);font-size:11px;margin-top:8px;line-height:1.5}
 .ct-titlebar-popover kbd{font-size:10px;border:1px solid #ffffff20;border-radius:3px;padding:1px 4px}
 .ct-titlebar-help>p:last-of-type{border-top:1px solid #ffffff12;padding-top:8px}
 .ct-session-shell{display:flex;flex-direction:column;height:100%;min-height:0}

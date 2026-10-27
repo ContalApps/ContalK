@@ -15,6 +15,7 @@ import { setupTrayControls } from './media/trayControls'
 import { setupActivityNotifications } from './notifications/activity'
 import { setupCentralCommunity } from './roles/runtime'
 import './roles.css'
+import './codex.css'
 
 const stopTraySpeaking=setupTraySpeaking(useVoiceStore,speaking=>window.contalkDesktop?.setSpeaking(speaking))
 const stopNotifications=setupActivityNotifications()

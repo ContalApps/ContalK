@@ -79,6 +79,7 @@
     "clsx": "^2.1.1",
     "electron-updater": "^6.8.9",
     "fflate": "^0.8.2",
+    "lucide-react": "^1.61.0",
     "mediasoup": "^3.31.0",
     "mediasoup-client": "^3.25.3",
     "react": "^19.3.1",

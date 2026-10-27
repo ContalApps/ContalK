@@ -1,3 +1,4 @@
+import { ControlIcon } from './ControlIcon'
 import { useEffect, useRef, useState } from 'react'
 import { useRoleStore } from '../store/useRoleStore'
 import { canCreateEvent, canManageEvent, eventStatusLabels, type EventDraft, type ScheduledEvent } from '../roles/events'
@@ -51,7 +52,7 @@ export function CommunityEvents({onClose,onOpenChannel,initialEvent}:{onClose:()
   return <div className="ct-modal-backdrop"><section ref={panel} className="ct-role-dialog ct-events-dialog" role={confirm?'alertdialog':'dialog'} aria-modal="true" aria-label="Eventos do servidor" onKeyDown={event=>{
     if(event.key==='Escape'){event.stopPropagation();if(confirm)setConfirm(null);else if(edit)setEdit(null);else onClose()}
     if(event.key==='Tab'){const controls=[...event.currentTarget.querySelectorAll<HTMLElement>('button:not(:disabled),input:not(:disabled),select:not(:disabled),textarea:not(:disabled)')].filter(control=>!control.matches(':disabled')),first=controls[0],last=controls[controls.length-1];if(event.shiftKey&&document.activeElement===first){event.preventDefault();last?.focus()}else if(!event.shiftKey&&document.activeElement===last){event.preventDefault();first?.focus()}}
-  }}><header><h2>Eventos do servidor</h2><button autoFocus aria-label="Fechar eventos" onClick={onClose}>×</button></header>
+  }}><header><h2>Eventos do servidor</h2><button autoFocus aria-label="Fechar eventos" onClick={onClose}><ControlIcon name="close"/></button></header>
     {confirm?<><p>{confirm.label} “{confirm.event.name}”?</p><p className="ct-muted">{confirm.action.type==='event-delete'?'Esta exclusão é definitiva.':'O evento não poderá voltar ao estado anterior.'}</p><button data-event-cancel disabled={!ready} onClick={()=>setConfirm(null)}>Voltar</button><button className="ct-role-danger" disabled={!ready} onClick={()=>void run(confirm.action)}>Confirmar {confirm.label.toLocaleLowerCase()}</button></>:edit?<EventEditor key={(snapshot?.actor||'')+':'+(edit==='new'?'new':edit.id)} event={edit==='new'?undefined:edit} onClose={()=>setEdit(null)}/>:<>
     <nav><button aria-current={!history?'page':undefined} onClick={()=>setHistory(false)}>Próximos</button><button aria-current={history?'page':undefined} onClick={()=>setHistory(true)}>Anteriores</button>{canCreate&&<button disabled={!ready} onClick={()=>setEdit('new')}>Criar evento…</button>}</nav>
     <input type="search" aria-label="Buscar evento" placeholder="Buscar evento…" value={query} onChange={event=>setQuery(event.target.value)}/>

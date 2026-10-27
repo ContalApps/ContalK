@@ -1,3 +1,4 @@
+import { ControlIcon } from './ControlIcon'
 import { useEffect, useRef } from 'react'
 import { FriendButton } from './FriendButton'
 import { StreamVolumeControl } from './StreamVolumeControl'
@@ -46,10 +47,10 @@ export function ParticipantVolumePopup({
   const isMuted = volume === 0
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 select-none">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 select-none">
       <div
         ref={popupRef}
-        className="w-80 max-h-[90dvh] overflow-y-auto bg-[#141022] border border-purple-500/40 rounded-3xl p-5 shadow-2xl shadow-purple-950/60 animate-in fade-in zoom-in-95 duration-150"
+        className="w-80 max-h-[90dvh] overflow-y-auto bg-[#212121] border border-white/5 rounded-3xl p-5 animate-in fade-in zoom-in-95 duration-150"
         style={
           position
             ? {
@@ -62,33 +63,31 @@ export function ParticipantVolumePopup({
       >
         {!participant.isLocal && <FriendButton username={participant.identity} name={participant.name}/>}
         {/* Header do Card com Avatar do Usuário */}
-        <div className="flex items-center justify-between border-b border-purple-900/30 pb-3 mb-4">
+        <div className="flex items-center justify-between border-b border-neutral-900/30 pb-3 mb-4">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-full bg-gradient-to-br from-purple-600 to-indigo-600 flex items-center justify-center text-white font-black text-base shadow-md">
+            <div className="w-10 h-10 rounded-full bg-[#303030] flex items-center justify-center text-white font-semibold text-base shadow-md">
               {participant.name.charAt(0).toUpperCase()}
             </div>
             <div>
               <h3 className="font-bold text-white text-sm">{participant.name}</h3>
-              <p className="text-[11px] text-purple-300/60 font-medium">
+              <p className="text-[11px] text-neutral-300/60 font-medium">
                 {participant.isLocal ? 'Seu volume local' : 'Configuração de áudio'}
               </p>
             </div>
           </div>
           <button
             onClick={onClose}
-            className="w-7 h-7 rounded-full bg-purple-950/60 hover:bg-purple-900 text-purple-300 hover:text-white flex items-center justify-center text-xs transition"
-          >
-            ✕
-          </button>
+            className="w-7 h-7 rounded-full bg-neutral-950/60 hover:bg-neutral-900 text-neutral-300 hover:text-white flex items-center justify-center text-xs transition"
+          ><ControlIcon name="close"/></button>
         </div>
 
         {/* Controle Deslizante de Volume (0% a 200%) */}
         <div className="space-y-3">
-          <div className="flex items-center justify-between text-xs font-semibold text-purple-300">
+          <div className="flex items-center justify-between text-xs font-semibold text-neutral-300">
             <span className="flex items-center gap-1.5 uppercase tracking-wider text-[10px]">
-              {isMuted ? '🔇 Mudo' : volume > 100 ? '🔊 Alto' : volume < 50 ? '🔈 Baixo' : '🔉 Volume'}
+              <ControlIcon name="speaker" slashed={isMuted}/> {isMuted ? 'Mudo' : volume > 100 ? 'Alto' : volume < 50 ? 'Baixo' : 'Volume'}
             </span>
-            <span className="font-mono text-white text-sm font-bold bg-purple-950/60 border border-purple-800/40 px-2 py-0.5 rounded-lg">
+            <span className="font-mono text-white text-sm font-bold bg-neutral-950/60 border border-neutral-800/40 px-2 py-0.5 rounded-lg">
               {volume}%
             </span>
           </div>
@@ -101,7 +100,7 @@ export function ParticipantVolumePopup({
               step="1"
               value={volume}
               onChange={(e) => onVolumeChange(Number(e.target.value))}
-              className="w-full h-2 bg-[#0d0a17] rounded-lg appearance-none cursor-pointer accent-purple-500 border border-purple-900/50"
+              className="w-full h-2 bg-[#0c0c0c] rounded-lg appearance-none cursor-pointer accent-neutral-500 border border-neutral-900/50"
             />
           </div>
 
@@ -112,17 +111,17 @@ export function ParticipantVolumePopup({
               className={`py-1.5 rounded-xl text-xs font-medium border transition ${
                 isMuted
                   ? 'bg-red-600/30 border-red-500 text-red-200'
-                  : 'bg-purple-950/40 border-purple-900/40 text-purple-300 hover:bg-purple-900/50 hover:text-white'
+                  : 'bg-neutral-950/40 border-neutral-900/40 text-neutral-300 hover:bg-neutral-900/50 hover:text-white'
               }`}
             >
-              🔇 Silenciar
+              <ControlIcon name="speaker" slashed/> Silenciar
             </button>
             <button
               onClick={() => onVolumeChange(100)}
               className={`py-1.5 rounded-xl text-xs font-medium border transition ${
                 volume === 100
-                  ? 'bg-purple-600/30 border-purple-400 text-white'
-                  : 'bg-purple-950/40 border-purple-900/40 text-purple-300 hover:bg-purple-900/50 hover:text-white'
+                  ? 'bg-white/10 border-white/20 text-white'
+                  : 'bg-neutral-950/40 border-neutral-900/40 text-neutral-300 hover:bg-neutral-900/50 hover:text-white'
               }`}
             >
               100% Padrão
@@ -131,11 +130,11 @@ export function ParticipantVolumePopup({
               onClick={() => onVolumeChange(200)}
               className={`py-1.5 rounded-xl text-xs font-medium border transition ${
                 volume === 200
-                  ? 'bg-indigo-600/30 border-indigo-400 text-white'
-                  : 'bg-purple-950/40 border-purple-900/40 text-purple-300 hover:bg-purple-900/50 hover:text-white'
+                  ? 'bg-white/10 border-white/20 text-white'
+                  : 'bg-neutral-950/40 border-neutral-900/40 text-neutral-300 hover:bg-neutral-900/50 hover:text-white'
               }`}
             >
-              🚀 200% Max
+              200% máx.
             </button>
           </div>
         </div>
@@ -144,7 +143,7 @@ export function ParticipantVolumePopup({
         {!participant.isLocal && participant.isScreenShareEnabled && <StreamVolumeControl identity={participant.identity} name={participant.name}/>}
         <button
           onClick={onClose}
-          className="mt-5 w-full py-2 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white text-xs font-bold rounded-xl transition shadow-lg shadow-purple-950/40"
+          className="mt-5 w-full py-2 bg-white hover:bg-neutral-200 text-black! text-xs font-bold rounded-xl transition"
         >
           Salvar
         </button>
