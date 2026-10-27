@@ -8,6 +8,13 @@
 .ct-ai-model-picker select,.ct-ai-model-picker input{max-width:220px;min-width:95px;padding:4px 6px;font-size:11px}
 .ct-ai-model-picker button{border:0;background:transparent;color:inherit;cursor:pointer;font-size:16px}
 .ct-ai-model-picker small{flex-basis:100%}
+.ct-edit-dialog .ct-ai-enable,.ct-ai-enable{display:flex;align-items:center;gap:8px;font-size:12px}
+.ct-edit-dialog .ct-ai-enable input{width:auto;padding:0;accent-color:var(--ct-accent,#a779fb)}
+.ct-ai-credentials{display:grid;gap:8px;padding:10px;border:1px solid var(--ct-border,#ffffff20);border-radius:8px}
+.ct-ai-credentials p,.ct-ai-credentials small{margin:0;color:var(--ct-muted,#b5a6c7);font-size:11px}
+.ct-ai-credentials label{display:grid;gap:4px;font-size:11px}
+.ct-ai-credentials input,.ct-ai-credentials select{min-width:0;width:100%;padding:7px;background:var(--ct-settings-bg,#0d0c14);border:1px solid var(--ct-border,#44334e);border-radius:6px;color:inherit;font:inherit}
+.ct-ai-credentials button{justify-self:start}
 .ct-ai-run-bar{justify-content:space-between;border-top:1px solid var(--ct-border,#ffffff20)}
 .ct-ai-run-bar button{border:0;background:transparent;color:var(--accent,#b99aff);cursor:pointer}
 .ct-ai-response{display:grid;gap:7px;max-width:100%;overflow-wrap:anywhere}

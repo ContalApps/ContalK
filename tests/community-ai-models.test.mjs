@@ -61,3 +61,20 @@ test('a participant may override the channel default for one AI request',async t
   for(let n=0;n<100&&!seen.length;n++)await new Promise(resolve=>setTimeout(resolve,10))
   assert.deepEqual(seen,[{provider:'openai',model:'gpt-model'}])
 })
+
+test('a model-free AI channel routes each compatible protocol to its authorized endpoint',async t=>{
+  const token='t'.repeat(40),seen=[]
+  const provider={count:async args=>{seen.push([args.provider,args.endpoint,args.model]);return 10},summarize:async()=>({text:'',usage:{}}),generate:async()=>({text:'OK',usage:{input_tokens:10,output_tokens:1}})}
+  const service=createCommunityService({tokens:{[token]:'alice'},initialState:createCommunityState(['alice']),aiAllowedHosts:'api.example.test,other.example.test',aiProvider:provider})
+  service.server.listen(0,'127.0.0.1');await once(service.server,'listening')
+  t.after(async()=>{service.server.closeAllConnections();await new Promise(resolve=>service.server.close(resolve))})
+  const base='http://127.0.0.1:'+service.server.address().port
+  const call=async(route,body)=>{const response=await fetch(base+route,{method:'POST',headers:{Authorization:'Bearer '+token,'Content-Type':'application/json'},body:JSON.stringify(body)});return {status:response.status,body:await response.json()}}
+  assert.equal((await call('/servers/srv-1/commands',{revision:0,action:{type:'channel-create',id:'ai-room',name:'IA',channelType:'text',aiEnabled:true,aiEndpoints:{'compatible-chat':'https://api.example.test/v1','compatible-responses':'https://other.example.test/v1'}}})).status,200)
+  for(const [name,endpoint] of [['compatible-chat','https://api.example.test/v1'],['compatible-responses','https://other.example.test/v1']]){
+    const result=await call('/servers/srv-1/ai-runs',{channelId:'ai-room',text:'Olá',key:'personal-key',provider:name,model:'model-1',contextTokens:2048,maxOutputTokens:256,files:[]})
+    assert.equal(result.status,202)
+    for(let n=0;n<100&&!seen.some(item=>item[0]===name);n++)await new Promise(resolve=>setTimeout(resolve,10))
+    assert.ok(seen.some(item=>item[0]===name&&item[1]===endpoint&&item[2]==='model-1'))
+  }
+})

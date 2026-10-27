@@ -25,6 +25,35 @@ const provider={
 }
 const prompt=(channelId,files=[])=>({channelId,text:'Explique este projeto',key:'p'.repeat(40),contextTokens:8192,maxOutputTokens:2048,files})
 
+test('AI channels and private projects work without a channel model and require a model per request',async t=>{
+  const used=[]
+  const routed={...provider,count:async args=>{used.push([args.provider,args.model]);return 100}}
+  const f=await fixture(t,routed)
+  assert.equal((await f.command('alice',{type:'channel-create',id:'ai-room',name:'Desenvolvimento',channelType:'text',aiEnabled:true,aiEndpoints:{}})).status,200)
+  const channel=(await f.request('alice','/servers/srv-1')).data.channels.find(item=>item.id==='ai-room')
+  assert.equal(channel.aiEnabled,true);assert.equal(channel.aiModel,undefined)
+  assert.equal((await f.command('alice',{type:'project-create',id:'project-new',parentId:'ai-room',name:'Privado'})).status,200)
+  assert.equal(JSON.stringify((await f.request('bob','/servers/srv-1')).data).includes('project-new'),false)
+  assert.equal((await f.request('alice','/servers/srv-1/ai-runs',prompt('ai-room'))).status,400)
+  for(const [provider,model] of [['gemini','gemini-flash'],['anthropic','claude-model']]){
+    const result=await f.request('alice','/servers/srv-1/ai-runs',{...prompt('ai-room'),provider,model})
+    assert.equal(result.status,202)
+    await f.until(async()=>{const snapshot=(await f.request('alice','/servers/srv-1')).data;return snapshot.messages['ai-room']?.find(item=>item.ai?.id===result.data.runId&&item.ai.status==='completed')})
+  }
+  assert.deepEqual(used,[['gemini','gemini-flash'],['anthropic','claude-model']])
+  assert.equal((await f.command('alice',{type:'thread-create',id:'thread-ai',parentId:'ai-room',name:'Discussão',private:false,invitable:true,autoArchiveMinutes:1440})).status,200)
+  assert.equal((await f.request('alice','/servers/srv-1/ai-runs',{...prompt('thread-ai'),provider:'gemini',model:'gemini-flash'})).status,202)
+  assert.equal((await f.command('alice',{type:'ai-channel-settings',channelId:'ai-room',enabled:false,endpoints:{}})).status,200)
+  assert.equal((await f.request('alice','/servers/srv-1/ai-runs',{...prompt('ai-room'),provider:'gemini',model:'gemini-flash'})).status,409)
+})
+
+test('AI channel creation rejects unauthorized custom endpoints and voice channels',async t=>{
+  const f=await fixture(t,provider)
+  assert.equal((await f.command('alice',{type:'channel-create',id:'bad-ai',name:'IA',channelType:'text',aiEnabled:true,aiEndpoints:{'compatible-chat':'https://evil.example/v1'}})).status,400)
+  assert.equal((await f.command('alice',{type:'channel-create',id:'bad-voice',name:'Voz',channelType:'voice',aiEnabled:true})).status,400)
+  assert.equal((await f.request('alice','/servers/srv-1')).data.channels.some(item=>item.id==='bad-ai'),false)
+})
+
 test('HQ co-owners cannot see private AI projects; readers get complete history but cannot send or invoke',async t=>{
   const f=await fixture(t,provider)
   assert.equal((await f.command('alice',{type:'ai-channel-model',channelId:'ch-general',model:'model-alpha'})).status,200)

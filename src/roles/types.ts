@@ -30,6 +30,7 @@ export interface CommunitySnapshot {
 }
 export type CommunityAction =
   | {type:'ai-channel-model';channelId:string;model:string|null;endpoint?:string|null}
+  | {type:'ai-channel-settings';channelId:string;enabled:boolean;endpoints?:import('../store/useAppStore').Channel['aiEndpoints']}
   | {type:'project-create';id:string;parentId:string;name:string;model?:string;endpoint?:string|null}
   | {type:'project-member';id:string;member:string;access:import('./ai').ProjectAccess|null}
   | {type:'project-model';id:string;model:string|null;endpoint?:string|null}
@@ -61,7 +62,7 @@ export type CommunityAction =
   | {type:'thread-edit';id:string;patch:{name?:string;archived?:boolean;locked?:boolean;invitable?:boolean;autoArchiveMinutes?:number}}
   | {type:'thread-member';id:string;member:string;enabled:boolean}
   | {type:'thread-delete';id:string}
-  | {type:'channel-create';id:string;name:string;channelType:'text'|'voice'}
+  | {type:'channel-create';id:string;name:string;channelType:'text'|'voice';aiEnabled?:boolean;aiEndpoints?:import('../store/useAppStore').Channel['aiEndpoints']}
   | {type:'channel-rename';id:string;name:string}
   | {type:'channel-delete';id:string}
   | {type:'channel-slowmode';channel:string;seconds:number}

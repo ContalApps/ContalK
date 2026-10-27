@@ -1,13 +1,14 @@
 import {useEffect,useState} from 'react'
-import {aiProviderName,aiProviders,parseAiModel,type AiProviderId} from '../roles/ai'
+import {aiProviderName,aiProviders,type AiProviderId} from '../roles/ai'
+import type {Channel} from '../store/useAppStore'
 
-export function AiModelSelector({defaultModel,endpoint,provider,model,onChange}:{defaultModel:string;endpoint?:string;provider:AiProviderId;model:string;onChange:(provider:AiProviderId,model:string)=>void}){
+export function AiModelSelector({endpoints,provider,model,onChange}:{endpoints:NonNullable<Channel['aiEndpoints']>;provider:AiProviderId;model:string;onChange:(provider:AiProviderId,model:string)=>void}){
   const [models,setModels]=useState<Array<{id:string;name:string}>>([])
   const [loading,setLoading]=useState(false)
   const [error,setError]=useState('')
-  const defaultProvider=parseAiModel(defaultModel)?.provider||'openai'
   const custom=provider.startsWith('compatible-')
-  const availableProviders=aiProviders.filter(item=>!item.startsWith('compatible-')||item===defaultProvider)
+  const availableProviders=aiProviders.filter(item=>!item.startsWith('compatible-')||!!endpoints[item as 'compatible-chat'|'compatible-responses'])
+  const endpoint=provider==='compatible-chat'||provider==='compatible-responses'?endpoints[provider]:undefined
   useEffect(()=>{
     let live=true
     setModels([]);setError('');setLoading(true)

@@ -71,6 +71,12 @@ export function jsonCommunityStorage(filename) {
 export function createCommunityService({ tokens, storage, initialState, voice, files:externalFiles, localFiles, accounts=createAccounts(), internalToken, allowedOrigins = [], aiAllowedHosts=process.env.CONTALK_AI_ALLOWED_HOSTS||'', aiProvider=multiAiProvider() }) {
   const endpointHosts=new Set(String(aiAllowedHosts).split(',').map(value=>value.trim().toLowerCase()).filter(Boolean))
   const allowedAiEndpoint=value=>validAiEndpoint(value)&&endpointHosts.has(new URL(value).hostname.toLowerCase())
+  const checkedAiEndpoints=value=>{
+    if(value===undefined)return {}
+    requireValue(value&&typeof value==='object'&&!Array.isArray(value)&&Object.keys(value).every(key=>['compatible-chat','compatible-responses'].includes(key)),'Configuração de endpoints inválida.')
+    for(const endpoint of Object.values(value))requireValue(allowedAiEndpoint(endpoint),'O endpoint HTTPS precisa estar autorizado em CONTALK_AI_ALLOWED_HOSTS na VPS.',400)
+    return copy(value)
+  }
   const requireAiEndpoint=(model,endpoint)=>{
     const provider=parseAiModel(model)?.provider
     if(provider?.startsWith('compatible-'))requireValue(allowedAiEndpoint(endpoint),'O endpoint HTTPS precisa estar autorizado em CONTALK_AI_ALLOWED_HOSTS na VPS.',400)
@@ -105,7 +111,7 @@ export function createCommunityService({ tokens, storage, initialState, voice, f
     for(const channel of server.channels){requireValue(identifier(channel.id)&&!channelIds.has(channel.id)&&channel.serverId===server.id,'Os canais precisam de identificadores únicos.');channelIds.add(channel.id)}
     for(const channel of server.channels)requireValue(!channel.parentId||server.policy.threads?.[channel.id]?.parentId===channel.parentId||channel.project===true&&server.policy.projects?.[channel.id]?.parentId===channel.parentId,'Metadados do tópico ausentes.')
     for(const [id,thread]of Object.entries(server.policy.threads||{})){const channel=server.channels.find(channel=>channel.id===id),parent=server.channels.find(channel=>channel.id===thread.parentId);requireValue(channel?.parentId===thread.parentId&&parent?.type==='text'&&!parent.parentId&&identifier(thread.ownerId)&&Array.isArray(thread.members)&&thread.members.every(member=>identifier(member))&&threadDurations.includes(thread.autoArchiveMinutes)&&Number.isFinite(thread.lastActivityAt)&&['private','archived','locked','invitable'].every(key=>typeof thread[key]==='boolean'),'Dados de tópico inválidos.')}
-    for(const channel of server.channels)requireValue((!channel.aiModel||validAiModel(channel.aiModel))&&(!channel.aiEndpoint||validAiEndpoint(channel.aiEndpoint)),'Configuração de IA do canal inválida.')
+    for(const channel of server.channels)requireValue((channel.aiEnabled===undefined||typeof channel.aiEnabled==='boolean')&&(!channel.aiModel||validAiModel(channel.aiModel))&&(!channel.aiEndpoint||validAiEndpoint(channel.aiEndpoint))&&(!channel.aiEndpoints||typeof channel.aiEndpoints==='object'&&!Array.isArray(channel.aiEndpoints)&&Object.entries(channel.aiEndpoints).every(([key,url])=>['compatible-chat','compatible-responses'].includes(key)&&validAiEndpoint(url))),'Configuração de IA do canal inválida.')
     for(const [id,project]of Object.entries(server.policy.projects||{})){const channel=server.channels.find(channel=>channel.id===id),parent=server.channels.find(channel=>channel.id===project.parentId);requireValue(identifier(id)&&channel?.project===true&&channel.parentId===project.parentId&&parent?.type==='text'&&!parent.parentId&&identifier(project.ownerId)&&project.members?.[project.ownerId]==='manager'&&Object.entries(project.members).every(([member,access])=>identifier(member)&&['reader','collaborator','manager'].includes(access))&&(!project.model||validAiModel(project.model))&&(!project.endpoint||validAiEndpoint(project.endpoint)),'Dados de projeto inválidos.')}
     requireValue(!server.events||typeof server.events==='object'&&!Array.isArray(server.events),'Dados de eventos inválidos.')
     for(const [id,event]of Object.entries(server.events||{}))requireValue(identifier(id)&&event.id===id&&identifier(event.creator)&&['scheduled','active','completed','cancelled'].includes(event.status)&&typeof event.name==='string'&&event.name.length<=100&&typeof event.description==='string'&&typeof event.location==='string'&&Number.isSafeInteger(event.startsAt)&&(event.endsAt===null||Number.isSafeInteger(event.endsAt)&&event.endsAt>event.startsAt)&&(!event.channelId?event.endsAt!==null:server.channels.some(channel=>channel.id===event.channelId&&channel.type==='voice'))&&Array.isArray(event.interested)&&event.interested.every(member=>identifier(member)),'Dados de evento inválidos.')
@@ -227,14 +233,23 @@ export function createCommunityService({ tokens, storage, initialState, voice, f
           requireValue(channel,'Canal de texto principal não encontrado.',404);requirePermission(server,actor,'MANAGE_CHANNELS',channel.id)
           requireValue(action.model===null||validAiModel(action.model),'Escolha um identificador de modelo válido.')
           requireAiEndpoint(action.model,action.endpoint)
-          if(action.model===null){delete channel.aiModel;delete channel.aiEndpoint}else{channel.aiModel=action.model;if(action.endpoint)channel.aiEndpoint=action.endpoint;else delete channel.aiEndpoint}
+          if(action.model===null){channel.aiEnabled=false;delete channel.aiModel;delete channel.aiEndpoint}else{channel.aiEnabled=true;channel.aiModel=action.model;if(action.endpoint)channel.aiEndpoint=action.endpoint;else delete channel.aiEndpoint}
+          target=channel.id;event=action.type;break
+        }
+        case 'ai-channel-settings':{
+          const channel=server.channels.find(item=>item.id===action.channelId&&item.type==='text'&&!item.parentId)
+          requireValue(channel,'Canal de texto principal não encontrado.',404);requirePermission(server,actor,'MANAGE_CHANNELS',channel.id)
+          requireValue(typeof action.enabled==='boolean','Configuração de IA inválida.')
+          const endpoints=checkedAiEndpoints(action.endpoints)
+          channel.aiEnabled=action.enabled;channel.aiEndpoints=endpoints
+          if(!action.enabled){delete channel.aiModel;delete channel.aiEndpoint}
           target=channel.id;event=action.type;break
         }
         case 'project-create':{
           const parent=server.channels.find(item=>item.id===action.parentId&&item.type==='text'&&!item.parentId)
           requireValue(parent,'Canal de texto principal não encontrado.',404)
           requirePermission(server,actor,'VIEW_CHANNEL',parent.id);requirePermission(server,actor,'CREATE_PRIVATE_THREADS',parent.id)
-          requireValue(!!parent.aiModel,'Configure a IA do canal antes de criar um projeto.',409)
+          requireValue(parent.aiEnabled===true||!!parent.aiModel&&parent.aiEnabled!==false,'Ative a IA do canal antes de criar um projeto.',409)
           requireValue(identifier(action.id)&&!server.channels.some(item=>item.id===action.id)&&!server.deletedChannels?.includes(action.id),'Identificador de projeto inválido ou já utilizado.')
           requireValue(!action.model||validAiModel(action.model),'Modelo inválido.')
           if(action.model)requireAiEndpoint(action.model,action.endpoint)
@@ -509,7 +524,10 @@ export function createCommunityService({ tokens, storage, initialState, voice, f
           requirePermission(server, actor, 'MANAGE_CHANNELS')
           requireValue(identifier(action.id) && !Object.values(state.servers).some(item=>item.channels.some(channel=>channel.id===action.id)||item.deletedChannels?.includes(action.id)) && !policy.categories.some(category => category.id === action.id) && action.id !== id, 'Identificador de canal inválido ou já utilizado.')
           requireValue(['text', 'voice'].includes(action.channelType) && server.channels.filter(channel=>!channel.parentId).length+policy.categories.length < 500, 'Tipo ou limite de canais inválido.')
-          server.channels.push({ id: action.id, name: text(action.name, 60), type: action.channelType, serverId: id })
+          requireValue(action.aiEnabled===undefined||typeof action.aiEnabled==='boolean','Configuração de IA inválida.')
+          requireValue(action.channelType==='text'||!action.aiEnabled&&!action.aiEndpoints,'IA disponível apenas em canais de texto.')
+          const endpoints=checkedAiEndpoints(action.aiEndpoints)
+          server.channels.push({ id: action.id, name: text(action.name, 60), type: action.channelType, serverId: id,...(action.aiEnabled?{aiEnabled:true,aiEndpoints:endpoints}:{}) })
           target = action.id; event = action.type; break
         }
         case 'channel-rename': case 'channel-delete': {
@@ -774,15 +792,14 @@ export function createCommunityService({ tokens, storage, initialState, voice, f
       requirePermission(previous,actor,'VIEW_CHANNEL',channel.id);requirePermission(previous,actor,'SEND_MESSAGES',channel.id)
       const project=previous.policy.projects?.[channel.id]
       requireValue(!project||activeProject(project,previous.policy.members),'Projeto arquivado.',409)
-      const parent=previous.channels.find(item=>item.id===(project?.parentId||channel.id))
+      const parent=previous.channels.find(item=>item.id===(project?.parentId||channel.parentId||channel.id))
       const selected=project?.model||parent?.aiModel,parsed=parseAiModel(selected)
-      requireValue(parsed,'Configure um modelo de IA nesta conversa.',409)
-      const provider=body.provider||parsed.provider
+      requireValue(parent&&(parent.aiEnabled===true||!!parent.aiModel&&parent.aiEnabled!==false),'Ative a IA nesta conversa.',409)
+      const provider=body.provider||parsed?.provider
       requireValue(aiProviders.includes(provider),'Provedor de IA inválido.',400)
-      const model=body.model===undefined&&provider===parsed.provider?parsed.model:body.model
+      const model=body.model===undefined&&provider===parsed?.provider?parsed?.model:body.model
       requireValue(typeof model==='string'&&validAiModel(provider==='openai'?model:provider+'|'+model),'Selecione um modelo de IA válido.',400)
-      const endpoint=project?.model?project.endpoint:parent?.aiEndpoint
-      if(provider.startsWith('compatible-'))requireValue(provider===parsed.provider,'Esta API compatível não está configurada nesta conversa.',409)
+      const endpoint=parent.aiEndpoints?.[provider]||(provider===parsed?.provider?(project?.model?project.endpoint:parent.aiEndpoint):undefined)
       if(provider.startsWith('compatible-'))requireValue(allowedAiEndpoint(endpoint),'Endpoint de IA não autorizado pela VPS.',409)
       const runKey=aiKey(id,channel.id),waiting=activeAi.has(runKey)||(pendingAi.get(runKey)?.length||0)>0
       requireValue((pendingAi.get(runKey)?.length||0)<3,'A fila desta conversa está cheia. Aguarde uma resposta.',409)
