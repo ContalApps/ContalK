@@ -1,4 +1,10 @@
-# Retomada do ConTALK — entrega 0.1.20
+# Retomada do ConTALK
+
+## Validação do Gemini e preparação da 0.1.23
+
+Na versão 0.1.22, o usuário configurou o canal “Google IA” do servidor “ContalApps” com o modelo `gemini-3.8-flash`. Duas chamadas curtas terminaram como “A API de Gemini não concluiu o pedido.” O código da 0.1.22 agrupa códigos HTTP não previstos nessa mensagem; portanto, a causa exata ainda não foi confirmada. A revisão em `dev/caliari` adiciona duas tentativas com espera crescente para códigos transitórios e mostra o código HTTP em falhas persistentes, além de distinguir falta de créditos. Testes simulados, tipos e build passaram. Após PR, merge e publicação, confirme o deploy automático do serviço na VPS e peça ao usuário uma nova chamada no aplicativo; não afirme que a comunicação real foi corrigida sem esse teste. A chave pessoal permanece no armazenamento seguro do aplicativo e não deve ser pedida no chat.
+
+O usuário confirmou que o serviço está na VPS. A documentação histórica abaixo sobre implantação pendente refere-se à entrega 0.1.20 e não descreve a situação atual. Versão pública mais recente antes desta preparação: 0.1.22.
 
 ## Trabalho na branch dev/vg: tudo no servidor, do zero
 

@@ -1,7 +1,8 @@
-# ConTALK 0.1.22
+# ConTALK 0.1.23
 
-- Corrigido o áudio mudo nas chamadas: a voz dos outros participantes e o áudio da transmissão de tela não tocavam, embora o indicador de fala acendesse. Todos na chamada precisam atualizar para ouvir e ser ouvidos.
+- Melhorado o tratamento de falhas do Gemini: respostas HTTP temporárias são tentadas novamente até duas vezes, com intervalo crescente.
+- Erros persistentes agora mostram o código HTTP ou informam quando a API exige pagamento ou créditos, sem mostrar nem registrar a chave pessoal.
 
-Quem vem de uma versão anterior à 0.1.21: a 0.1.21 começou uma base nova no servidor, então é preciso criar a conta de novo no aplicativo.
+O ajuste precisa da mesma revisão do serviço da comunidade na VPS. Depois da atualização, uma nova chamada no canal de IA confirmará se o problema era transitório ou mostrará a causa que o provedor retornou. Não houve acesso à chave pessoal nem teste pago real durante a preparação desta versão.
 
-Validação: tipos, testes e build, e um teste de áudio WebRTC no motor do Chromium (sem a correção a saída ficava em silêncio; com ela, o som chega). A chamada entre duas pessoas reais ainda não foi testada nesta entrega.
+Validação local: tipos, 294 testes e build. O teste de Gemini simula uma falha temporária seguida de sucesso, uma falha persistente e falta de créditos. Não houve chamada real à API nesta entrega.
