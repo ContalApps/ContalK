@@ -16,7 +16,7 @@ Conta nova não pertence a nenhum servidor. O botão "+" da lateral abre "Criar 
 
 ## Dados e implantação
 
-O serviço grava tudo em `contalk-v2/` dentro de `CONTALK_COMMUNITY_DATA` (`/app/data` no container): `accounts.json`, `community.json` e `files/`. Os dados de versões anteriores ficam intactos na pasta de cima, só como backup; apagá-los é uma decisão manual. `CONTALK_COMMUNITY_TOKENS`, `CONTALK_COMMUNITY_INTERNAL_TOKEN` e `CONTALK_COMMUNITY_STORAGE_URL` não são mais lidos.
+O serviço grava tudo em `contalk-v2/` dentro de `CONTALK_COMMUNITY_DATA` (`/app/data` no container): `accounts.json`, `community.json` e `files/`. Não há dados de versões anteriores na VPS: o volume, conferido em 26/10/2026, só tinha `contalk-v2/`, porque o serviço antigo nunca chegou a gravar dados. `CONTALK_COMMUNITY_TOKENS`, `CONTALK_COMMUNITY_INTERNAL_TOKEN` e `CONTALK_COMMUNITY_STORAGE_URL` não são mais lidos.
 
 No Coolify, o app da comunidade usa `deploy/community/compose.coolify.yml` da `main` com deploy automático: um merge na `main` atualiza a VPS.
 
