@@ -15,6 +15,8 @@ export interface Channel {
   serverId: string
   parentId?:string
   project?:boolean
+  aiEnabled?:boolean
+  aiEndpoints?:Partial<Record<'compatible-responses'|'compatible-chat',string>>
   aiModel?:string
   aiEndpoint?:string
   slowmodeSeconds?:number

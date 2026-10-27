@@ -1,4 +1,22 @@
-# Retomada do ConTALK — entrega 0.1.20
+# Retomada do ConTALK
+
+## Canais com IA sem modelo fixo
+
+Em dev/caliari, a criação de canais de texto permite ativar IA e cadastrar várias chaves pessoais, consultando os modelos. O canal guarda apenas a ativação e os endpoints compatíveis autorizados; cada solicitação escolhe seu provedor e modelo no compositor. Projetos privados funcionam sem modelo padrão e a configuração anterior continua legível. Não há execução de ferramentas ou comandos locais nesta entrega. A revisão precisa de PR, release e deploy da VPS para alcançar os usuários.
+
+## Seleção de modelos por conversa em dev/caliari
+
+O usuário confirmou que `gemini-3.6-flash` respondeu no aplicativo. Pediu que o ConTALK consulte os modelos diretamente com a chave pessoal configurada e permita selecionar o modelo no compositor a qualquer momento. A implementação local ainda sem PR/merge consulta as listas oficiais de OpenAI, Anthropic, Gemini e xAI, além de `/models` em endpoints compatíveis autorizados pela VPS. O compositor exige a escolha pessoal em cada conversa e envia o modelo selecionado em cada execução; respostas e tentativas novamente mantêm o modelo usado. APIs compatíveis sem lista oferecem entrada manual. A listagem não assegura autorização para inferência. Chaves continuam no armazenamento seguro do Electron e passam pela VPS apenas na consulta ou execução autenticada, sem persistência. Foram adicionados testes para listas, autenticação, allowlist e troca de modelo. Validar `npm run verify` e `npm run build` novamente antes de eventual PR; publicar uma nova release estável se o usuário pedir PR/merge. A revisão do serviço precisa estar implantada para a consulta funcionar na versão distribuída. Preservar `native/audio-capture/main.cpp` e `Sistema de Cargos.docx` locais.
+
+## Após a 0.1.23: chamada Gemini pendente
+
+O usuário atualizou para 0.1.23. Uma chamada no canal “Google IA” ficou em “A IA está respondendo…”; ao interrompê-la, outra mensagem mostrou “Pedido na fila…”. A revisão publicada não impõe tempo limite à contagem, ao resumo ou ao streaming do Gemini. A correção em `dev/caliari` limita cada etapa a três minutos, identifica qual etapa expirou e garante que uma chamada parada ou interrompida libere a próxima da fila. Testes de integração reproduzem uma contagem pendente e verificam falha, cancelamento e avanço da fila. O usuário confirmou que `gemini-3.6-flash` respondeu no aplicativo; a causa do comportamento com `gemini-3.8-flash` segue sem confirmação. Não atribuir causa definitiva à API, à rede da VPS ou à chave sem essa evidência. A correção ainda não foi integrada nem publicada.
+
+## Validação do Gemini e preparação da 0.1.23
+
+Na versão 0.1.22, o usuário configurou o canal “Google IA” do servidor “ContalApps” com o modelo `gemini-3.8-flash`. Duas chamadas curtas terminaram como “A API de Gemini não concluiu o pedido.” O código da 0.1.22 agrupa códigos HTTP não previstos nessa mensagem; portanto, a causa exata ainda não foi confirmada. A revisão em `dev/caliari` adiciona duas tentativas com espera crescente para códigos transitórios e mostra o código HTTP em falhas persistentes, além de distinguir falta de créditos. Testes simulados, tipos e build passaram. Após PR, merge e publicação, confirme o deploy automático do serviço na VPS e peça ao usuário uma nova chamada no aplicativo; não afirme que a comunicação real foi corrigida sem esse teste. A chave pessoal permanece no armazenamento seguro do aplicativo e não deve ser pedida no chat.
+
+O usuário confirmou que o serviço está na VPS. A documentação histórica abaixo sobre implantação pendente refere-se à entrega 0.1.20 e não descreve a situação atual. Versão pública mais recente antes desta preparação: 0.1.22.
 
 ## Trabalho na branch dev/vg: tudo no servidor, do zero
 

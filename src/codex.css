@@ -327,6 +327,9 @@ body { background:#000; color:#ededed; font-family:'Segoe UI',system-ui,sans-ser
   &.ct-auth button[type=button]:hover { color:var(--cx-fg)!important; }
 
   .ct-avatar { background:#303030; color:var(--cx-fg); border:0; box-shadow:none; font-weight:500; }
+  .ct-ai-model-picker select, .ct-ai-model-picker input, .ct-ai-credentials input, .ct-ai-credentials select { background:var(--cx-field); border:1px solid var(--cx-field-border); border-radius:var(--cx-radius); color:var(--cx-fg); padding:6px 10px; }
+  .ct-ai-toggle, .ct-ai-limits, .ct-ai-model-picker { color:var(--cx-fg-3); }
+  .ct-ai-run-bar { color:var(--cx-fg-3); padding-inline:max(16px,calc((100% - 760px) / 2)); }
 
   /* páginas de amigos e mensagens diretas */
   .ct-people-page { width:min(760px,100%); margin:0 auto; padding:40px 24px; overflow:auto; }

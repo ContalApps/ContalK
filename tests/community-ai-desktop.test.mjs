@@ -19,9 +19,9 @@ test('renderer bridge forwards personal limits and the queued run selected for c
     },
   })
   const limits={contextTokens:4096,maxOutputTokens:512}
-  await bridge.communityAiStart('srv-1','project-1','Explique',[],limits,'anthropic')
+  await bridge.communityAiStart('srv-1','project-1','Explique',[],limits,'anthropic','claude-model')
   await bridge.communityAiStop('srv-1','project-1','run-2')
-  assert.deepEqual(calls[0],['community-ai-start','srv-1','project-1','Explique',[],limits,'anthropic'])
+  assert.deepEqual(calls[0],['community-ai-start','srv-1','project-1','Explique',[],limits,'anthropic','claude-model'])
   assert.deepEqual(calls[1],['community-ai-stop','srv-1','project-1','run-2'])
 })
 
