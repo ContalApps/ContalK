@@ -23,6 +23,7 @@ export class Track {
   private context?: AudioContext
   private gain?: GainNode
   private output?: MediaStream
+  private sink?: HTMLAudioElement
   private volume = 1
   isMuted = false
   onMute?: (muted: boolean) => Promise<void>
@@ -37,6 +38,8 @@ export class Track {
         const destination = this.context.createMediaStreamDestination()
         this.context.createMediaStreamSource(stream).connect(this.gain).connect(destination)
         this.output = destination.stream; this.gain.gain.value = this.volume
+        // Chromium feeds a remote WebRTC track into Web Audio only while a media element also plays it; without this the gain output is silent.
+        this.sink = new Audio(); this.sink.muted = true; this.sink.srcObject = stream; void this.sink.play().catch(() => {})
       }
       stream = this.output!; void this.context.resume()
     }
@@ -48,7 +51,7 @@ export class Track {
   setVolume(volume: number) { this.volume = Math.max(0,Math.min(2,volume)); if (this.gain) this.gain.gain.value = this.volume }
   async mute() { this.isMuted = true; this.mediaStreamTrack.enabled = false; await this.onMute?.(true) }
   async unmute() { await this.onMute?.(false); this.isMuted = false; this.mediaStreamTrack.enabled = true }
-  stop() { this.detach().forEach(element => element.remove()); this.mediaStreamTrack.stop(); void this.context?.close(); this.context = undefined }
+  stop() { this.detach().forEach(element => element.remove()); this.mediaStreamTrack.stop(); if (this.sink) this.sink.srcObject = null; this.sink = undefined; void this.context?.close(); this.context = undefined }
 }
 export type RemoteTrack = Track
 type Publication = { source: string; track: Track; audioTrack?: Track; isMuted: boolean; producerId: string; options?: any }
