@@ -9,7 +9,7 @@ import { RoleName } from './RoleName'
 
 function voiceName(person:VoiceParticipant){return person.serverNickname||person.name}
 
-function VideoTrackView({
+export function VideoTrackView({
   track,
   className = 'w-full h-full object-cover',
   onReady,

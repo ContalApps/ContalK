@@ -13,6 +13,8 @@ import { setupPushToTalk } from './push-to-talk'
 import { setupNotifications } from './notifications'
 import { readCommunityConfig, setupCommunity, signInCommunity, signOutCommunity, signUpCommunity } from './community'
 import { setupCaptureAudio } from './capture-audio'
+import { setupTerminal } from './terminal'
+import { setupAppMenu } from './app-menu'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 
@@ -116,7 +118,7 @@ function createWindow() {
     height: 820,
     minWidth: 940,
     minHeight: 600,
-    backgroundColor: '#0c0a14',
+    backgroundColor: '#000000',
     icon: fs.existsSync(iconPath) ? iconPath : undefined,
     autoHideMenuBar: true,
     ...titleBarOptions,
@@ -138,6 +140,8 @@ function createWindow() {
   setupCaptureAudio(win)
   setupPushToTalk(win)
   setupSpeech(win)
+  const terminals = setupTerminal(win)
+  setupAppMenu(win, terminals.killAll)
 
   // Test active push message to Renderer_process.
   win.webContents.on('did-finish-load', () => {

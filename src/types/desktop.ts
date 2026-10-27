@@ -47,6 +47,16 @@ export interface DesktopBridge {
   listAccounts: () => Promise<import('../store/useAuthStore').User[]>
   updateProfile: (profile: {display_name: string; bio: string; avatar: string}) => Promise<import('../store/useAuthStore').User>
   logout: () => Promise<void>
+  quitApp:()=>Promise<void>
+  editCommand:(command:'undo'|'redo'|'cut'|'copy'|'paste'|'delete'|'selectAll')=>Promise<void>
+  toggleFullScreen:()=>Promise<boolean>
+  openFolder:()=>Promise<string|null>
+  terminalCreate:(cwd:string|null,cols:number,rows:number)=>Promise<{id:string;shell:string;cwd:string}>
+  terminalInput:(id:string,data:string)=>void
+  terminalResize:(id:string,cols:number,rows:number)=>void
+  terminalKill:(id:string)=>Promise<void>
+  onTerminalData:(listener:(event:{id:string;data:string})=>void)=>()=>void
+  onTerminalExit:(listener:(event:{id:string;code:number})=>void)=>()=>void
   readSelectedStorageAudio:(id:string)=>Promise<string>
   readStorageAudio:(id:string)=>Promise<string>
   uploadInlineAttachment:(attachment:import('../store/useAppStore').Attachment)=>Promise<import('../store/useAppStore').Attachment>
