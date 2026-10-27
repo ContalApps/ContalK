@@ -4,6 +4,7 @@ import {once} from 'node:events'
 import {createCommunityService,createCommunityState} from '../scripts/community/service.mjs'
 import {can} from '../src/roles/permissions.ts'
 import {openAiProvider,validateAiFiles} from '../scripts/community/ai.mjs'
+import {geminiProvider} from '../scripts/community/ai-providers.mjs'
 import {zipSync} from 'fflate'
 
 const keys={alice:'a'.repeat(40),bob:'b'.repeat(40),carol:'c'.repeat(40)}
@@ -23,6 +24,35 @@ const provider={
   generate:async({onDelta,signal})=>{if(signal.aborted)throw Error('aborted');onDelta('Resposta ');await new Promise(resolve=>setTimeout(resolve,20));if(signal.aborted)throw Error('aborted');onDelta('compartilhada');return {text:'Resposta compartilhada',usage:{input_tokens:11,output_tokens:7}}},
 }
 const prompt=(channelId,files=[])=>({channelId,text:'Explique este projeto',key:'p'.repeat(40),contextTokens:8192,maxOutputTokens:2048,files})
+
+test('AI channels and private projects work without a channel model and require a model per request',async t=>{
+  const used=[]
+  const routed={...provider,count:async args=>{used.push([args.provider,args.model]);return 100}}
+  const f=await fixture(t,routed)
+  assert.equal((await f.command('alice',{type:'channel-create',id:'ai-room',name:'Desenvolvimento',channelType:'text',aiEnabled:true,aiEndpoints:{}})).status,200)
+  const channel=(await f.request('alice','/servers/srv-1')).data.channels.find(item=>item.id==='ai-room')
+  assert.equal(channel.aiEnabled,true);assert.equal(channel.aiModel,undefined)
+  assert.equal((await f.command('alice',{type:'project-create',id:'project-new',parentId:'ai-room',name:'Privado'})).status,200)
+  assert.equal(JSON.stringify((await f.request('bob','/servers/srv-1')).data).includes('project-new'),false)
+  assert.equal((await f.request('alice','/servers/srv-1/ai-runs',prompt('ai-room'))).status,400)
+  for(const [provider,model] of [['gemini','gemini-flash'],['anthropic','claude-model']]){
+    const result=await f.request('alice','/servers/srv-1/ai-runs',{...prompt('ai-room'),provider,model})
+    assert.equal(result.status,202)
+    await f.until(async()=>{const snapshot=(await f.request('alice','/servers/srv-1')).data;return snapshot.messages['ai-room']?.find(item=>item.ai?.id===result.data.runId&&item.ai.status==='completed')})
+  }
+  assert.deepEqual(used,[['gemini','gemini-flash'],['anthropic','claude-model']])
+  assert.equal((await f.command('alice',{type:'thread-create',id:'thread-ai',parentId:'ai-room',name:'Discussão',private:false,invitable:true,autoArchiveMinutes:1440})).status,200)
+  assert.equal((await f.request('alice','/servers/srv-1/ai-runs',{...prompt('thread-ai'),provider:'gemini',model:'gemini-flash'})).status,202)
+  assert.equal((await f.command('alice',{type:'ai-channel-settings',channelId:'ai-room',enabled:false,endpoints:{}})).status,200)
+  assert.equal((await f.request('alice','/servers/srv-1/ai-runs',{...prompt('ai-room'),provider:'gemini',model:'gemini-flash'})).status,409)
+})
+
+test('AI channel creation rejects unauthorized custom endpoints and voice channels',async t=>{
+  const f=await fixture(t,provider)
+  assert.equal((await f.command('alice',{type:'channel-create',id:'bad-ai',name:'IA',channelType:'text',aiEnabled:true,aiEndpoints:{'compatible-chat':'https://evil.example/v1'}})).status,400)
+  assert.equal((await f.command('alice',{type:'channel-create',id:'bad-voice',name:'Voz',channelType:'voice',aiEnabled:true})).status,400)
+  assert.equal((await f.request('alice','/servers/srv-1')).data.channels.some(item=>item.id==='bad-ai'),false)
+})
 
 test('HQ co-owners cannot see private AI projects; readers get complete history but cannot send or invoke',async t=>{
   const f=await fixture(t,provider)
@@ -174,6 +204,45 @@ test('multiple requests wait in one conversation and execute in submission order
   assert.equal(started,2)
   const earlier=(await f.request('alice','/servers/srv-1')).data.messages['ch-general'].find(item=>item.ai?.id===first.data.runId)
   assert.equal(earlier.ai.status,'completed')
+})
+
+test('a stalled Gemini request fails and releases the next queued request',async t=>{
+  let counts=0
+  const gemini=geminiProvider({deadlineMs:150,fetcher:async url=>{
+    if(String(url).includes(':countTokens'))return ++counts===1?new Promise(()=>{}):Response.json({totalTokens:10})
+    return new Response('data: '+JSON.stringify({candidates:[{content:{parts:[{text:'Resposta seguinte'}]},finishReason:'STOP'}],usageMetadata:{promptTokenCount:10,candidatesTokenCount:2}})+'\n\n',{status:200})
+  }})
+  const f=await fixture(t,gemini)
+  await f.command('alice',{type:'ai-channel-model',channelId:'ch-general',model:'gemini|model-alpha'})
+  const body={...prompt('ch-general'),provider:'gemini'}
+  const first=await f.request('alice','/servers/srv-1/ai-runs',body)
+  const second=await f.request('bob','/servers/srv-1/ai-runs',body)
+  assert.equal(first.status,202)
+  assert.equal(second.status,202)
+  assert.equal(second.data.queued,true)
+  const failed=await f.until(async()=>{const snapshot=(await f.request('alice','/servers/srv-1')).data;return snapshot.messages['ch-general']?.find(message=>message.ai?.id===first.data.runId&&message.ai.status==='failed')})
+  assert.match(failed.ai.error,/tempo limite durante a contagem de tokens/)
+  const completed=await f.until(async()=>{const snapshot=(await f.request('bob','/servers/srv-1')).data;return snapshot.messages['ch-general']?.find(message=>message.ai?.id===second.data.runId&&message.ai.status==='completed')})
+  assert.equal(completed.content,'Resposta seguinte')
+})
+
+test('interrupting stalled Gemini counting cancels it and starts the next queued request',async t=>{
+  let counts=0
+  const gemini=geminiProvider({deadlineMs:1000,fetcher:async url=>{
+    if(String(url).includes(':countTokens'))return ++counts===1?new Promise(()=>{}):Response.json({totalTokens:10})
+    return new Response('data: '+JSON.stringify({candidates:[{content:{parts:[{text:'Fila liberada'}]},finishReason:'STOP'}],usageMetadata:{promptTokenCount:10,candidatesTokenCount:2}})+'\n\n',{status:200})
+  }})
+  const f=await fixture(t,gemini)
+  await f.command('alice',{type:'ai-channel-model',channelId:'ch-general',model:'gemini|model-alpha'})
+  const body={...prompt('ch-general'),provider:'gemini'}
+  const first=await f.request('alice','/servers/srv-1/ai-runs',body)
+  const second=await f.request('bob','/servers/srv-1/ai-runs',body)
+  assert.equal(second.data.queued,true)
+  assert.equal((await f.request('alice','/servers/srv-1/ai-runs/ch-general/stop',{})).status,200)
+  const cancelled=await f.until(async()=>{const snapshot=(await f.request('alice','/servers/srv-1')).data;return snapshot.messages['ch-general']?.find(message=>message.ai?.id===first.data.runId&&message.ai.status==='cancelled')})
+  assert.match(cancelled.ai.error,/interrompida/)
+  const completed=await f.until(async()=>{const snapshot=(await f.request('bob','/servers/srv-1')).data;return snapshot.messages['ch-general']?.find(message=>message.ai?.id===second.data.runId&&message.ai.status==='completed')})
+  assert.equal(completed.content,'Fila liberada')
 })
 
 test('provider counts input and streams across CRLF chunk boundaries without storing state',async()=>{
