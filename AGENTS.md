@@ -23,6 +23,7 @@ A regra vale também para PRs de preparação de release: eles integram a mesma 
 
 - Manter a interface leve e minimalista, com espaços moderados, ícones SVG discretos e botões compactos. Usar texto acessível em aria-label/title nos controles por ícone.
 - Concentrar microfone, saída de áudio, câmera, compartilhamento e desconexão no card do usuário no canto inferior esquerdo; não recriar barras grandes de controles no palco de voz.
+- Layout de referência (decisão do VG, 27/10/2026): estrutura do app Codex — barra de título com voltar/avançar, barra lateral e menus Arquivo/Editar/Exibir; sidebar; painel inferior com terminal; painel direito com a chamada ativa, compartilhamentos de tela e participantes. Os controles compactos da chamada também ficam no card da chamada do painel direito. Plano por fases em `docs/codex-shell.md`.
 - Canais exibem uma engrenagem para abrir configurações, inclusive pelo menu de contexto. Renomeação e exclusão ficam nesse painel; exclusão sempre requer confirmação separada, sem lixeira de acesso direto na lista.
 - No ConTALK HQ, por decisão explícita do usuário, todos os participantes são coproprietários nesta fase. O sistema de cargos deve conservar essa política inicial; não selecionar um proprietário exclusivo automaticamente. Não apresentar cargos ou permissões individuais como disponíveis antes de implementá-los de fato.
 

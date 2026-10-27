@@ -1,4 +1,4 @@
-:root{--ct-titlebar-height:36px}
+:root{--ct-titlebar-height:44px}
 .ct-topbar.ct-titlebar{height:var(--ct-titlebar-height);min-height:var(--ct-titlebar-height);flex-shrink:0;width:100%;padding:0;gap:0;position:relative;z-index:40;background:#0c0c0c;border-bottom:1px solid #ffffff0d;color:#bebebe;-webkit-app-region:drag;user-select:none}
 .ct-titlebar[data-theme=vice-city]{background:#172b26;color:#eee4cb}
 .ct-titlebar-safe{display:grid;grid-template-columns:minmax(70px,1fr) minmax(0,2fr) minmax(140px,1fr);align-items:center;height:100%;box-sizing:border-box;margin-left:env(titlebar-area-x,0px);width:env(titlebar-area-width,calc(100% - 138px));padding:0 8px;gap:12px}

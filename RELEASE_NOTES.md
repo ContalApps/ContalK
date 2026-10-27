@@ -1,10 +1,13 @@
-# ConTALK 0.1.25
+# ConTALK 0.1.26
 
-- Interface redesenhada no estilo do Codex: fundo preto neutro, sem tons de roxo, bordas finas, cantos arredondados e botões em pílula.
-- Ícones novos e consistentes em todo o aplicativo (família Lucide), no lugar de símbolos de texto e emojis.
-- Nova tela inicial: saudação de acordo com a hora do dia (bom dia, boa tarde, boa noite), atalhos para conversar, entrar em voz e ver amigos, cards dos canais de voz com quem está na sala, conversas recentes e suas comunidades.
-- Login, amigos, mensagens diretas, canais, configurações, perfil, menus, diálogos, palco de voz e compartilhamento de tela seguem o novo visual, incluindo a escolha de provedor e modelo de IA da 0.1.24.
-- A lista de membros aparece só dentro dos servidores e se recolhe em janelas estreitas.
-- O tema Vice City continua disponível em Configurações → Aparência.
+Primeira fase da estrutura no estilo do Codex.
 
-Validação: tipos, testes e build, e revisão visual das telas principais no navegador com dados simulados. As telas que dependem da comunidade conectada (cargos, eventos, palco) e o aplicativo instalado ainda não foram revisados com dados reais.
+- Nova barra de título com voltar e avançar, botão da barra lateral e os menus Arquivo, Editar e Exibir. No centro fica a busca (Ctrl+K); à direita, o sino, o painel direito e o seu perfil.
+- Arquivo: nova conversa, abrir pasta, sair da conta (apenas desconecta) e encerrar o ConTALK (fecha o aplicativo e todos os seus processos). Nova janela, conversa temporária e novo projeto aparecem como "em breve".
+- Editar: desfazer, refazer, recortar, copiar, colar, excluir, selecionar tudo e configurações.
+- Exibir: barra lateral (Ctrl+B), terminal (Ctrl+J), painel direito (Ctrl+Alt+B), barra de servidores, mensagens fixadas do canal, zoom e tela cheia (F11).
+- Terminal integrado no painel inferior: PowerShell no seu computador, aberto na pasta escolhida em "Abrir pasta", com várias abas e altura ajustável. Nada do terminal é enviado ao servidor.
+- Painel direito com a chamada de voz ativa (microfone, áudio, câmera, tela e sair), quem está falando, miniaturas ao vivo das telas compartilhadas e os participantes.
+- Na barra lateral, as seções Canais e Chamadas podem ser recolhidas, e o card da chamada mostra quantas pessoas estão nela e o tempo de chamada.
+
+Validação: tipos, testes e build; terminal, menus, tela cheia e encerramento testados no aplicativo desktop, inclusive no pacote gerado do instalador. A janela de "Abrir pasta" e o uso com uma conta conectada à comunidade não foram testados por automação.
