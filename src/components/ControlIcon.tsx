@@ -1,4 +1,20 @@
-export function ControlIcon({name,slashed=false}:{name:'mic'|'audio'|'camera'|'screen'|'disconnect'|'settings'|'chevron'|'signal'|'pin'|'react'|'delete'|'poll'|'thread'|'event'|'priority'|'speaker';slashed?:boolean}) {
-  const paths={speaker:'M3 9v6h4l5 4V5L7 9H3M16 8a6 6 0 0 1 0 8M19 5a10 10 0 0 1 0 14',priority:'M4 9v6h4l5 4V5L8 9H4M16 8l3 4-3 4',event:'M4 5h16v16H4zM4 10h16M8 3v4M16 3v4M8 14h3M8 17h6',thread:'M5 3v12a4 4 0 0 0 4 4h12M11 5h10v8H11zM15 13v3l3-3',poll:'M4 4h16v16H4zM8 16v-4M12 16V8M16 16v-6',delete:'M3 6h18M9 6V3h6v3M5 6l1 15h12l1-15M10 10v7M14 10v7',pin:'M16 3H8v6l-3 3v2h14v-2l-3-3V3M12 14v7',react:'M21 12a9 9 0 1 1-9-9M8 14c2 3 6 3 8 0M8 9h.01M16 9h.01M19 2v6M16 5h6',mic:'M9 5a3 3 0 0 1 6 0v7a3 3 0 0 1-6 0ZM5 10v2a7 7 0 0 0 14 0v-2M12 19v3M8 22h8',audio:'M3 14v-3a9 9 0 0 1 18 0v3M3 13h4v8H3zM17 13h4v8h-4z',camera:'M15 8l6-4v16l-6-4M3 6h12v12H3z',screen:'M3 4h18v13H3zM8 21h8M12 17v4',disconnect:'M3 13c5-5 13-5 18 0l-2 4-4-2v-3M9 12v3l-4 2-2-4',settings:'M12 8a4 4 0 1 1 0 8 4 4 0 0 1 0-8M9 3h6l1 3 3 1 2 5-2 5-3 1-1 3H9l-1-3-3-1-2-5 2-5 3-1z',chevron:'m7 10 5 5 5-5',signal:'M4 17v3M9 12v8M14 7v13M19 3v17'}
-  return <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d={paths[name]}/>{slashed&&<path d="m3 3 18 18"/>}</svg>
+import { ArrowDown, Palette, User, Info, ArrowLeft, ArrowRight, ArrowUp, ArrowUpRight, AudioLines, Bell, Calendar, ChartNoAxesColumn, Check, ChevronDown, ChevronRight, CircleHelp, Ellipsis, Hash, HeadphoneOff, Headphones, House, Image, Maximize2, MessageCircle, MessagesSquare, Mic, MicOff, Minimize2, Monitor, MonitorUp, Paperclip, PanelLeft, Pencil, PhoneOff, Pin, Plus, RefreshCw, Rocket, Search, Settings, Signal, Sparkles, SmilePlus, SquarePen, Trash2, TriangleAlert, Users, Video, VideoOff, Volume2, VolumeX, X, Megaphone, Download, type LucideIcon } from 'lucide-react'
+
+// Mesma família de ícones (Lucide, traço arredondado) usada no app Codex.
+const icons = {
+  mic: [Mic, MicOff], audio: [Headphones, HeadphoneOff], camera: [Video, VideoOff], screen: [MonitorUp, Monitor], disconnect: [PhoneOff],
+  settings: [Settings], chevron: [ChevronDown], 'chevron-right': [ChevronRight], signal: [Signal], pin: [Pin], react: [SmilePlus], delete: [Trash2],
+  poll: [ChartNoAxesColumn], thread: [MessagesSquare], event: [Calendar], priority: [Megaphone], speaker: [Volume2, VolumeX],
+  home: [House], chat: [MessageCircle], friends: [Users], search: [Search], voice: [AudioLines], arrow: [ArrowUpRight], close: [X],
+  send: [ArrowUp], hash: [Hash], plus: [Plus], back: [ArrowLeft], forward: [ArrowRight], help: [CircleHelp], bell: [Bell], check: [Check],
+  ai: [Sparkles], compose: [SquarePen], sidebar: [PanelLeft], expand: [Maximize2], shrink: [Minimize2], refresh: [RefreshCw], warning: [TriangleAlert],
+  rocket: [Rocket], up: [ArrowUp], down: [ArrowDown], palette: [Palette], user: [User], info: [Info], ear: [AudioLines], more: [Ellipsis], attach: [Paperclip], image: [Image], edit: [Pencil], download: [Download],
+} satisfies Record<string, LucideIcon[]>
+
+export type ControlIconName = keyof typeof icons
+
+export function ControlIcon({name,slashed=false,size=16}:{name:ControlIconName;slashed?:boolean;size?:number}) {
+  const [Icon, Off] = icons[name] as [LucideIcon, LucideIcon?]
+  const Glyph = slashed && Off ? Off : Icon
+  return <Glyph size={size} strokeWidth={1.8} aria-hidden="true" className="ct-glyph"/>
 }

@@ -84,7 +84,7 @@ interface AppState {
   addMessage: (channelId: string, content: string, user: { username: string; display_name: string }, attachment?: Attachment, options?: MessageOptions) => void
 }
 
-const COLORS = ['#5865F2', '#57F287', '#FEE75C', '#EB459E', '#ED4245', '#9B59B6', '#3498DB', '#E67E22']
+const COLORS = ['#757575', '#57F287', '#FEE75C', '#878787', '#ED4245', '#747474', '#919191', '#E67E22']
 
 function getColorForUser(name: string): string {
   let hash = 0

@@ -69,7 +69,7 @@ function ScreenShareViewer({
       {/* Top Header Overlay */}
       <div className="ct-share-header">
         <div className="ct-share-label">
-          <span className="flex items-center gap-1.5 bg-red-600 text-white text-[10px] font-black uppercase tracking-wider px-2 py-0.5 rounded-md shadow">
+          <span className="flex items-center gap-1.5 bg-red-600 text-white text-[10px] font-semibold uppercase tracking-wider px-2 py-0.5 rounded-md shadow">
             <span className="w-1.5 h-1.5 rounded-full bg-white animate-pulse" />
             AO VIVO
           </span>
@@ -86,7 +86,7 @@ function ScreenShareViewer({
                 e.stopPropagation()
                 onMinimize()
               }}
-              className="bg-black/80 hover:bg-black text-purple-200 px-3 py-1 rounded-xl border border-purple-500/30 text-xs font-semibold transition shadow-md flex items-center gap-1.5 cursor-pointer"
+              className="bg-black/80 hover:bg-black text-neutral-200 px-3 py-1 rounded-xl border border-neutral-500/30 text-xs font-semibold transition shadow-md flex items-center gap-1.5 cursor-pointer"
               title="Restaurar modo grade"
             >
               <span>⊞</span>
@@ -100,17 +100,17 @@ function ScreenShareViewer({
                 e.stopPropagation()
                 onFocus()
               }}
-              className="bg-black/80 hover:bg-black text-purple-200 px-3 py-1 rounded-xl border border-purple-500/30 text-xs font-semibold transition shadow-md flex items-center gap-1.5 cursor-pointer"
+              className="bg-black/80 hover:bg-black text-neutral-200 px-3 py-1 rounded-xl border border-neutral-500/30 text-xs font-semibold transition shadow-md flex items-center gap-1.5 cursor-pointer"
               title="Maximizar esta tela (Foco)"
             >
-              <span>⛶</span>
+              <ControlIcon name="expand"/>
               <span>Focar</span>
             </button>
           )}
 
           {onFullscreen && <button
             onClick={onFullscreen}
-            className="bg-black/80 hover:bg-black text-purple-200 p-1.5 rounded-xl border border-purple-500/30 text-xs font-semibold transition shadow-md cursor-pointer"
+            className="bg-black/80 hover:bg-black text-neutral-200 p-1.5 rounded-xl border border-neutral-500/30 text-xs font-semibold transition shadow-md cursor-pointer"
             title="Tela cheia · selecionar transmissões"
             aria-label={`Tela cheia: ${voiceName(participant)}`}
           >
@@ -147,10 +147,10 @@ function ParticipantTile({
     <div
       onDoubleClick={onMaximize}
       onContextMenu={e => { e.preventDefault(); onParticipantMenu(participant,e) }}
-      className={`relative rounded-xl overflow-hidden bg-[#181427] flex flex-col items-center justify-center p-3 transition-colors border group select-none ${
+      className={`relative rounded-xl overflow-hidden bg-[#181818] flex flex-col items-center justify-center p-3 transition-colors border group select-none ${
         participant.isSpeaking
-          ? 'ring-4 ring-green-500 border-green-400 shadow-green-500/25'
-          : 'border-purple-900/40 hover:border-purple-500/50'
+          ? 'ring-1 ring-white/50 border-transparent'
+          : 'border-neutral-900/40 hover:border-neutral-500/50'
       } ${isMaximized ? 'w-full h-full flex-1' : 'aspect-video'}`}
     >
       {avatar && !participant.isVideoEnabled && <img src={avatar} alt="" className="ct-voice-avatar-bg"/>}
@@ -165,14 +165,14 @@ function ParticipantTile({
         <div className="relative z-10 flex flex-col items-center justify-center gap-4">
           <div className="relative">
             {participant.isSpeaking && (
-              <div className="absolute -inset-2 rounded-full bg-green-500/30 blur-md animate-ping" />
+              <div className="hidden" />
             )}
             <div
               onClick={() => onProfile(participant)}
-              className={`w-16 h-16 rounded-full flex items-center justify-center text-2xl font-black text-white transition-all duration-300 shadow-2xl relative cursor-pointer hover:scale-105 ${
+              className={`w-16 h-16 rounded-full flex items-center justify-center text-2xl font-semibold text-white transition-all duration-300 relative cursor-pointer hover:scale-105 ${
                 participant.isSpeaking
-                  ? 'scale-110 ring-4 ring-green-400 bg-gradient-to-br from-green-600 to-emerald-700'
-                  : 'bg-gradient-to-br from-purple-600 to-indigo-700 border-2 border-purple-400/40 ring-4 ring-purple-900/30'
+                  ? 'ring-2 ring-white/80 bg-[#303030]'
+                  : 'bg-[#303030]'
               }`}
               title="Abrir perfil · botão direito para opções"
             >
@@ -185,18 +185,18 @@ function ParticipantTile({
       {/* Badges no canto inferior esquerdo */}
       <div
         onClick={() => onProfile(participant)}
-        className="absolute bottom-4 left-4 flex items-center gap-2 bg-black/75 backdrop-blur-md px-3 py-1.5 rounded-xl text-xs border border-white/10 shadow-lg cursor-pointer hover:bg-black/90 transition"
+        className="absolute bottom-4 left-4 flex items-center gap-2 bg-black/75 px-3 py-1.5 rounded-xl text-xs border border-white/10 shadow-lg cursor-pointer hover:bg-black/90 transition"
         title="Abrir perfil · botão direito para opções"
       >
         <span className="font-bold text-white tracking-wide"><RoleName identity={participant.identity} name={voiceName(participant)}/></span>
         {participant.isLocal && (
-          <span className="text-[10px] bg-purple-950/80 border border-purple-700/50 text-purple-300 px-1.5 py-0.5 rounded font-medium">
+          <span className="text-[10px] bg-neutral-950/80 border border-neutral-700/50 text-neutral-300 px-1.5 py-0.5 rounded font-medium">
             você
           </span>
         )}
         {(!participant.isAudioEnabled||userVolume===0) && (
           <span className="text-red-400 text-xs ml-1" title="Microfone Desativado">
-            🔇
+            <ControlIcon name="speaker" slashed/>
           </span>
         )}
         {participant.isSpeaking && (
@@ -209,7 +209,7 @@ function ParticipantTile({
         {participant.isScreenShareEnabled && participant.screenTrack && (
           <button
             onClick={onViewScreen}
-            className="bg-red-600 hover:bg-red-700 text-white text-[11px] font-black px-3 py-1 rounded-xl shadow-lg flex items-center gap-1.5 transition cursor-pointer animate-pulse hover:animate-none"
+            className="bg-red-600 hover:bg-red-700 text-white text-[11px] font-semibold px-3 py-1 rounded-xl shadow-lg flex items-center gap-1.5 transition cursor-pointer"
             title="Ver transmissão de tela"
           >
             <span className="w-2 h-2 rounded-full bg-white" />
@@ -219,10 +219,10 @@ function ParticipantTile({
 
         <button
           onClick={onMaximize}
-          className="opacity-0 group-hover:opacity-100 bg-black/80 hover:bg-black text-purple-200 hover:text-white p-2 rounded-xl border border-purple-500/40 transition text-xs font-semibold shadow-lg cursor-pointer"
+          className="opacity-0 group-hover:opacity-100 bg-black/80 hover:bg-black text-neutral-200 hover:text-white p-2 rounded-xl border border-neutral-500/40 transition text-xs font-semibold shadow-lg cursor-pointer"
           title={isMaximized ? 'Restaurar grade' : 'Maximizar participante (Focar)'}
         >
-          {isMaximized ? '🗗' : '⛶'}
+          <ControlIcon name={isMaximized ? 'shrink' : 'expand'}/>
         </button>
       </div>
     </div>
@@ -344,13 +344,13 @@ export function VoiceStage({
         <div className="flex items-center gap-3">
           {/* Seletor Grade vs Foco quando há telas compartilhadas */}
           {screenShares.length > 0 && (
-            <div className="flex items-center bg-[#100d1c] p-0.5 rounded-xl border border-purple-900/40">
+            <div className="flex items-center bg-[#0f0f0f] p-0.5 rounded-xl border border-neutral-900/40">
               <button
                 onClick={() => setStageViewMode('grid')}
                 className={`px-3 py-1 rounded-lg text-xs font-bold transition flex items-center gap-1.5 ${
                   stageViewMode === 'grid'
-                    ? 'bg-purple-600 text-white shadow-sm shadow-purple-600/30'
-                    : 'text-purple-300 hover:text-white'
+                    ? 'bg-white text-black!'
+                    : 'text-neutral-300 hover:text-white'
                 }`}
                 title="Ver todas as telas em grade lado a lado"
               >
@@ -366,18 +366,18 @@ export function VoiceStage({
                 }}
                 className={`px-3 py-1 rounded-lg text-xs font-bold transition flex items-center gap-1.5 ${
                   stageViewMode === 'spotlight'
-                    ? 'bg-purple-600 text-white shadow-sm shadow-purple-600/30'
-                    : 'text-purple-300 hover:text-white'
+                    ? 'bg-white text-black!'
+                    : 'text-neutral-300 hover:text-white'
                 }`}
                 title="Focar em uma tela única"
               >
-                <span>⛶</span>
+                <ControlIcon name="expand"/>
                 <span>Modo Foco</span>
               </button>
             </div>
           )}
 
-          <span className="text-xs text-purple-300/80 font-medium hidden sm:inline">
+          <span className="text-xs text-neutral-300/80 font-medium hidden sm:inline">
             {participants.length} {participants.length === 1 ? 'participante' : 'participantes'}
           </span>
 
@@ -386,12 +386,12 @@ export function VoiceStage({
               onClick={onToggleMemberList}
               className={`p-1.5 rounded-xl border transition text-xs flex items-center gap-1.5 font-bold ${
                 showMemberList
-                  ? 'bg-purple-600 border-purple-400 text-white shadow-md shadow-purple-600/30'
-                  : 'bg-[#181329] border-purple-900/40 text-purple-300 hover:text-white hover:border-purple-500/40'
+                  ? 'bg-white border-white text-black'
+                  : 'bg-[#161616] border-neutral-900/40 text-neutral-300 hover:text-white hover:border-neutral-500/40'
               }`}
               title="Mostrar/Ocultar lista de membros do servidor"
             >
-              <span>👥</span>
+              <ControlIcon name="friends"/>
               <span className="hidden md:inline">Membros</span>
             </button>
           )}
@@ -401,30 +401,30 @@ export function VoiceStage({
       {/* Área Central: Grade Multi-Telas / Transmissão em Foco / Grade de Usuários */}
       <div className="ct-voice-content flex-1 overflow-hidden flex flex-col justify-center min-h-0">
         {connectionStatus === 'connecting' ? (
-          <div className="text-center text-purple-300/70 space-y-3 m-auto">
-            <div className="text-5xl animate-bounce">🎧</div>
+          <div className="text-center text-neutral-300/70 space-y-3 m-auto">
+            <ControlIcon name="audio" size={28}/>
             <p className="text-white font-medium text-base">Conectando à sala de voz...</p>
-            <p className="text-xs text-purple-400/60">Conectando à chamada</p>
+            <p className="text-xs text-neutral-400/60">Conectando à chamada</p>
           </div>
         ) : connectionStatus === 'disconnected' || error ? (
-          <div className="text-center space-y-4 max-w-sm p-6 bg-[#151124] rounded-3xl border border-purple-900/40 shadow-2xl m-auto">
-            <div className="text-4xl text-red-400">⚠️</div>
+          <div className="text-center space-y-4 max-w-sm p-6 bg-[#181818] rounded-3xl border border-white/5 m-auto">
+            <span className="text-red-400"><ControlIcon name="warning" size={28}/></span>
             <div>
               <h3 className="text-white font-bold mb-1">Não foi possível conectar</h3>
               <p className="text-xs text-red-400 break-words">{error || 'A conexão foi encerrada'}</p>
             </div>
             <button
               onClick={handleRetry}
-              className="px-5 py-2.5 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white font-bold rounded-xl text-sm transition-all shadow-lg shadow-purple-600/30"
+              className="inline-flex items-center gap-2 px-4 py-2 bg-white hover:bg-neutral-200 text-black! font-medium rounded-full text-sm transition-all"
             >
-              🔄 Tentar Novamente
+              <ControlIcon name="refresh"/> Tentar novamente
             </button>
           </div>
         ) : participants.length === 0 ? (
-          <div className="text-center text-purple-300/70 space-y-2 m-auto">
-            <div className="text-4xl">🎙️</div>
+          <div className="text-center text-neutral-300/70 space-y-2 m-auto">
+            <ControlIcon name="mic" size={28}/>
             <p className="text-white font-medium">Você está na sala!</p>
-            <p className="text-xs text-purple-400/60">Aguardando outros participantes entrarem...</p>
+            <p className="text-xs text-neutral-400/60">Aguardando outros participantes entrarem...</p>
           </div>
         ) : screenShares.length > 0 && stageViewMode === 'grid' ? (
           /* ═══════════════════════════════════════════════════════════════════ */
@@ -493,15 +493,15 @@ export function VoiceStage({
                   <div
                     key={p.identity}
                     onClick={() => setPinnedParticipantId(p.identity)}
-                    className={`relative h-20 aspect-video rounded-2xl overflow-hidden bg-[#181427] flex-shrink-0 flex items-center justify-center transition cursor-pointer hover:scale-105 shadow-md ${
+                    className={`relative h-20 aspect-video rounded-2xl overflow-hidden bg-[#181818] flex-shrink-0 flex items-center justify-center transition cursor-pointer hover:scale-105 shadow-md ${
                       isCurrent
-                        ? 'ring-3 ring-purple-500 border border-purple-400'
+                        ? 'ring-3 ring-neutral-500 border border-neutral-400'
                         : p.isSpeaking
                         ? 'ring-2 ring-green-500'
-                        : 'border border-purple-900/40'
+                        : 'border border-neutral-900/40'
                     }`}
                   >
-                    <div className="w-10 h-10 rounded-full bg-gradient-to-br from-purple-600 to-indigo-600 flex items-center justify-center text-white font-bold text-sm shadow">
+                    <div className="w-10 h-10 rounded-full bg-[#303030] flex items-center justify-center text-white font-bold text-sm shadow">
                       {voiceName(p).charAt(0).toUpperCase()}
                     </div>
                     <div className="absolute bottom-1 left-1 bg-black/75 px-1.5 py-0.5 rounded text-[10px] text-white">

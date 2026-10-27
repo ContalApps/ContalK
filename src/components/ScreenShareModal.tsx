@@ -1,3 +1,4 @@
+import { ControlIcon } from './ControlIcon'
 import { useEffect, useState } from 'react'
 
 export interface CaptureSource {
@@ -122,15 +123,15 @@ export function ScreenShareModal({ isOpen, onClose, onStartShare }: ScreenShareM
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-md p-4 select-none">
-      <div className="w-full max-w-2xl bg-[#141021] border border-purple-500/30 rounded-3xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh] animate-in fade-in zoom-in-95 duration-200">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4 select-none">
+      <div className="w-full max-w-2xl bg-[#212121] border border-white/5 rounded-3xl overflow-hidden flex flex-col max-h-[90vh] animate-in fade-in zoom-in-95 duration-200">
         {/* Header do Modal */}
-        <header className="px-6 py-4 border-b border-purple-900/30 flex items-center justify-between flex-shrink-0 bg-[#0e0b17]">
+        <header className="px-6 py-4 border-b border-neutral-900/30 flex items-center justify-between flex-shrink-0 bg-[#0d0d0d]">
           <div className="flex items-center gap-2.5">
-            <span className="text-xl">🖥️</span>
+            <ControlIcon name="screen" size={18}/>
             <div>
-              <h2 className="text-base font-black text-white tracking-wide">Compartilhe sua tela</h2>
-              <p className="text-[11px] text-purple-300/60 font-medium">
+              <h2 className="text-base font-semibold text-white tracking-wide">Compartilhe sua tela</h2>
+              <p className="text-[11px] text-neutral-300/60 font-medium">
                 Escolha o monitor ou aplicativo específico que deseja transmitir
               </p>
             </div>
@@ -139,26 +140,24 @@ export function ScreenShareModal({ isOpen, onClose, onStartShare }: ScreenShareM
             disabled={isStarting}
             aria-label="Fechar seletor de transmissão"
             onClick={onClose}
-            className="w-8 h-8 rounded-full bg-purple-950/50 hover:bg-purple-900/50 text-purple-300 hover:text-white flex items-center justify-center transition-colors text-xs font-bold"
-          >
-            ✕
-          </button>
+            className="w-8 h-8 rounded-full bg-neutral-950/50 hover:bg-neutral-900/50 text-neutral-300 hover:text-white flex items-center justify-center transition-colors text-xs font-bold"
+          ><ControlIcon name="close"/></button>
         </header>
 
         {/* Abas: Telas vs Aplicativos */}
-        <div className="px-6 pt-4 flex items-center gap-3 border-b border-purple-900/30 bg-[#120e1e] flex-shrink-0">
+        <div className="px-6 pt-4 flex items-center gap-3 border-b border-neutral-900/30 bg-[#101010] flex-shrink-0">
           <button
             onClick={() => {
               setActiveTab('screens')
               setSelectedSource(screens[0] || null)
             }}
             className={`pb-3 text-xs font-bold transition-all relative ${
-              activeTab === 'screens' ? 'text-white' : 'text-[#9c97ad] hover:text-white'
+              activeTab === 'screens' ? 'text-white' : 'text-[#9a9a9a] hover:text-white'
             }`}
           >
             <span>Telas ({screens.length})</span>
             {activeTab === 'screens' && (
-              <span className="absolute bottom-0 left-0 right-0 h-0.5 bg-gradient-to-r from-purple-500 to-indigo-500 rounded-full" />
+              <span className="absolute bottom-0 left-0 right-0 h-0.5 bg-white rounded-full" />
             )}
           </button>
 
@@ -168,12 +167,12 @@ export function ScreenShareModal({ isOpen, onClose, onStartShare }: ScreenShareM
               setSelectedSource(windows[0] || null)
             }}
             className={`pb-3 text-xs font-bold transition-all relative ${
-              activeTab === 'windows' ? 'text-white' : 'text-[#9c97ad] hover:text-white'
+              activeTab === 'windows' ? 'text-white' : 'text-[#9a9a9a] hover:text-white'
             }`}
           >
             <span>Aplicativos ({windows.length})</span>
             {activeTab === 'windows' && (
-              <span className="absolute bottom-0 left-0 right-0 h-0.5 bg-gradient-to-r from-purple-500 to-indigo-500 rounded-full" />
+              <span className="absolute bottom-0 left-0 right-0 h-0.5 bg-white rounded-full" />
             )}
           </button>
         </div>
@@ -182,11 +181,11 @@ export function ScreenShareModal({ isOpen, onClose, onStartShare }: ScreenShareM
         <div className="p-6 overflow-y-auto flex-1 space-y-5">
           {isLoading ? (
             <div className="py-16 text-center space-y-3">
-              <div className="text-4xl animate-bounce">🦇</div>
-              <p className="text-xs text-purple-300/70 font-medium">Buscando janelas e monitores...</p>
+              <ControlIcon name="refresh" size={24}/>
+              <p className="text-xs text-neutral-300/70 font-medium">Buscando janelas e monitores...</p>
             </div>
           ) : displayedSources.length === 0 ? (
-            <div className="py-12 text-center text-purple-300/60 text-xs">
+            <div className="py-12 text-center text-neutral-300/60 text-xs">
               {useBrowserPicker ? 'O navegador abrirá o seletor de tela, janela ou aba ao continuar.' : 'Nenhuma fonte encontrada nesta categoria.'}
             </div>
           ) : (
@@ -199,12 +198,12 @@ export function ScreenShareModal({ isOpen, onClose, onStartShare }: ScreenShareM
                     onClick={() => setSelectedSource(source)}
                     className={`cursor-pointer rounded-2xl overflow-hidden border p-2.5 transition-all duration-200 flex flex-col gap-2 ${
                       isSelected
-                        ? 'bg-purple-950/60 border-purple-400 ring-2 ring-purple-500/40 shadow-lg shadow-purple-600/20'
-                        : 'bg-[#181329] border-purple-900/40 hover:border-purple-500/40 hover:bg-[#1e1733]'
+                        ? 'bg-neutral-950/60 border-neutral-400 ring-2 ring-neutral-500/40'
+                        : 'bg-[#161616] border-neutral-900/40 hover:border-neutral-500/40 hover:bg-[#1b1b1b]'
                     }`}
                   >
                     {/* Preview da tela ou miniatura */}
-                    <div className="aspect-video w-full rounded-xl overflow-hidden bg-[#0c0a14] border border-white/5 relative flex items-center justify-center">
+                    <div className="aspect-video w-full rounded-xl overflow-hidden bg-[#0b0b0b] border border-white/5 relative flex items-center justify-center">
                       {source.thumbnail ? (
                         <img
                           src={source.thumbnail}
@@ -212,16 +211,16 @@ export function ScreenShareModal({ isOpen, onClose, onStartShare }: ScreenShareM
                           className="w-full h-full object-cover"
                         />
                       ) : (
-                        <div className="flex flex-col items-center gap-1.5 text-purple-400/60">
+                        <div className="flex flex-col items-center gap-1.5 text-neutral-400/60">
                           <span className="text-3xl">
-                            {source.source_type === 'monitor' ? '🖥️' : '🪟'}
+                            <ControlIcon name={source.source_type === 'monitor' ? 'screen' : 'sidebar'}/>
                           </span>
                           <span className="text-[10px] font-semibold">{source.width}x{source.height}</span>
                         </div>
                       )}
 
                       {source.is_primary && (
-                        <span className="absolute top-2 left-2 bg-purple-600 text-white text-[9px] font-bold px-1.5 py-0.5 rounded shadow">
+                        <span className="absolute top-2 left-2 bg-white text-black! text-[9px] font-bold px-1.5 py-0.5 rounded shadow">
                           PRINCIPAL
                         </span>
                       )}
@@ -229,7 +228,7 @@ export function ScreenShareModal({ isOpen, onClose, onStartShare }: ScreenShareM
 
                     <div className="min-w-0 px-1">
                       <div className="text-xs font-bold text-white truncate">{source.name}</div>
-                      <div className="text-[10px] text-purple-300/60 truncate">{source.title}</div>
+                      <div className="text-[10px] text-neutral-300/60 truncate">{source.title}</div>
                     </div>
                   </div>
                 )
@@ -239,43 +238,43 @@ export function ScreenShareModal({ isOpen, onClose, onStartShare }: ScreenShareM
 
           {startError && <p role="alert" className="rounded-xl border border-red-500/40 bg-red-950/30 p-3 text-xs text-red-200">{startError}</p>}
           {/* Configurações de Transmissão (Áudio & Qualidade) */}
-          <div className="p-4 rounded-2xl bg-[#0e0b17] border border-purple-900/40 space-y-3.5">
+          <div className="p-4 rounded-2xl bg-[#0d0d0d] border border-neutral-900/40 space-y-3.5">
             <div className="text-xs font-bold text-white flex items-center gap-2">
-              <span>⚙️</span>
+              <ControlIcon name="settings"/>
               <span>Opções de Áudio e Performance</span>
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
-              <label className="flex items-center gap-2.5 p-2 rounded-xl bg-[#161224] border border-purple-900/30 cursor-pointer hover:border-purple-500/40 transition-colors">
+              <label className="flex items-center gap-2.5 p-2 rounded-xl bg-[#151515] border border-neutral-900/30 cursor-pointer hover:border-neutral-500/40 transition-colors">
                 <input
                   type="checkbox"
                   checked={shareAudio}
                   onChange={(e) => setShareAudio(e.target.checked)}
-                  className="rounded accent-purple-500 w-4 h-4 cursor-pointer"
+                  className="rounded accent-neutral-500 w-4 h-4 cursor-pointer"
                 />
                 <div className="min-w-0">
                   <span className="font-semibold text-white block">{selectedSource?.source_type === 'monitor' ? 'Áudio dos programas desta tela' : 'Áudio do aplicativo'}</span>
-                  <span className="text-[10px] text-purple-300/60 block">Captura isolada, sem o áudio do ConTALK</span>
+                  <span className="text-[10px] text-neutral-300/60 block">Captura isolada, sem o áudio do ConTALK</span>
                 </div>
               </label>
 
-              <div className="p-2 rounded-xl bg-[#161224] border border-purple-900/30 text-[10px] text-purple-200/80 leading-relaxed">
+              <div className="p-2 rounded-xl bg-[#151515] border border-neutral-900/30 text-[10px] text-neutral-200/80 leading-relaxed">
                 O áudio é separado por aplicativo. Janelas e abas que usam o mesmo processo podem compartilhar áudio entre si, mesmo em monitores diferentes. Para isolar o YouTube, compartilhe a aba pelo navegador.
               </div>
             </div>
 
             {/* Resolução e Taxa de Quadros */}
-            <div className="flex items-center justify-between pt-1 border-t border-purple-900/30 text-xs">
+            <div className="flex items-center justify-between pt-1 border-t border-neutral-900/30 text-xs">
               <div className="flex items-center gap-2">
-                <span className="text-[#a49fb5] text-[11px] font-bold">Resolução:</span>
+                <span className="text-[#a2a2a2] text-[11px] font-bold">Resolução:</span>
                 {(['720', '1080', 'source'] as const).map((r) => (
                   <button
                     key={r}
                     onClick={() => setResolution(r)}
                     className={`px-2.5 py-1 rounded-lg font-bold text-[11px] transition-all ${
                       resolution === r
-                        ? 'bg-purple-600 text-white shadow'
-                        : 'bg-[#181329] text-purple-300 hover:text-white'
+                        ? 'bg-white text-black! shadow'
+                        : 'bg-[#161616] text-neutral-300 hover:text-white'
                     }`}
                   >
                     {r === 'source' ? 'Original' : `${r}p`}
@@ -284,15 +283,15 @@ export function ScreenShareModal({ isOpen, onClose, onStartShare }: ScreenShareM
               </div>
 
               <div className="flex items-center gap-2">
-                <span className="text-[#a49fb5] text-[11px] font-bold">Taxa:</span>
+                <span className="text-[#a2a2a2] text-[11px] font-bold">Taxa:</span>
                 {([30, 60] as const).map((f) => (
                   <button
                     key={f}
                     onClick={() => setFps(f)}
                     className={`px-2.5 py-1 rounded-lg font-bold text-[11px] transition-all ${
                       fps === f
-                        ? 'bg-purple-600 text-white shadow'
-                        : 'bg-[#181329] text-purple-300 hover:text-white'
+                        ? 'bg-white text-black! shadow'
+                        : 'bg-[#161616] text-neutral-300 hover:text-white'
                     }`}
                   >
                     {f} FPS
@@ -304,8 +303,8 @@ export function ScreenShareModal({ isOpen, onClose, onStartShare }: ScreenShareM
         </div>
 
         {/* Footer com Botões de Ação */}
-        <footer className="px-6 py-4 border-t border-purple-900/30 flex items-center justify-between bg-[#0e0b17] flex-shrink-0">
-          <div className="text-xs text-purple-300/70">
+        <footer className="px-6 py-4 border-t border-neutral-900/30 flex items-center justify-between bg-[#0d0d0d] flex-shrink-0">
+          <div className="text-xs text-neutral-300/70">
             {selectedSource ? (
               <span>Selecionado: <strong className="text-white">{selectedSource.name}</strong></span>
             ) : (
@@ -317,14 +316,14 @@ export function ScreenShareModal({ isOpen, onClose, onStartShare }: ScreenShareM
             <button
               onClick={onClose}
               disabled={isStarting}
-              className="px-4 py-2 rounded-xl text-xs font-semibold text-purple-300 hover:text-white hover:bg-purple-950/40 transition-colors"
+              className="px-4 py-2 rounded-xl text-xs font-semibold text-neutral-300 hover:text-white hover:bg-neutral-950/40 transition-colors"
             >
               Cancelar
             </button>
             <button
               onClick={handleStart}
               disabled={(!selectedSource && !useBrowserPicker) || isStarting || isLoading}
-              className="px-6 py-2.5 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white font-bold text-xs rounded-xl transition-all shadow-lg shadow-purple-600/30 disabled:opacity-40 disabled:cursor-not-allowed flex items-center gap-2"
+              className="px-6 py-2.5 bg-white hover:bg-neutral-200 text-black! font-bold text-xs rounded-xl transition-all disabled:opacity-40 disabled:cursor-not-allowed flex items-center gap-2"
             >
               {isStarting ? (
                 <>
@@ -333,7 +332,7 @@ export function ScreenShareModal({ isOpen, onClose, onStartShare }: ScreenShareM
                 </>
               ) : (
                 <>
-                  <span>🔴</span>
+                  <span className="w-2 h-2 rounded-full bg-red-500" aria-hidden="true"/>
                   <span>Transmitir ao Vivo</span>
                 </>
               )}

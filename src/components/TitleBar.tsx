@@ -2,10 +2,10 @@ import { useEffect, useRef, useState } from 'react'
 import { usePreferencesStore } from '../store/usePreferencesStore'
 import { UpdateNotification } from './UpdateNotification'
 import { BrandMark } from './BrandMark'
+import { ControlIcon } from './ControlIcon'
 
 function TitleIcon({name}: {name: 'back' | 'forward' | 'search' | 'help' | 'close'}) {
-  const paths = {back: 'm14 6-6 6 6 6M8 12h13', forward: 'm10 6 6 6-6 6M3 12h13', search: 'm21 21-5-5M19 11a8 8 0 1 1-16 0 8 8 0 0 1 16 0', help: 'M9.1 9a3 3 0 0 1 5.8 1c0 2-3 2-3 4M12 17h.01M22 12a10 10 0 1 1-20 0 10 10 0 0 1 20 0', close: 'm6 6 12 12M6 18 18 6'}
-  return <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d={paths[name]}/></svg>
+  return <ControlIcon name={name}/>
 }
 
 export function TitleBar({title = 'ConTALK', authenticated = false, disabled = false, canBack = false, canForward = false, onBack, onForward, search = '', onSearch,onOpenNotification}: {

@@ -1,3 +1,4 @@
+import { ControlIcon } from './ControlIcon'
 import {useState} from 'react'
 import {useRoleStore} from '../store/useRoleStore'
 import type {ProjectAccess} from '../roles/ai'
@@ -10,7 +11,7 @@ export function AiProjectSettings({id,onClose}:{id:string;onClose:()=>void}){
   const manage=project.members[snapshot.actor]==='manager',canManage=manage&&!project.archived,available=snapshot.policy.members.filter(person=>!project.members[person])
   const run=async(action:Parameters<typeof state.command>[0])=>{setError('');try{await state.command(action);return true}catch(failure){setError(failure instanceof Error?failure.message:'Não foi possível salvar.');return false}}
   return <div className="ct-modal-backdrop"><section className="ct-role-dialog ct-thread-dialog" role="dialog" aria-modal="true" aria-label="Configurações do projeto">
-    <header><h2>{channel.name}</h2><button aria-label="Fechar configurações do projeto" onClick={onClose}>×</button></header>
+    <header><h2>{channel.name}</h2><button aria-label="Fechar configurações do projeto" onClick={onClose}><ControlIcon name="close"/></button></header>
     <p>Projeto privado · {Object.keys(project.members).length} participantes{project.archived?' · Arquivado':''}</p>
     {manage&&project.archived&&<button className="ct-primary" disabled={state.busy} onClick={()=>void run({type:'project-restore',id})}>Restaurar projeto</button>}
     {canManage&&<>

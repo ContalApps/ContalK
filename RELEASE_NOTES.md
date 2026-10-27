@@ -1,10 +1,10 @@
-# ConTALK 0.1.24
+# ConTALK 0.1.25
 
-- Ative IA ao criar ou configurar um canal de texto, sem definir um modelo fixo. Adicione chaves pessoais de um ou mais provedores e consulte seus modelos disponíveis.
-- Escolha o provedor e o modelo no campo da conversa e troque entre eles quando quiser. A escolha vale para cada pedido e aparece no histórico compartilhado.
-- Use a IA também em tópicos e projetos privados, respeitando as permissões de acesso.
-- Chamadas Gemini que não respondem agora têm limite de tempo; o aplicativo informa a etapa afetada e libera os pedidos aguardando na fila.
+- Interface redesenhada no estilo do Codex: fundo preto neutro, sem tons de roxo, bordas finas, cantos arredondados e botões em pílula.
+- Ícones novos e consistentes em todo o aplicativo (família Lucide), no lugar de símbolos de texto e emojis.
+- Nova tela inicial: saudação de acordo com a hora do dia (bom dia, boa tarde, boa noite), atalhos para conversar, entrar em voz e ver amigos, cards dos canais de voz com quem está na sala, conversas recentes e suas comunidades.
+- Login, amigos, mensagens diretas, canais, configurações, perfil, menus, diálogos, palco de voz e compartilhamento de tela seguem o novo visual, incluindo a escolha de provedor e modelo de IA da 0.1.24.
+- A lista de membros aparece só dentro dos servidores e se recolhe em janelas estreitas.
+- O tema Vice City continua disponível em Configurações → Aparência.
 
-As chaves pessoais permanecem protegidas no computador. APIs compatíveis podem exigir autorização do endereço na VPS e, se não oferecerem uma lista, aceitam o identificador manual do modelo. A lista exibida pelo provedor não garante que a chave tenha autorização para executar todos os modelos.
-
-Esta atualização não executa comandos nem edita arquivos de projetos automaticamente.
+Validação: tipos, testes e build, e revisão visual das telas principais no navegador com dados simulados. As telas que dependem da comunidade conectada (cargos, eventos, palco) e o aplicativo instalado ainda não foram revisados com dados reais.

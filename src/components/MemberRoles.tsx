@@ -1,3 +1,4 @@
+import { ControlIcon } from './ControlIcon'
 import { MemberNickname } from './MemberNickname'
 import { MemberVoiceModeration } from './MemberVoiceModeration'
 import { useEffect, useRef, useState } from 'react'
@@ -22,7 +23,7 @@ export function MemberRoles({member,onClose,initialSection}:{member:string;onClo
   return <div className="ct-modal-backdrop"><section ref={panel} className="ct-role-dialog ct-member-roles-dialog" role="dialog" aria-modal="true" aria-labelledby="ct-member-role-title" onKeyDown={event=>{
     if(event.key==='Escape'){event.stopPropagation();if(removal)setRemoval(null);else if(confirmTimeout)setConfirmTimeout(false);else onClose()}
     if(event.key==='Tab'){const controls=[...event.currentTarget.querySelectorAll<HTMLElement>('button:not(:disabled),input:not(:disabled),select:not(:disabled),textarea:not(:disabled)')];const first=controls[0],last=controls[controls.length-1];if(event.shiftKey&&document.activeElement===first){event.preventDefault();last?.focus()}else if(!event.shiftKey&&document.activeElement===last){event.preventDefault();first?.focus()}}
-  }}><header><div><small>MEMBRO</small><h2 id="ct-member-role-title">Cargos de @{member}</h2></div><button aria-label="Fechar cargos do membro" onClick={onClose}>×</button></header>
+  }}><header><div><small>Membro</small><h2 id="ct-member-role-title">Cargos de @{member}</h2></div><button aria-label="Fechar cargos do membro" onClick={onClose}><ControlIcon name="close"/></button></header>
     {!present?<p role="status">@{member} não participa mais deste servidor.</p>:<>
       {state.snapshot.memberAdmissions?.[member]&&<p className="ct-muted">Entrou em {new Date(state.snapshot.memberAdmissions[member].joinedAt).toLocaleString('pt-BR')} por convite de @{state.snapshot.memberAdmissions[member].invitedBy}{state.snapshot.memberAdmissions[member].inviteId&&' · #'+state.snapshot.memberAdmissions[member].inviteId?.slice(0,12)}.</p>}
       <input type="search" aria-label="Buscar cargo do membro" placeholder="Buscar cargo…" value={query} onChange={event=>setQuery(event.target.value)}/>
