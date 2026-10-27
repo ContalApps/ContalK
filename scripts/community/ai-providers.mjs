@@ -67,8 +67,20 @@ export function anthropicProvider({fetcher=fetch}={}){
     },
   }
 }
-export function geminiProvider({fetcher=fetch,wait=(ms,signal)=>pause(ms,undefined,{signal})}={}){
+export function geminiProvider({fetcher=fetch,wait=(ms,signal)=>pause(ms,undefined,{signal}),deadlineMs=180000}={}){
   const base='https://generativelanguage.googleapis.com/v1beta/models/'
+  const withDeadline=async(signal,stage,run)=>{
+    if(signal?.aborted)throw new Error('Execução interrompida.')
+    const controller=new AbortController()
+    let timer,stop,timedOut=false
+    const cancelled=new Promise((_,reject)=>{stop=()=>{controller.abort();reject(new Error('Execução interrompida.'))}})
+    const timeoutError=()=>new Error('Gemini excedeu o tempo limite durante '+stage+'. Tente novamente.')
+    const expired=new Promise((_,reject)=>{timer=setTimeout(()=>{timedOut=true;reject(timeoutError());controller.abort()},deadlineMs)})
+    signal?.addEventListener('abort',stop,{once:true})
+    try{return await Promise.race([run(controller.signal),cancelled,expired])}
+    catch(error){if(timedOut&&!signal?.aborted)throw timeoutError();throw error}
+    finally{clearTimeout(timer);signal?.removeEventListener('abort',stop);controller.abort()}
+  }
   const prepare=({messages,summary,files=[]})=>{
     if(files.reduce((sum,file)=>sum+file.size,0)>14*1024*1024)throw new Error('Gemini aceita até 14 MB de anexos diretos neste fluxo; reduza os arquivos.')
     const contents=textInput(messages,'').map(item=>({role:item.role==='assistant'?'model':'user',parts:[{text:item.content}]}))
@@ -85,10 +97,10 @@ export function geminiProvider({fetcher=fetch,wait=(ms,signal)=>pause(ms,undefin
     }
   }
   return {
-    async count({key,model,messages,summary,files,signal}){const body=prepare({messages,summary,files});const response=await call(model,'countTokens',key,{generateContentRequest:{model:'models/'+model,...body}},signal);const data=await response.json();if(!Number.isSafeInteger(data.totalTokens))throw new Error('Gemini não informou a contagem de tokens.');return data.totalTokens},
-    async summarize({key,model,summary,messages,maxOutputTokens,signal}){const response=await call(model,'generateContent',key,{contents:[{role:'user',parts:[{text:summaryPrompt(summary,messages)}]}],generationConfig:{maxOutputTokens}},signal);const data=await response.json();const candidate=data.candidates?.[0];const text=(candidate?.content?.parts||[]).map(part=>part.text||'').join('').trim();if(!text||!['STOP','FINISH_REASON_UNSPECIFIED',undefined].includes(candidate?.finishReason))throw new Error('Gemini não concluiu o resumo.');return {text,usage:usageOf(data.usageMetadata)}},
-    async generate({key,model,messages,summary,files,maxOutputTokens,signal,onDelta}){
-      const response=await call(model,'streamGenerateContent?alt=sse',key,{...prepare({messages,summary,files}),generationConfig:{maxOutputTokens}},signal)
+    async count({key,model,messages,summary,files,signal}){return withDeadline(signal,'a contagem de tokens',async requestSignal=>{const body=prepare({messages,summary,files});const response=await call(model,'countTokens',key,{generateContentRequest:{model:'models/'+model,...body}},requestSignal);const data=await response.json();if(!Number.isSafeInteger(data.totalTokens))throw new Error('Gemini não informou a contagem de tokens.');return data.totalTokens})},
+    async summarize({key,model,summary,messages,maxOutputTokens,signal}){return withDeadline(signal,'o resumo do contexto',async requestSignal=>{const response=await call(model,'generateContent',key,{contents:[{role:'user',parts:[{text:summaryPrompt(summary,messages)}]}],generationConfig:{maxOutputTokens}},requestSignal);const data=await response.json();const candidate=data.candidates?.[0];const text=(candidate?.content?.parts||[]).map(part=>part.text||'').join('').trim();if(!text||!['STOP','FINISH_REASON_UNSPECIFIED',undefined].includes(candidate?.finishReason))throw new Error('Gemini não concluiu o resumo.');return {text,usage:usageOf(data.usageMetadata)}})},
+    async generate({key,model,messages,summary,files,maxOutputTokens,signal,onDelta}){return withDeadline(signal,'a geração da resposta',async requestSignal=>{
+      const response=await call(model,'streamGenerateContent?alt=sse',key,{...prepare({messages,summary,files}),generationConfig:{maxOutputTokens}},requestSignal)
       let text='',usage={},finished=false
       for await(const event of events(response)){
         const candidate=event.candidates?.[0]
@@ -99,7 +111,7 @@ export function geminiProvider({fetcher=fetch,wait=(ms,signal)=>pause(ms,undefin
       }
       if(!finished||!text.trim())throw new Error('Gemini não concluiu a resposta.')
       return {text,usage}
-    },
+    })},
   }
 }
 const textOnly=(files,name)=>{if(files.some(file=>file.extracted===undefined))throw new Error(name+' aceita apenas anexos de texto neste conector. Converta imagens ou PDFs para texto.')}

@@ -4,6 +4,7 @@ import {once} from 'node:events'
 import {createCommunityService,createCommunityState} from '../scripts/community/service.mjs'
 import {can} from '../src/roles/permissions.ts'
 import {openAiProvider,validateAiFiles} from '../scripts/community/ai.mjs'
+import {geminiProvider} from '../scripts/community/ai-providers.mjs'
 import {zipSync} from 'fflate'
 
 const keys={alice:'a'.repeat(40),bob:'b'.repeat(40),carol:'c'.repeat(40)}
@@ -174,6 +175,45 @@ test('multiple requests wait in one conversation and execute in submission order
   assert.equal(started,2)
   const earlier=(await f.request('alice','/servers/srv-1')).data.messages['ch-general'].find(item=>item.ai?.id===first.data.runId)
   assert.equal(earlier.ai.status,'completed')
+})
+
+test('a stalled Gemini request fails and releases the next queued request',async t=>{
+  let counts=0
+  const gemini=geminiProvider({deadlineMs:150,fetcher:async url=>{
+    if(String(url).includes(':countTokens'))return ++counts===1?new Promise(()=>{}):Response.json({totalTokens:10})
+    return new Response('data: '+JSON.stringify({candidates:[{content:{parts:[{text:'Resposta seguinte'}]},finishReason:'STOP'}],usageMetadata:{promptTokenCount:10,candidatesTokenCount:2}})+'\n\n',{status:200})
+  }})
+  const f=await fixture(t,gemini)
+  await f.command('alice',{type:'ai-channel-model',channelId:'ch-general',model:'gemini|model-alpha'})
+  const body={...prompt('ch-general'),provider:'gemini'}
+  const first=await f.request('alice','/servers/srv-1/ai-runs',body)
+  const second=await f.request('bob','/servers/srv-1/ai-runs',body)
+  assert.equal(first.status,202)
+  assert.equal(second.status,202)
+  assert.equal(second.data.queued,true)
+  const failed=await f.until(async()=>{const snapshot=(await f.request('alice','/servers/srv-1')).data;return snapshot.messages['ch-general']?.find(message=>message.ai?.id===first.data.runId&&message.ai.status==='failed')})
+  assert.match(failed.ai.error,/tempo limite durante a contagem de tokens/)
+  const completed=await f.until(async()=>{const snapshot=(await f.request('bob','/servers/srv-1')).data;return snapshot.messages['ch-general']?.find(message=>message.ai?.id===second.data.runId&&message.ai.status==='completed')})
+  assert.equal(completed.content,'Resposta seguinte')
+})
+
+test('interrupting stalled Gemini counting cancels it and starts the next queued request',async t=>{
+  let counts=0
+  const gemini=geminiProvider({deadlineMs:1000,fetcher:async url=>{
+    if(String(url).includes(':countTokens'))return ++counts===1?new Promise(()=>{}):Response.json({totalTokens:10})
+    return new Response('data: '+JSON.stringify({candidates:[{content:{parts:[{text:'Fila liberada'}]},finishReason:'STOP'}],usageMetadata:{promptTokenCount:10,candidatesTokenCount:2}})+'\n\n',{status:200})
+  }})
+  const f=await fixture(t,gemini)
+  await f.command('alice',{type:'ai-channel-model',channelId:'ch-general',model:'gemini|model-alpha'})
+  const body={...prompt('ch-general'),provider:'gemini'}
+  const first=await f.request('alice','/servers/srv-1/ai-runs',body)
+  const second=await f.request('bob','/servers/srv-1/ai-runs',body)
+  assert.equal(second.data.queued,true)
+  assert.equal((await f.request('alice','/servers/srv-1/ai-runs/ch-general/stop',{})).status,200)
+  const cancelled=await f.until(async()=>{const snapshot=(await f.request('alice','/servers/srv-1')).data;return snapshot.messages['ch-general']?.find(message=>message.ai?.id===first.data.runId&&message.ai.status==='cancelled')})
+  assert.match(cancelled.ai.error,/interrompida/)
+  const completed=await f.until(async()=>{const snapshot=(await f.request('bob','/servers/srv-1')).data;return snapshot.messages['ch-general']?.find(message=>message.ai?.id===second.data.runId&&message.ai.status==='completed')})
+  assert.equal(completed.content,'Fila liberada')
 })
 
 test('provider counts input and streams across CRLF chunk boundaries without storing state',async()=>{

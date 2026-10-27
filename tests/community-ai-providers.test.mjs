@@ -58,6 +58,26 @@ test('Gemini retries transient HTTP failures and reports persistent failures pre
   assert.equal(calls,1)
 })
 
+test('Gemini ends stalled counting and streaming instead of leaving a run active',async()=>{
+  const counting=geminiProvider({fetcher:async()=>new Promise(()=>{}),deadlineMs:25})
+  await assert.rejects(counting.count(sample),/tempo limite durante a contagem de tokens/)
+
+  const aborting=geminiProvider({fetcher:async(_url,options)=>new Promise((_,reject)=>options.signal.addEventListener('abort',()=>reject(new Error('fetch aborted')),{once:true})),deadlineMs:25})
+  await assert.rejects(aborting.count(sample),/tempo limite durante a contagem de tokens/)
+
+  const stream=new ReadableStream({start(controller){controller.enqueue(new TextEncoder().encode('data: '+JSON.stringify({candidates:[{content:{parts:[{text:'Parcial'}]}}]})+'\n\n'))}})
+  const streaming=geminiProvider({fetcher:async()=>new Response(stream,{status:200}),deadlineMs:25})
+  let partial=''
+  await assert.rejects(streaming.generate({...sample,maxOutputTokens:128,onDelta:value=>partial+=value}),/tempo limite durante a geração da resposta/)
+  assert.equal(partial,'Parcial')
+
+  const cancellation=new AbortController()
+  const cancelled=geminiProvider({fetcher:async()=>new Promise(()=>{}),deadlineMs:1000})
+  const result=cancelled.count({...sample,signal:cancellation.signal})
+  cancellation.abort()
+  await assert.rejects(result,/Execução interrompida/)
+})
+
 test('custom endpoints require a server allowlist and cannot receive a mismatched provider key',async t=>{
   assert.deepEqual(parseAiModel('anthropic|claude-model'),{provider:'anthropic',model:'claude-model'})
   for(const url of ['http://api.example.test/v1','https://localhost/v1','https://127.0.0.1/v1','https://user:pass@api.example.test/v1'])assert.equal(validAiEndpoint(url),false)

@@ -1,5 +1,9 @@
 # Retomada do ConTALK
 
+## Após a 0.1.23: chamada Gemini pendente
+
+O usuário atualizou para 0.1.23. Uma chamada no canal “Google IA” ficou em “A IA está respondendo…”; ao interrompê-la, outra mensagem mostrou “Pedido na fila…”. A revisão publicada não impõe tempo limite à contagem, ao resumo ou ao streaming do Gemini. A correção em `dev/caliari` limita cada etapa a três minutos, identifica qual etapa expirou e garante que uma chamada parada ou interrompida libere a próxima da fila. Testes de integração reproduzem uma contagem pendente e verificam falha, cancelamento e avanço da fila. Ainda falta confirmar uma chamada real e saber o resultado do teste do usuário com outro modelo Gemini. Não atribuir causa definitiva à API, à rede da VPS ou à chave sem essa evidência. A correção ainda não foi integrada nem publicada.
+
 ## Validação do Gemini e preparação da 0.1.23
 
 Na versão 0.1.22, o usuário configurou o canal “Google IA” do servidor “ContalApps” com o modelo `gemini-3.8-flash`. Duas chamadas curtas terminaram como “A API de Gemini não concluiu o pedido.” O código da 0.1.22 agrupa códigos HTTP não previstos nessa mensagem; portanto, a causa exata ainda não foi confirmada. A revisão em `dev/caliari` adiciona duas tentativas com espera crescente para códigos transitórios e mostra o código HTTP em falhas persistentes, além de distinguir falta de créditos. Testes simulados, tipos e build passaram. Após PR, merge e publicação, confirme o deploy automático do serviço na VPS e peça ao usuário uma nova chamada no aplicativo; não afirme que a comunicação real foi corrigida sem esse teste. A chave pessoal permanece no armazenamento seguro do aplicativo e não deve ser pedida no chat.
