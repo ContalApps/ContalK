@@ -1,4 +1,5 @@
 import {openAiProvider} from './ai.mjs'
+import {listAiModels} from './ai-models.mjs'
 import {setTimeout as pause} from 'node:timers/promises'
 
 const textInput=(messages,summary)=>[
@@ -144,6 +145,7 @@ export function multiAiProvider({fetcher=fetch}={}){
     return providers[args.provider||'openai']||providers.openai
   }
   return {
+    listModels:args=>listAiModels({...args,fetcher}),
     async count(args){
       if(args.provider==='xai'){textOnly(args.files,'Grok');return estimatedTokens(args)}
       if(args.provider==='compatible-responses'){textOnly(args.files,'Esta API');return estimatedTokens(args)}

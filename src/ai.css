@@ -3,6 +3,11 @@
 .ct-ai-limits{display:flex;gap:12px;align-items:center;padding:2px 14px 7px;font-size:11px;color:var(--ct-muted,#b5a6c7)}
 .ct-ai-limits label{display:flex;gap:5px;align-items:center}
 .ct-ai-limits input{width:75px;max-width:75px;padding:3px 5px;font-size:11px}
+.ct-ai-model-picker{display:flex;flex-wrap:wrap;align-items:center;gap:6px;padding:2px 14px 6px;font-size:11px;color:var(--ct-muted,#b5a6c7)}
+.ct-ai-model-picker label{display:flex;align-items:center;gap:5px}
+.ct-ai-model-picker select,.ct-ai-model-picker input{max-width:220px;min-width:95px;padding:4px 6px;font-size:11px}
+.ct-ai-model-picker button{border:0;background:transparent;color:inherit;cursor:pointer;font-size:16px}
+.ct-ai-model-picker small{flex-basis:100%}
 .ct-ai-run-bar{justify-content:space-between;border-top:1px solid var(--ct-border,#ffffff20)}
 .ct-ai-run-bar button{border:0;background:transparent;color:var(--accent,#b99aff);cursor:pointer}
 .ct-ai-response{display:grid;gap:7px;max-width:100%;overflow-wrap:anywhere}

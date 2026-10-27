@@ -1,5 +1,5 @@
 import {canJoinStage,canModerateStage,pruneStage} from '../../src/roles/stages.ts'
-import {activeProject,parseAiModel,validAiModel,validAiEndpoint} from '../../src/roles/ai.ts'
+import {activeProject,aiProviders,parseAiModel,validAiModel,validAiEndpoint} from '../../src/roles/ai.ts'
 import {MAX_AI_BYTES,validateAiFiles} from './ai.mjs'
 import {multiAiProvider} from './ai-providers.mjs'
 import {canManageExpression,expressionName} from '../../src/roles/expressions.ts'
@@ -777,8 +777,12 @@ export function createCommunityService({ tokens, storage, initialState, voice, f
       const parent=previous.channels.find(item=>item.id===(project?.parentId||channel.id))
       const selected=project?.model||parent?.aiModel,parsed=parseAiModel(selected)
       requireValue(parsed,'Configure um modelo de IA nesta conversa.',409)
-      const {provider,model}=parsed,endpoint=project?.model?project.endpoint:parent?.aiEndpoint
-      requireValue((body.provider||'openai')===provider,'O provedor selecionado mudou. Atualize a conversa.',409)
+      const provider=body.provider||parsed.provider
+      requireValue(aiProviders.includes(provider),'Provedor de IA inválido.',400)
+      const model=body.model===undefined&&provider===parsed.provider?parsed.model:body.model
+      requireValue(typeof model==='string'&&validAiModel(provider==='openai'?model:provider+'|'+model),'Selecione um modelo de IA válido.',400)
+      const endpoint=project?.model?project.endpoint:parent?.aiEndpoint
+      if(provider.startsWith('compatible-'))requireValue(provider===parsed.provider,'Esta API compatível não está configurada nesta conversa.',409)
       if(provider.startsWith('compatible-'))requireValue(allowedAiEndpoint(endpoint),'Endpoint de IA não autorizado pela VPS.',409)
       const runKey=aiKey(id,channel.id),waiting=activeAi.has(runKey)||(pendingAi.get(runKey)?.length||0)>0
       requireValue((pendingAi.get(runKey)?.length||0)<3,'A fila desta conversa está cheia. Aguarde uma resposta.',409)
@@ -913,6 +917,17 @@ export function createCommunityService({ tokens, storage, initialState, voice, f
       if(request.method==='POST'&&hookRoute){requireValue(token,'Credencial de webhook inválida.',401);const body=await readBody(request);json(response,200,await webhookOperation(null,hookRoute[1],null,{id:hookRoute[2],body},token));return}
       const actor = actorFor(token)
       requireValue(actor, 'Sessão inválida. Entre novamente.', 401)
+      if(request.method==='POST'&&url.pathname==='/ai-models'){
+        const body=await readBody(request)
+        requireValue(body&&aiProviders.includes(body.provider)&&typeof body.key==='string'&&body.key.length>=8&&body.key.length<=512,'Configure sua chave pessoal deste provedor.',400)
+        if(body.provider.startsWith('compatible-'))requireValue(allowedAiEndpoint(body.endpoint),'Endpoint de IA não autorizado pela VPS.',400)
+        else requireValue(body.endpoint===undefined||body.endpoint===null,'Este provedor usa o endpoint oficial.',400)
+        requireValue(typeof aiProvider.listModels==='function','Consulta de modelos indisponível.',503)
+        let models
+        try{models=await aiProvider.listModels({provider:body.provider,key:body.key,endpoint:body.endpoint,signal:AbortSignal.timeout(20000)})}
+        catch(error){throw new CommunityError(502,error instanceof Error?error.message:'A consulta de modelos falhou.')}
+        json(response,200,{models});return
+      }
       if (request.method === 'POST' && url.pathname === '/logout') { accounts.revoke(token); json(response, 200, {}); return }
       if (request.method === 'POST' && url.pathname === '/servers') { const body = await readBody(request); requireValue(body && typeof body === 'object', 'Solicitação inválida.'); json(response, 200, await createServer(actor, body.name)); return }
       if (localFiles) {

@@ -91,8 +91,11 @@ test('custom endpoints require a server allowlist and cannot receive a mismatche
   assert.equal((await command({type:'ai-channel-model',channelId:'ch-general',model:'compatible-chat|model-alpha',endpoint:'https://evil.test/v1'})).status,400)
   assert.equal((await command({type:'ai-channel-model',channelId:'ch-general',model:'compatible-chat|model-alpha',endpoint:'https://api.example.test/v1'})).status,200)
   const body={channelId:'ch-general',text:'Oi',key:'personal-secret-key',provider:'anthropic',contextTokens:1024,maxOutputTokens:128,files:[]}
-  assert.equal((await call('/servers/srv-1/ai-runs',body)).status,409)
+  assert.equal((await call('/servers/srv-1/ai-runs',body)).status,400)
+  body.model='claude-model'
+  assert.equal((await call('/servers/srv-1/ai-runs',body)).status,202)
   body.provider='compatible-chat'
+  body.model='model-alpha'
   assert.equal((await call('/servers/srv-1/ai-runs',body)).status,202)
 })
 
