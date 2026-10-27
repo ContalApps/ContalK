@@ -37,6 +37,27 @@ test('Gemini uses countTokens and streamed content with the personal key',async(
   assert.match(calls[1].url,/streamGenerateContent\?alt=sse$/)
 })
 
+test('Gemini retries transient HTTP failures and reports persistent failures precisely',async()=>{
+  let calls=0,waits=0
+  const ai=geminiProvider({fetcher:async()=>{
+    calls++
+    return calls===1?new Response('',{status:503}):Response.json({totalTokens:12})
+  },wait:async()=>{waits++}})
+  assert.equal(await ai.count(sample),12)
+  assert.equal(calls,2)
+  assert.equal(waits,1)
+
+  calls=0
+  const unavailable=geminiProvider({fetcher:async()=>{calls++;return new Response('',{status:503})},wait:async()=>{}})
+  await assert.rejects(unavailable.count(sample),/Gemini.*HTTP 503/)
+  assert.equal(calls,3)
+
+  calls=0
+  const payment=geminiProvider({fetcher:async()=>{calls++;return new Response('',{status:402})},wait:async()=>{}})
+  await assert.rejects(payment.count(sample),/pagamento ou créditos/)
+  assert.equal(calls,1)
+})
+
 test('custom endpoints require a server allowlist and cannot receive a mismatched provider key',async t=>{
   assert.deepEqual(parseAiModel('anthropic|claude-model'),{provider:'anthropic',model:'claude-model'})
   for(const url of ['http://api.example.test/v1','https://localhost/v1','https://127.0.0.1/v1','https://user:pass@api.example.test/v1'])assert.equal(validAiEndpoint(url),false)
