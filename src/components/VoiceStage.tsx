@@ -349,7 +349,7 @@ export function VoiceStage({
         {/* Canto direito do Header: Controles de Grade/Foco, Contador e Membros */}
         <div className="flex items-center gap-3">
           {/* Seletor Grade vs Foco quando há telas compartilhadas */}
-          {screenShares.length > 0 && (
+          {(screenShares.length > 0 || hasSharedBrowser) && (
             <div className="flex items-center bg-[#0f0f0f] p-0.5 rounded-xl border border-neutral-900/40">
               <button
                 onClick={() => setStageViewMode('grid')}
@@ -432,6 +432,38 @@ export function VoiceStage({
             <p className="text-white font-medium">Você está na sala!</p>
             <p className="text-xs text-neutral-400/60">Aguardando outros participantes entrarem...</p>
           </div>
+        ) : stageViewMode === 'grid' && (screenShares.length > 0 || hasSharedBrowser) ? (
+          /* ═══════════════════════════════════════════════════════════════════ */
+          /* MODO GRADE: NAVEGADOR COMPARTILHADO E/OU TELAS LADO A LADO         */
+          /* ═══════════════════════════════════════════════════════════════════ */
+          <div className="ct-share-layout flex-1 flex flex-col min-h-0 w-full h-full">
+            <div
+              className="ct-stream-grid"
+              data-count={screenShares.length + (hasSharedBrowser ? 1 : 0)}
+            >
+              {hasSharedBrowser && (
+                <div className="ct-stream-cell min-h-[320px]">
+                  <SharedBrowserStage
+                    onMinimize={() => setStageViewMode('grid')}
+                    isSpotlight={false}
+                  />
+                </div>
+              )}
+              {screenShares.map((p) => (
+                <div key={p.identity} className="ct-stream-cell">
+                  <ScreenShareViewer
+                    participant={p}
+                    onFullscreen={() => void openFullscreen(p.identity)}
+                    onFocus={() => {
+                      setSpotlightScreenId(p.identity)
+                      setStageViewMode('spotlight')
+                    }}
+                    isSpotlight={false}
+                  />
+                </div>
+              ))}
+            </div>
+          </div>
         ) : hasSharedBrowser ? (
           <div className="flex-1 flex flex-col gap-2 min-h-0 w-full h-full p-2">
             <SharedBrowserStage
@@ -458,32 +490,6 @@ export function VoiceStage({
                 ))}
               </div>
             )}
-          </div>
-        ) : screenShares.length > 0 && stageViewMode === 'grid' ? (
-          /* ═══════════════════════════════════════════════════════════════════ */
-          /* MODO GRADE DE TELAS (EXIBE 2 OU MAIS TELAS LADO A LADO!)           */
-          /* ═══════════════════════════════════════════════════════════════════ */
-          <div className="ct-share-layout flex-1 flex flex-col min-h-0 w-full h-full">
-            <div
-              className="ct-stream-grid"
-              data-count={screenShares.length}
-            >
-              {screenShares.map((p) => (
-                <div key={p.identity} className="ct-stream-cell">
-                  <ScreenShareViewer
-                    participant={p}
-                    onFullscreen={() => void openFullscreen(p.identity)}
-                    onFocus={() => {
-                      setSpotlightScreenId(p.identity)
-                      setStageViewMode('spotlight')
-                    }}
-                    isSpotlight={false}
-                  />
-                </div>
-              ))}
-            </div>
-
-
           </div>
         ) : screenShares.length > 0 && stageViewMode === 'spotlight' && focusedScreen ? (
           /* ═══════════════════════════════════════════════════════════════════ */

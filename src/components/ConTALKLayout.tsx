@@ -88,7 +88,7 @@ export function ConTALKLayout() {
   const [eventsOpen,setEventsOpen]=useState(false),[eventTarget,setEventTarget]=useState<string|undefined>()
   const [rolesOpen,setRolesOpen]=useState(false)
   const [joinOpen,setJoinOpen]=useState(false)
-  const [settingsTab,setSettingsTab]=useState<'appearance'|'ai'>('appearance')
+  const [settingsTab,setSettingsTab]=useState<'appearance'|'audio'|'account'|'about'|'notifications'|'ai'|'integrations'>('appearance')
   const [nicknameFirst,setNicknameFirst]=useState(false)
   const [memberRoles,setMemberRoles]=useState<string|null>(null)
   const roles=useRoleStore()
@@ -509,7 +509,6 @@ export function ConTALKLayout() {
       {label:'Novo projeto',disabled:true,hint:'em breve'},
       'separator',
       {label:'Abrir pasta…',shortcut:'Ctrl+O',onSelect:()=>void openFolder(),disabled:!desktop?.openFolder,hint:desktop?.openFolder?undefined:desktopOnly},
-      {label:'Copiar diagnóstico do sistema',onSelect:()=>void handleCopyDiagnostics()},
       'separator',
       {label:'Sair da conta',onSelect:signOut},
       {label:'Encerrar o ConTALK',onSelect:()=>void quit(),disabled:!desktop?.quitApp,hint:desktop?.quitApp?undefined:desktopOnly},
@@ -549,7 +548,7 @@ export function ConTALKLayout() {
       {label:'Copiar diagnóstico do sistema',onSelect:()=>void handleCopyDiagnostics()},
       'separator',
       {label:'Documentação do ConTALK',onSelect:()=>setActiveDevModal('docs')},
-      {label:'Sobre o ConTALK',onSelect:()=>setActiveDevModal('overview')},
+      {label:'Sobre o ConTALK',onSelect:()=>{setSettingsTab('about');setSettingsOpen(true)}},
     ]},
   ]
   useEffect(()=>{
@@ -887,16 +886,6 @@ export function ConTALKLayout() {
           </div>
         </>
       )}
-      {activeDevModal==='roadmap'&&(
-        <>
-          <h2>Roadmap</h2>
-          <div style={{display:'flex',flexDirection:'column',gap:'8px',margin:'14px 0'}}>
-            <div style={{padding:'8px 12px',background:'var(--cx-surface)',borderRadius:'6px'}}><strong>v2.5:</strong> Dev Studio integrado com IA generativa e terminal interativo</div>
-            <div style={{padding:'8px 12px',background:'var(--cx-surface)',borderRadius:'6px'}}><strong>v2.6:</strong> Colaboração P2P com CRDTs e compartilhamento de telas multi-display</div>
-            <div style={{padding:'8px 12px',background:'var(--cx-surface)',borderRadius:'6px'}}><strong>v3.0:</strong> Plugins MCP integrados para automação de CI/CD e deployment</div>
-          </div>
-        </>
-      )}
       <footer><button type="button" onClick={()=>setActiveDevModal(null)}>Fechar</button></footer>
     </section>
   </div>
@@ -913,12 +902,13 @@ export function ConTALKLayout() {
         }}
         onOpenHelp={() => document.dispatchEvent(new KeyboardEvent('keydown', { key: 'F1', bubbles: true }))}
         onOpenFolder={() => void openFolder()}
+        onOpenDevModal={modal => setActiveDevModal(modal)}
       />
     )}
     {reviewPanelOpen && (
       <ReviewPanel
         onClose={() => setReviewPanelOpen(false)}
-        branch="dev/caliari"
+        branch={gitBranch || 'dev/caliari'}
       />
     )}
     {toastMessage && (

@@ -261,6 +261,6 @@ export function setupCommunity(window:BrowserWindow,getUsername:()=>string|null)
     'community-subscribe':(serverId:string)=>{if(!validId(serverId))throw new Error('Servidor inválido.');config();stream?.abort();stream=new AbortController();void subscribe(serverId,getUsername()!,stream)},
     'community-unsubscribe':()=>{stream?.abort();stream=undefined},
   }
-  for(const [channel,handler]of Object.entries(handlers))ipcMain.handle(channel,(event,...args)=>{if(event.sender!==contents||event.senderFrame!==contents.mainFrame)throw new Error('Origem inválida.');if(!getUsername())throw new Error('Entre no ConTALK.');return handler(...args)})
+  for(const [channel,handler]of Object.entries(handlers))ipcMain.handle(channel,(event,...args)=>{if(event.sender!==contents||event.senderFrame!==contents.mainFrame)throw new Error('Origem inválida.');if(!getUsername()&&channel!=='community-unsubscribe'&&channel!=='community-ai-unsubscribe')throw new Error('Entre no ConTALK.');return handler(...args)})
   window.once('closed',()=>{stream?.abort();aiStream?.abort();selectedAiFiles.clear();for(const channel of Object.keys(handlers))ipcMain.removeHandler(channel)})
 }

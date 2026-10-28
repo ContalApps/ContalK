@@ -12,7 +12,7 @@ import { CoastalScene } from './CoastalScene'
 import { SocialAccountsManager } from './SocialAccountsManager'
 import { useAppsStore } from '../store/useAppsStore'
 
-export function SettingsView({ onClose, onEditProfile, initialTab='appearance' }: { onClose: () => void; onEditProfile: () => void; initialTab?:'appearance'|'ai' }) {
+export function SettingsView({ onClose, onEditProfile, initialTab='appearance' }: { onClose: () => void; onEditProfile: () => void; initialTab?:'appearance' | 'audio' | 'account' | 'about' | 'notifications' | 'ai' | 'integrations' }) {
   const preferences = usePreferencesStore()
   const user = useAuthStore(s => s.user)!
   const devStore = useDevStore()
@@ -255,7 +255,6 @@ export function SettingsView({ onClose, onEditProfile, initialTab='appearance' }
             </p>
           </div>
         </div>
-        <SocialAccountsManager />
       </section>
     )}
     {tab==='account'&&<>

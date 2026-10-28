@@ -155,15 +155,39 @@ export function InternalBrowserModal({ onClose }: { onClose: () => void }) {
               type="button"
               className="ct-browser-nav-btn"
               title="Voltar"
-              onClick={() => void desktop?.browserNavigate?.('https://www.google.com')}
+              onClick={async () => {
+                if (desktop?.browserGoBack) {
+                  await desktop.browserGoBack()
+                } else {
+                  void desktop?.browserNavigate?.('https://www.google.com')
+                }
+              }}
             >
               <ControlIcon name="back" size={13} />
             </button>
             <button
               type="button"
               className="ct-browser-nav-btn"
+              title="Avançar"
+              onClick={async () => {
+                if (desktop?.browserGoForward) {
+                  await desktop.browserGoForward()
+                }
+              }}
+            >
+              <ControlIcon name="forward" size={13} />
+            </button>
+            <button
+              type="button"
+              className="ct-browser-nav-btn"
               title="Recarregar página"
-              onClick={() => void handleNavigate(currentUrl)}
+              onClick={async () => {
+                if (desktop?.browserReload) {
+                  await desktop.browserReload()
+                } else {
+                  void handleNavigate(currentUrl)
+                }
+              }}
             >
               <ControlIcon name="refresh" size={13} />
             </button>
