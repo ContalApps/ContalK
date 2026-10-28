@@ -107,80 +107,97 @@ export function ConTALKLayout() {
   const [workspaceFiles, setWorkspaceFiles] = useState<import('../types/desktop').WorkspaceFileEntry[]>([])
   const [loadingWorkspaceFiles, setLoadingWorkspaceFiles] = useState(false)
   const [isSavingCode, setIsSavingCode] = useState(false)
-  const [editorTabs,setEditorTabs]=useState<DevEditorTab[]>([
-    {id:'page',name:'page.tsx',path:'projeto-atlas/apps/web/src/components/editor/page.tsx'},
-    {id:'cursor',name:'CursorPresence.tsx',path:'projeto-atlas/apps/web/src/components/editor/CursorPresence.tsx'},
-    {id:'yjs',name:'yjs-provider.ts',path:'projeto-atlas/apps/web/src/components/editor/yjs-provider.ts'}
+  const [gitBranch, setGitBranch] = useState('dev/caliari')
+  const [editorTabs, setEditorTabs] = useState<DevEditorTab[]>([
+    { id: 'app', name: 'App.tsx', path: 'src/App.tsx' },
+    { id: 'layout', name: 'ConTALKLayout.tsx', path: 'src/components/ConTALKLayout.tsx' },
+    { id: 'package', name: 'package.json', path: 'package.json' }
   ])
-  const [activeEditorTab,setActiveEditorTab]=useState('page')
+  const [activeEditorTab, setActiveEditorTab] = useState('app')
   const initialCodes: Record<string, string> = {
-    page: `'use client'
+    app: `import { useEffect, useState } from 'react'
+import { ConTALKLayout } from './components/ConTALKLayout'
+import { AuthView } from './components/AuthView'
+import { useAuthStore } from './store/useAuthStore'
 
-import { useEffect, useRef, useState } from 'react'
-import * as Y from 'yjs'
-import { WebsocketProvider } from 'y-websocket'
-import { Editor } from '@tiptap/react'
-import { CursorPresence } from './CursorPresence'
-
-export default function EditorPage() {
-  const [editor, setEditor] = useState<Editor | null>(null)
-  const providerRef = useRef<WebsocketProvider | null>(null)
+export function App() {
+  const { user, token, checkAuth } = useAuthStore()
+  const [checking, setChecking] = useState(true)
 
   useEffect(() => {
-    const doc = new Y.Doc()
-    providerRef.current = new WebsocketProvider(
-      'wss://seu-servidor.com',
-      'projeto-atlas',
-      doc
-    )
+    void checkAuth().finally(() => setChecking(false))
+  }, [checkAuth])
 
-    // Inicializa o editor colaborativo com presença em tempo real
-    const newEditor = new Editor({
-      element: document.querySelector('#editor'),
-      extensions: [/* ... */],
-      content: '<p>Bem-vindo ao ConTALK Code Studio! 🚀</p>',
-    })
-    setEditor(newEditor)
-  }, [])
-}`,
-    cursor: `import React from 'react'
+  if (checking) {
+    return <div className="ct-loading">Carregando ConTALK…</div>
+  }
 
-export interface RemoteCursorProps {
-  id: string
-  name: string
-  color: string
-  line: number
-  ch: number
+  if (!user || !token) {
+    return <AuthView />
+  }
+
+  return <ConTALKLayout />
 }
+`,
+    layout: `import React from 'react'
+import { useAppStore } from '../store/useAppStore'
+import { useAuthStore } from '../store/useAuthStore'
+import { DevCodeEditor } from './DevCodeEditor'
+import { TerminalPanel } from './TerminalPanel'
 
-export function CursorPresence({ name, color, line, ch }: RemoteCursorProps) {
-  return (
-    <div
-      className="ct-remote-cursor-indicator"
-      style={{
-        top: \`\${(line - 1) * 20}px\`,
-        left: \`\${ch * 7.8}px\`,
-        borderColor: color
-      }}
-    >
-      <span className="ct-remote-cursor-badge" style={{ backgroundColor: color }}>
-        {name}
-      </span>
-    </div>
-  )
-}`,
-    yjs: `import * as Y from 'yjs'
-import { WebsocketProvider } from 'y-websocket'
-
-export function initYjsProvider(room: string, doc: Y.Doc) {
-  return new WebsocketProvider('wss://con-talk.app/yjs', room, doc)
-}`
+// ConTALK Desktop Studio Shell
+export function ConTALKLayout() {
+  // Hub de desenvolvimento, chat e chamadas WebRTC
+  return <div className="ct-shell">ConTALK Desktop</div>
+}
+`,
+    package: `{
+  "name": "contalk",
+  "version": "0.1.30",
+  "description": "ConTALK - Plataforma de Comunicação e Desenvolvimento Colaborativo com IA e WebRTC",
+  "main": "dist-electron/main.js",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "test": "node --test tests/*.test.mjs"
+  }
+}
+`
   }
   const [tabCodes, setTabCodes] = useState<Record<string, string>>(initialCodes)
   const devCollab = useDevCollaborationStore()
   const liveRemoteCursors = Object.values(devCollab.remoteCursors).filter(
     c => c.fileId === activeEditorTab && c.id !== user?.username
   )
+
+  useEffect(() => {
+    const desktop = window.contalkDesktop
+    if (!desktop) return
+
+    // Query real git branch
+    if (desktop.workspaceExecCommand) {
+      void desktop.workspaceExecCommand('git branch --show-current').then(res => {
+        if (res.exitCode === 0 && res.stdout.trim()) {
+          setGitBranch(res.stdout.trim())
+        }
+      }).catch(() => {})
+    }
+
+    // Load actual files from disk
+    if (desktop.workspaceReadFile) {
+      void desktop.workspaceReadFile('src/App.tsx').then(content => {
+        if (content) setTabCodes(prev => ({ ...prev, app: content }))
+      }).catch(() => {})
+
+      void desktop.workspaceReadFile('src/components/ConTALKLayout.tsx').then(content => {
+        if (content) setTabCodes(prev => ({ ...prev, layout: content }))
+      }).catch(() => {})
+
+      void desktop.workspaceReadFile('package.json').then(content => {
+        if (content) setTabCodes(prev => ({ ...prev, package: content }))
+      }).catch(() => {})
+    }
+  }, [])
 
   useEffect(() => {
     const handleRemoteCodeUpdate = (e: Event) => {
@@ -320,10 +337,13 @@ export function initYjsProvider(room: string, doc: Y.Doc) {
     setIsSavingCode(true)
     try {
       const currentCode = tabCodes[activeEditorTab] ?? ''
-      if (desktop?.workspaceWriteFile && (currentTab.path.includes(':') || currentTab.path.startsWith('/') || currentTab.path.startsWith('\\'))) {
+      if (desktop?.workspaceWriteFile) {
         await desktop.workspaceWriteFile(currentTab.path, currentCode)
       }
       setEditorTabs(tabs => tabs.map(tab => tab.id === activeEditorTab ? { ...tab, isDirty: false } : tab))
+      showToast(`Arquivo ${currentTab.name} salvo no disco!`)
+    } catch {
+      showToast('Falha ao salvar arquivo.')
     } finally {
       setIsSavingCode(false)
     }
@@ -703,9 +723,9 @@ export function initYjsProvider(room: string, doc: Y.Doc) {
     }
   }}
   onCloseEditor={()=>setDevEditorOpen(false)}
-  branch="feature/realtime-cursors"
-  fileName={editorTabs.find(t=>t.id===activeEditorTab)?.name || 'page.tsx'}
-  filePath={editorTabs.find(t=>t.id===activeEditorTab)?.path || 'projeto-atlas/apps/web/src/components/editor/page.tsx'}
+  branch={gitBranch}
+  fileName={editorTabs.find(t=>t.id===activeEditorTab)?.name || 'App.tsx'}
+  filePath={editorTabs.find(t=>t.id===activeEditorTab)?.path || 'src/App.tsx'}
   code={tabCodes[activeEditorTab] ?? ''}
   onChangeCode={handleUpdateCode}
   onSave={handleSaveActiveCode}

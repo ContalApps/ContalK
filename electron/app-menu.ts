@@ -63,11 +63,12 @@ export function setupAppMenu(window: BrowserWindow, onQuit: () => void) {
 
   ipcMain.handle('workspace-read-file', async (event, filePath: unknown) => {
     trusted(event)
-    if (typeof filePath !== 'string' || !path.isAbsolute(filePath)) throw new Error('Caminho de arquivo inválido.')
+    if (typeof filePath !== 'string' || !filePath.trim()) throw new Error('Caminho de arquivo inválido.')
+    const resolvedPath = path.isAbsolute(filePath) ? filePath : path.resolve(process.cwd(), filePath)
     try {
-      const stat = await fs.stat(filePath)
+      const stat = await fs.stat(resolvedPath)
       if (stat.size > 2 * 1024 * 1024) throw new Error('Arquivo maior que 2 MB.')
-      const content = await fs.readFile(filePath, 'utf8')
+      const content = await fs.readFile(resolvedPath, 'utf8')
       return content
     } catch (e) {
       throw new Error('Falha ao ler arquivo: ' + (e instanceof Error ? e.message : String(e)))
@@ -76,10 +77,11 @@ export function setupAppMenu(window: BrowserWindow, onQuit: () => void) {
 
   ipcMain.handle('workspace-write-file', async (event, filePath: unknown, content: unknown) => {
     trusted(event)
-    if (typeof filePath !== 'string' || !path.isAbsolute(filePath)) throw new Error('Caminho de arquivo inválido.')
+    if (typeof filePath !== 'string' || !filePath.trim()) throw new Error('Caminho de arquivo inválido.')
     if (typeof content !== 'string') throw new Error('Conteúdo inválido.')
+    const resolvedPath = path.isAbsolute(filePath) ? filePath : path.resolve(process.cwd(), filePath)
     try {
-      await fs.writeFile(filePath, content, 'utf8')
+      await fs.writeFile(resolvedPath, content, 'utf8')
       return true
     } catch (e) {
       throw new Error('Falha ao gravar arquivo: ' + (e instanceof Error ? e.message : String(e)))
