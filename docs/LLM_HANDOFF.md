@@ -1,6 +1,6 @@
 # Retomada do ConTALK
 
-## Entrega 0.1.28: Harness de IA para Desenvolvimento e Protocolo MCP
+## Entrega 0.1.29: Harness de IA para Desenvolvimento e Protocolo MCP
 
 Em `dev/caliari`, foram implementadas todas as capacidades para transformar o ConTALK em um harness autônomo e completo de IA para desenvolvimento, eliminando a necessidade de ferramentas externas (Claude Code, Codex CLI, ChatGPT web):
 - **Chamada de Ferramentas Estruturadas:** Reconhecimento e parsing de ações propostas pela IA (`run_command`, `write_file`, `edit_file`, `read_file`, `list_files`, `mcp_call`) a partir de blocos de código e tags XML.
