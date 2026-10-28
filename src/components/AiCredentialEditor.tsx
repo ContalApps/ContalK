@@ -56,7 +56,20 @@ export function AiCredentialEditor({
       try {
         const list = await window.contalkDesktop.communityAiModels(provider, custom ? endpoint : undefined)
         setIsSuccess(true)
-        setStatus(`${aiProviderName[provider]} conectada! ${list.models.length} modelos sincronizados.`)
+        if (list.models.length > 0) {
+          setStatus(`${aiProviderName[provider]} conectada com sucesso! ${list.models.length} modelos ativos e respondendo sincronizados.`)
+          try {
+            if (typeof localStorage !== 'undefined') {
+              const currentPreferred = localStorage.getItem(`contalk:preferred-ai-model:${provider}`)
+              if (!currentPreferred || !list.models.some(m => m.id === currentPreferred)) {
+                localStorage.setItem(`contalk:preferred-ai-model:${provider}`, list.models[0].id)
+                localStorage.setItem('contalk:preferred-ai-model', list.models[0].id)
+              }
+            }
+          } catch {}
+        } else {
+          setStatus(`${aiProviderName[provider]} conectada, mas nenhum modelo respondeu no teste. Verifique sua chave.`)
+        }
       } catch (error) {
         setIsSuccess(true)
         setStatus(`Chave salva localmente. ${error instanceof Error ? error.message : ''}`)

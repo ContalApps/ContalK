@@ -100,9 +100,13 @@ export function AiModelSelector({
       /* ignore storage error */
     }
 
-    // Default to the first available model if none selected
-    if (!model && combinedModels[0]?.id) {
-      onChange(provider, combinedModels[0].id)
+    // Default to the first available model if none selected or if previous selection is invalid/not responding
+    const isModelValid = model && combinedModels.some(m => m.id === model)
+    if (!isModelValid && combinedModels.length > 0) {
+      const firstChatModel = combinedModels.find(m => !m.id.includes('imagen') && !m.id.includes('dall-e')) || combinedModels[0]
+      if (firstChatModel?.id) {
+        onChange(provider, firstChatModel.id)
+      }
     }
   }, [combinedModels.length, provider, model])
 
@@ -166,7 +170,7 @@ export function AiModelSelector({
               disabled={loading}
             >
               <option value="">
-                {loading ? 'Consultando modelos da API…' : 'Selecione um modelo…'}
+                {loading ? 'Verificando modelos que estão respondendo…' : combinedModels.length === 0 ? 'Nenhum modelo respondendo' : 'Selecione um modelo…'}
               </option>
               {combinedModels.map(item => {
                 const cleanName = item.name.replace(/\s*\([^)]*\)$/, '').trim()

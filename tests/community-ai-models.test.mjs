@@ -16,6 +16,35 @@ test('Gemini models come from the personal API key, with generation filtering an
   assert.equal(calls[0].options.redirect,'error')
 })
 
+test('Gemini models only include models that are actively responding and filter out deprecated or failing models',async()=>{
+  const models=await listAiModels({
+    provider:'gemini',
+    key:'personal-key',
+    fetcher:async(url)=>{
+      if(url.includes('models?pageSize=')){
+        return Response.json({
+          models:[
+            {name:'models/gemini-2.0-flash',displayName:'Gemini 2.0 Flash',supportedGenerationMethods:['generateContent']},
+            {name:'models/gemini-1.5-pro',displayName:'Gemini 1.5 Pro',supportedGenerationMethods:['generateContent']},
+            {name:'models/gemini-1.0-pro-vision-latest',displayName:'Gemini 1.0 Vision Deprecated',supportedGenerationMethods:['generateContent']},
+            {name:'models/gemini-broken-model',displayName:'Gemini Broken',supportedGenerationMethods:['generateContent']},
+            {name:'models/text-bison-001',displayName:'Legacy Bison',supportedGenerationMethods:['generateContent']},
+            {name:'models/text-embedding-004',displayName:'Embedding',supportedGenerationMethods:['embedContent']},
+          ]
+        })
+      }
+      if(url.includes('gemini-broken-model:countTokens')){
+        return new Response(JSON.stringify({error:{code:404,message:'Model not found'}}),{status:404})
+      }
+      if(url.includes(':countTokens')){
+        return Response.json({totalTokens:1})
+      }
+      return new Response('Not found',{status:404})
+    }
+  })
+  assert.deepEqual(models.map(m=>m.id),['gemini-2.0-flash','gemini-1.5-pro'])
+})
+
 test('native and compatible providers use their model-list protocols',async()=>{
   const seen=[]
   const fetcher=async(url,options)=>{seen.push({url,options});return Response.json(url.includes('language-models')?{models:[{id:'grok-model'}]}:{data:[{id:'model-1',display_name:'Modelo 1'}]})}

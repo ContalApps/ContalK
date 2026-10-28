@@ -4,6 +4,9 @@ const validId=value=>typeof value==='string'&&/^[\w.:/-]{2,100}$/.test(value)
 
 const errorFor=(provider,status)=>status===401||status===403?new Error('A chave pessoal de '+provider+' foi recusada.'):status===404||status===405?new Error('Esta API não oferece uma lista de modelos. Informe o identificador manualmente.'):new Error('Não foi possível consultar os modelos de '+provider+' (HTTP '+status+').')
 
+const nonChatPatterns=/embed|bison|gecko|aqa|whisper|tts|moderation|davinci|babbage|\.tuning/i
+const isExcludedGemini=id=>nonChatPatterns.test(id)||/gemini-1\.0-pro-vision|gemini-pro-vision/i.test(id)
+
 async function getJson(fetcher,url,headers,signal,provider){
   let response
   try{response=await fetcher(url,{method:'GET',headers,signal:signal?AbortSignal.any([signal,AbortSignal.timeout(15000)]):AbortSignal.timeout(15000),redirect:'error'})}
@@ -37,6 +40,44 @@ export async function listAiModels({provider,key,endpoint,signal,fetcher=fetch})
     items=models.map(model=>({id:model.id,name:model.display_name||model.name||model.id}))
   }
   const unique=new Map()
-  for(const item of items){const id=provider==='gemini'?String(item.id||'').replace(/^models\//,''):item.id;if(validId(id)&&!unique.has(id))unique.set(id,{id,name:typeof item.name==='string'&&!/[\p{Cc}\p{Zl}\p{Zp}]/u.test(item.name)?item.name.slice(0,120):id});if(unique.size>=MAX_MODELS)break}
+  for(const item of items){
+    const id=provider==='gemini'?String(item.id||'').replace(/^models\//,''):item.id
+    if(validId(id)&&!unique.has(id)){
+      if(provider==='gemini'&&isExcludedGemini(id))continue
+      if(provider==='openai'&&nonChatPatterns.test(id))continue
+      unique.set(id,{id,name:typeof item.name==='string'&&!/[\p{Cc}\p{Zl}\p{Zp}]/u.test(item.name)?item.name.slice(0,120):id})
+    }
+    if(unique.size>=MAX_MODELS)break
+  }
+
+  // Verificar se os modelos estão respondendo ativamente
+  if(provider==='gemini'&&unique.size>0){
+    const candidates=[...unique.values()]
+    const results=await Promise.allSettled(
+      candidates.map(async item=>{
+        try{
+          const pingSignal=signal?AbortSignal.any([signal,AbortSignal.timeout(3500)]):AbortSignal.timeout(3500)
+          const pingUrl=`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(item.id)}:countTokens`
+          const res=await fetcher(pingUrl,{
+            method:'POST',
+            headers:{'x-goog-api-key':key,'Content-Type':'application/json'},
+            body:JSON.stringify({contents:[{parts:[{text:'ping'}]}]}),
+            signal:pingSignal,
+            redirect:'error'
+          })
+          if([400,403,404,410].includes(res.status))return null
+          if(res.ok)return item
+          return item
+        }catch{
+          return null
+        }
+      })
+    )
+    const responding=results.filter(r=>r.status==='fulfilled'&&r.value!==null).map(r=>r.value)
+    if(responding.length>0){
+      return responding.sort((a,b)=>b.id.localeCompare(a.id,undefined,{numeric:true}))
+    }
+  }
+
   return [...unique.values()].sort((a,b)=>b.id.localeCompare(a.id,undefined,{numeric:true}))
 }
