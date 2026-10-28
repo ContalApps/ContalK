@@ -1,7 +1,8 @@
 import { useState } from 'react'
 import { ControlIcon } from './ControlIcon'
+import { AiGeneratedImage } from './AiGeneratedImage'
 
-export type AgentToolType = 'run_command' | 'write_file' | 'edit_file' | 'read_file' | 'list_files' | 'mcp_call'
+export type AgentToolType = 'run_command' | 'write_file' | 'edit_file' | 'read_file' | 'list_files' | 'mcp_call' | 'generate_image'
 
 export interface AgentAction {
   id: string
@@ -15,6 +16,7 @@ export interface AgentAction {
   server?: string
   toolName?: string
   args?: Record<string, unknown>
+  prompt?: string
   raw: string
 }
 
@@ -68,6 +70,13 @@ export function parseAgentActions(content: string): ParsedBlock[] {
           const p = splitIdx >= 0 ? trimmed.slice(0, splitIdx).replace(/^path:\s*/i, '').trim() : 'file.txt'
           const c = splitIdx >= 0 ? trimmed.slice(splitIdx + 1) : ''
           action = { id, tool: 'write_file', path: p, content: c, raw: fullMatch }
+        } else if (toolKind === 'generate_image') {
+          let promptText = trimmed
+          try {
+            const p = JSON.parse(trimmed)
+            promptText = p.prompt || p.description || trimmed
+          } catch { /* ignore */ }
+          action = { id, tool: 'generate_image', prompt: promptText, command: promptText, raw: fullMatch }
         }
       } else {
         try {
@@ -83,6 +92,7 @@ export function parseAgentActions(content: string): ParsedBlock[] {
             server: parsed.server || parsed.args?.server,
             toolName: parsed.toolName || parsed.args?.toolName,
             args: parsed.args || parsed.parameters,
+            prompt: parsed.prompt || parsed.args?.prompt || parsed.description || parsed.command,
             raw: fullMatch
           }
         } catch {
@@ -111,6 +121,7 @@ export function parseAgentActions(content: string): ParsedBlock[] {
         server: tagServer || (args?.server as string),
         toolName: tagToolName || (args?.toolName as string),
         args,
+        prompt: (args?.prompt as string) || (args?.description as string) || (args?.command as string) || trimmedBody,
         raw: fullMatch
       }
     }
@@ -136,8 +147,28 @@ export function AgentActionCard({ action }: { action: AgentAction }) {
   const [output, setOutput] = useState<{ stdout: string; stderr: string; exitCode?: number } | null>(null)
   const [errorMessage, setErrorMessage] = useState('')
   const [detailsExpanded, setDetailsExpanded] = useState(false)
+  const [generatedImage, setGeneratedImage] = useState<{ src: string; prompt: string } | null>(null)
 
   const desktop = typeof window !== 'undefined' ? window.contalkDesktop : undefined
+
+  const handleGenerateImage = async () => {
+    const prompt = action.prompt || action.command || action.content || ''
+    if (!prompt) return
+    setStatus('running')
+    setErrorMessage('')
+    try {
+      if (!desktop?.communityAiGenerateImage) {
+        throw new Error('Geração de imagem disponível apenas no aplicativo desktop.')
+      }
+      const res = await desktop.communityAiGenerateImage(prompt)
+      setGeneratedImage(res)
+      setStatus('executed')
+      setOutput({ stdout: `Imagem gerada via ${res.provider} (${res.model}):\nPrompt: ${res.prompt}`, stderr: '' })
+    } catch (e) {
+      setStatus('pending')
+      setErrorMessage(e instanceof Error ? e.message : 'Falha ao gerar imagem.')
+    }
+  }
 
   const handleRunCommand = async (inBackground = true) => {
     if (!action.command) return
@@ -219,7 +250,7 @@ export function AgentActionCard({ action }: { action: AgentAction }) {
     setStatus('rejected')
   }
 
-  const toolIcon = action.tool === 'run_command' ? 'terminal' : action.tool === 'mcp_call' ? 'ai' : 'git-code'
+  const toolIcon = action.tool === 'run_command' ? 'terminal' : action.tool === 'mcp_call' || action.tool === 'generate_image' ? 'ai' : 'git-code'
 
   return (
     <div className={`ct-agent-card ct-agent-${action.tool} ct-status-${status}`}>
@@ -233,6 +264,7 @@ export function AgentActionCard({ action }: { action: AgentAction }) {
             {action.tool === 'read_file' && `Ler arquivo: ${action.path}`}
             {action.tool === 'list_files' && `Listar pasta: ${action.path || '.'}`}
             {action.tool === 'mcp_call' && `Ferramenta MCP: ${action.server} / ${action.toolName}`}
+            {action.tool === 'generate_image' && `Gerar imagem com IA: "${action.prompt || action.command}"`}
           </strong>
         </div>
         <span className={`ct-agent-badge ct-badge-${status}`}>
@@ -248,6 +280,19 @@ export function AgentActionCard({ action }: { action: AgentAction }) {
           <pre className="ct-agent-code-box">
             <code>$ {action.command}</code>
           </pre>
+        )}
+
+        {action.tool === 'generate_image' && (
+          <div className="ct-agent-image-preview">
+            {generatedImage ? (
+              <AiGeneratedImage src={generatedImage.src} alt={generatedImage.prompt} caption={generatedImage.prompt} />
+            ) : (
+              <div className="ct-agent-image-prompt-box">
+                <div className="ct-agent-image-prompt-label">Prompt da imagem:</div>
+                <p className="ct-agent-image-prompt-text">{action.prompt || action.command}</p>
+              </div>
+            )}
+          </div>
         )}
 
         {(action.tool === 'write_file' || action.tool === 'edit_file') && (
@@ -317,6 +362,17 @@ export function AgentActionCard({ action }: { action: AgentAction }) {
             >
               <ControlIcon name="check" size={13} />
               <span>Aprovar e Invocar Tool</span>
+            </button>
+          )}
+
+          {action.tool === 'generate_image' && (
+            <button
+              type="button"
+              className="ct-btn-primary ct-agent-btn"
+              onClick={() => void handleGenerateImage()}
+            >
+              <ControlIcon name="ai" size={13} />
+              <span>Gerar Imagem Agora</span>
             </button>
           )}
 

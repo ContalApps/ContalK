@@ -108,3 +108,69 @@ test('compatible Chat Completions rejects media before generation and streams te
   const answer=await router.generate(args)
   assert.equal(answer.text,'Pronto');assert.deepEqual(answer.usage,{input_tokens:12,output_tokens:2})
 })
+
+test('OpenAI DALL-E generates images and returns markdown data URL',async()=>{
+  let calledUrl='', calledBody=null
+  const router=multiAiProvider({fetcher:async(url,options)=>{
+    calledUrl=String(url)
+    calledBody=JSON.parse(options.body)
+    return Response.json({data:[{b64_json:'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==',revised_prompt:'Um gato cósmico detalhado'}]})
+  }})
+  const count=await router.count({provider:'openai',model:'dall-e-3',messages:[{userName:'alice',content:'Gere um gato cósmico'}]})
+  assert.equal(count,1000)
+
+  let streamed=''
+  const result=await router.generate({
+    provider:'openai',
+    model:'dall-e-3',
+    key:'openai-secret-key',
+    messages:[{userName:'alice',content:'Gere um gato cósmico'}],
+    onDelta:delta=>{streamed+=delta}
+  })
+  assert.equal(calledUrl,'https://api.openai.com/v1/images/generations')
+  assert.equal(calledBody.model,'dall-e-3')
+  assert.equal(calledBody.prompt,'Gere um gato cósmico')
+  assert.match(result.text,/!\[Um gato cósmico detalhado\]\(data:image\/png;base64,/)
+  assert.equal(streamed,result.text)
+})
+
+test('Gemini Imagen generates images and returns markdown data URL',async()=>{
+  let calledUrl='', calledBody=null
+  const router=multiAiProvider({fetcher:async(url,options)=>{
+    calledUrl=String(url)
+    calledBody=JSON.parse(options.body)
+    return Response.json({predictions:[{bytesBase64Encoded:'/9j/4AAQSkZJRgABAQEASABIAAD/',mimeType:'image/jpeg'}]})
+  }})
+  const count=await router.count({provider:'gemini',model:'imagen-3.0-generate-002',messages:[{userName:'bob',content:'Paisagem futurista'}]})
+  assert.equal(count,1000)
+
+  let streamed=''
+  const result=await router.generate({
+    provider:'gemini',
+    model:'imagen-3.0-generate-002',
+    key:'gemini-secret-key',
+    messages:[{userName:'bob',content:'Paisagem futurista'}],
+    onDelta:delta=>{streamed+=delta}
+  })
+  assert.match(calledUrl,/models\/imagen-3\.0-generate-002:predict/)
+  assert.equal(calledBody.instances[0].prompt,'Paisagem futurista')
+  assert.match(result.text,/!\[Paisagem futurista\]\(data:image\/jpeg;base64,\/9j\//)
+  assert.equal(streamed,result.text)
+})
+
+test('multiAiProvider routes /image command to image generation',async()=>{
+  let calledUrl=''
+  const router=multiAiProvider({fetcher:async(url)=>{
+    calledUrl=String(url)
+    return Response.json({data:[{b64_json:'YmFzZTY0',revised_prompt:'Carro voador'}]})
+  }})
+  const result=await router.generate({
+    provider:'openai',
+    model:'gpt-4o',
+    key:'key',
+    messages:[{userName:'carol',content:'/image Carro voador'}],
+    onDelta:()=>{}
+  })
+  assert.equal(calledUrl,'https://api.openai.com/v1/images/generations')
+  assert.match(result.text,/!\[Carro voador\]\(data:image\/png;base64,YmFzZTY0\)/)
+})

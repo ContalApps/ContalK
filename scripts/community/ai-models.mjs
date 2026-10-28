@@ -24,7 +24,7 @@ export async function listAiModels({provider,key,endpoint,signal,fetcher=fetch})
       const url='https://generativelanguage.googleapis.com/v1beta/models?pageSize=1000'+(token?'&pageToken='+encodeURIComponent(token):'')
       const data=await getJson(fetcher,url,{'x-goog-api-key':key},signal,'Gemini')
       if(!Array.isArray(data.models))throw new Error('Gemini não retornou uma lista de modelos válida.')
-      items.push(...data.models.filter(model=>model.supportedGenerationMethods?.includes('generateContent')).map(model=>({id:model.baseModelId||String(model.name||'').replace(/^models\//,''),name:model.displayName})))
+      items.push(...data.models.filter(model=>model.supportedGenerationMethods?.some(m=>['generateContent','generateImages','predict'].includes(m))).map(model=>({id:model.baseModelId||String(model.name||'').replace(/^models\//,''),name:model.displayName})))
       token=data.nextPageToken||''
       if(!token||items.length>=MAX_MODELS)break
     }

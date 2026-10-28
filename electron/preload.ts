@@ -13,6 +13,7 @@ const desktop: DesktopBridge = {
   communityAiModels:(provider,endpoint)=>ipcRenderer.invoke('community-ai-models',provider,endpoint),
   communityAiSelectFiles:()=>ipcRenderer.invoke('community-ai-select-files'),
   communityAiStart:(serverId,channelId,text,fileIds,limits,provider,model)=>ipcRenderer.invoke('community-ai-start',serverId,channelId,text,fileIds,limits,provider,model),
+  communityAiGenerateImage:(prompt,provider,model)=>ipcRenderer.invoke('community-ai-generate-image',prompt,provider,model),
   communityAiStop:(serverId,channelId,runId)=>ipcRenderer.invoke('community-ai-stop',serverId,channelId,runId),
   communityAiSubscribe:(serverId,channelId)=>ipcRenderer.invoke('community-ai-subscribe',serverId,channelId),
   communityAiUnsubscribe:()=>ipcRenderer.invoke('community-ai-unsubscribe'),

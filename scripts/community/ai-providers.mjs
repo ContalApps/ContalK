@@ -98,9 +98,39 @@ export function geminiProvider({fetcher=fetch,wait=(ms,signal)=>pause(ms,undefin
     }
   }
   return {
-    async count({key,model,messages,summary,files,signal}){return withDeadline(signal,'a contagem de tokens',async requestSignal=>{const body=prepare({messages,summary,files});const response=await call(model,'countTokens',key,{generateContentRequest:{model:'models/'+model,...body}},requestSignal);const data=await response.json();if(!Number.isSafeInteger(data.totalTokens))throw new Error('Gemini não informou a contagem de tokens.');return data.totalTokens})},
-    async summarize({key,model,summary,messages,maxOutputTokens,signal}){return withDeadline(signal,'o resumo do contexto',async requestSignal=>{const response=await call(model,'generateContent',key,{contents:[{role:'user',parts:[{text:summaryPrompt(summary,messages)}]}],generationConfig:{maxOutputTokens}},requestSignal);const data=await response.json();const candidate=data.candidates?.[0];const text=(candidate?.content?.parts||[]).map(part=>part.text||'').join('').trim();if(!text||!['STOP','FINISH_REASON_UNSPECIFIED',undefined].includes(candidate?.finishReason))throw new Error('Gemini não concluiu o resumo.');return {text,usage:usageOf(data.usageMetadata)}})},
-    async generate({key,model,messages,summary,files,maxOutputTokens,signal,onDelta}){return withDeadline(signal,'a geração da resposta',async requestSignal=>{
+    async count({key,model,messages,summary,files,signal}){if(/imagen/i.test(model))return 1000;return withDeadline(signal,'a contagem de tokens',async requestSignal=>{const body=prepare({messages,summary,files});const response=await call(model,'countTokens',key,{generateContentRequest:{model:'models/'+model,...body}},requestSignal);const data=await response.json();if(!Number.isSafeInteger(data.totalTokens))throw new Error('Gemini não informou a contagem de tokens.');return data.totalTokens})},
+    async summarize({key,model,summary,messages,maxOutputTokens,signal}){if(/imagen/i.test(model))return {text:'',usage:{}};return withDeadline(signal,'o resumo do contexto',async requestSignal=>{const response=await call(model,'generateContent',key,{contents:[{role:'user',parts:[{text:summaryPrompt(summary,messages)}]}],generationConfig:{maxOutputTokens}},requestSignal);const data=await response.json();const candidate=data.candidates?.[0];const text=(candidate?.content?.parts||[]).map(part=>part.text||'').join('').trim();if(!text||!['STOP','FINISH_REASON_UNSPECIFIED',undefined].includes(candidate?.finishReason))throw new Error('Gemini não concluiu o resumo.');return {text,usage:usageOf(data.usageMetadata)}})},
+    async generate({key,model,messages,summary,files,maxOutputTokens,signal,onDelta}){
+      if(/imagen/i.test(model)){
+        return withDeadline(signal,'a geração da imagem',async requestSignal=>{
+          const lastUser=[...messages].reverse().find(m=>!m.ai)
+          const prompt=(lastUser?.content||'').replace(/^(\/image|\/imagem|\/draw|\/desenhe|\/desenhar|\/gerar-imagem)\s+/i,'').trim()||'imagem'
+          const m=model||'imagen-3.0-generate-002'
+          let response
+          try{
+            response=await fetcher(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(m)}:predict`,{
+              method:'POST',
+              headers:{'x-goog-api-key':key,'Content-Type':'application/json'},
+              body:JSON.stringify({instances:[{prompt}],parameters:{sampleCount:1,aspectRatio:'1:1',outputMimeType:'image/jpeg'}}),
+              signal:requestSignal,
+              redirect:'error'
+            })
+          }catch(error){
+            if(requestSignal?.aborted)throw new Error('Execução interrompida.')
+            throw new Error('Não foi possível conectar à API de geração de imagem do Gemini.')
+          }
+          if(!response.ok)throw providerError('Gemini',response.status)
+          const data=await response.json()
+          const pred=data.predictions?.[0]
+          if(!pred?.bytesBase64Encoded)throw new Error('O Gemini não retornou a imagem gerada.')
+          const mime=pred.mimeType||'image/jpeg'
+          const src=`data:${mime};base64,${pred.bytesBase64Encoded}`
+          const text=`![${prompt}](${src})\n\n> **Prompt:** ${prompt}`
+          onDelta(text)
+          return {text,usage:{input_tokens:0,output_tokens:1024}}
+        })
+      }
+      return withDeadline(signal,'a geração da resposta',async requestSignal=>{
       const response=await call(model,'streamGenerateContent?alt=sse',key,{...prepare({messages,summary,files}),generationConfig:{maxOutputTokens}},requestSignal)
       let text='',usage={},finished=false
       for await(const event of events(response)){
@@ -144,14 +174,28 @@ export function multiAiProvider({fetcher=fetch}={}){
     if(args.provider==='compatible-chat')return compatibleChatProvider({fetcher,url:args.endpoint.replace(/\/$/,'')+'/chat/completions'})
     return providers[args.provider||'openai']||providers.openai
   }
+  const isImageRequest=args=>{
+    const lastUser=[...(args.messages||[])].reverse().find(m=>!m.ai)
+    return !!(lastUser&&/^(\/image|\/imagem|\/draw|\/desenhe|\/desenhar|\/gerar-imagem)\s+/i.test(lastUser.content))
+  }
   return {
     listModels:args=>listAiModels({...args,fetcher}),
     async count(args){
+      if(isImageRequest(args))return 1000
       if(args.provider==='xai'){textOnly(args.files,'Grok');return estimatedTokens(args)}
       if(args.provider==='compatible-responses'){textOnly(args.files,'Esta API');return estimatedTokens(args)}
       return select(args).count(args)
     },
-    summarize:args=>select(args).summarize(args),
-    generate:args=>select(args).generate(args),
+    summarize:args=>{
+      if(isImageRequest(args))return {text:'',usage:{}}
+      return select(args).summarize(args)
+    },
+    generate:args=>{
+      if(isImageRequest(args)){
+        if(args.provider==='gemini')return providers.gemini.generate({...args,model:'imagen-3.0-generate-002'})
+        return providers.openai.generate({...args,model:'dall-e-3'})
+      }
+      return select(args).generate(args)
+    },
   }
 }

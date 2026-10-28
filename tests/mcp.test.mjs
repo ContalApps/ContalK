@@ -70,7 +70,8 @@ test('MCP manager saves, lists, sanitizes, and removes server configurations', a
 test('parseAgentActions correctly parses tool calls in markdown and xml formats', async () => {
   const { parseAgentActions } = loadTypescript('src/components/AgentActionCard.tsx', {
     react: { useState() { return [] } },
-    './ControlIcon': { ControlIcon: () => null }
+    './ControlIcon': { ControlIcon: () => null },
+    './AiGeneratedImage': { AiGeneratedImage: () => null }
   })
 
   // Test 1: Code fence with JSON
@@ -101,4 +102,12 @@ test('parseAgentActions correctly parses tool calls in markdown and xml formats'
   assert.equal(blocks3[1].action.tool, 'write_file')
   assert.equal(blocks3[1].action.path, 'src/test.ts')
   assert.equal(blocks3[1].action.content, 'export const a = 1')
+
+  // Test 4: generate_image tool call
+  const text4 = 'Aqui está a imagem:\n```tool_call:generate_image\n{"prompt": "um gato cósmico"}\n```'
+  const blocks4 = parseAgentActions(text4)
+  assert.equal(blocks4.length, 2)
+  assert.equal(blocks4[1].type, 'action')
+  assert.equal(blocks4[1].action.tool, 'generate_image')
+  assert.equal(blocks4[1].action.prompt, 'um gato cósmico')
 })

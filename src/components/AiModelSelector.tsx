@@ -58,6 +58,24 @@ export function AiModelSelector({
       .finally(() => setLoading(false))
   }
 
+  const imagePresets: Record<string, Array<{ id: string; name: string }>> = {
+    openai: [
+      { id: 'dall-e-3', name: '🎨 DALL-E 3 (Geração de Imagens HD)' },
+      { id: 'dall-e-2', name: '🎨 DALL-E 2 (Geração de Imagens Rápida)' },
+    ],
+    gemini: [
+      { id: 'imagen-3.0-generate-002', name: '🎨 Imagen 3 (Geração de Imagens Google)' },
+    ]
+  }
+
+  const combinedModels = [...models]
+  const presets = imagePresets[provider] || []
+  for (const preset of presets) {
+    if (!combinedModels.some(m => m.id === preset.id)) {
+      combinedModels.push(preset)
+    }
+  }
+
   return (
     <div className="ct-ai-model-picker">
       <div className="ct-ai-picker-fields">
@@ -86,18 +104,22 @@ export function AiModelSelector({
             id="ai-picker-model"
             className="ct-ai-picker-select"
             aria-label="Modelo de IA para este pedido"
-            value={models.some(item => item.id === model) ? model : ''}
+            value={combinedModels.some(item => item.id === model) ? model : ''}
             onChange={event => {
               if (event.target.value) onChange(provider, event.target.value)
             }}
-            disabled={loading || !models.length}
+            disabled={loading || !combinedModels.length}
           >
             <option value="">
-              {loading ? 'Consultando modelos da API…' : models.length ? 'Selecione um modelo…' : 'Nenhum modelo listado'}
+              {loading ? 'Consultando modelos da API…' : combinedModels.length ? 'Selecione um modelo…' : 'Nenhum modelo listado'}
             </option>
-            {models.map(item => (
+            {combinedModels.map(item => (
               <option key={item.id} value={item.id}>
-                {item.name === item.id ? item.id : `${item.name} (${item.id})`}
+                {/dall-e|imagen/i.test(item.id) && !item.name.includes('🎨')
+                  ? `🎨 ${item.name} (${item.id})`
+                  : item.name === item.id
+                  ? item.id
+                  : `${item.name} (${item.id})`}
               </option>
             ))}
           </select>

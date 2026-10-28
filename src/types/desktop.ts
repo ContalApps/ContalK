@@ -29,6 +29,7 @@ export interface DesktopBridge {
   communityAiModels:(provider:import('../roles/ai').AiProviderId,endpoint?:string)=>Promise<{models:Array<{id:string;name:string}>}>
   communityAiSelectFiles:()=>Promise<Array<{id:string;name:string;size:number;type:string}>>
   communityAiStart:(serverId:string,channelId:string,text:string,fileIds:string[],limits?:{contextTokens:number;maxOutputTokens:number},provider?:import('../roles/ai').AiProviderId,model?:string)=>Promise<{runId:string;promptId:string;model:string}>
+  communityAiGenerateImage?:(prompt:string,provider?:import('../roles/ai').AiProviderId,model?:string)=>Promise<{src:string;prompt:string;provider:string;model:string}>
   communityAiStop:(serverId:string,channelId:string,runId?:string)=>Promise<{stopping:boolean;runId:string}>
   communityAiSubscribe:(serverId:string,channelId:string)=>Promise<void>
   communityAiUnsubscribe:()=>Promise<void>
