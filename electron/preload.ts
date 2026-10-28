@@ -55,6 +55,7 @@ const desktop: DesktopBridge = {
   selectStorageFile:()=>ipcRenderer.invoke('storage-select'),
   uploadStorageFile:id=>ipcRenderer.invoke('storage-upload',id),
   openStorageFile:id=>ipcRenderer.invoke('storage-open',id),
+  getStorageFileUrl:(id:string)=>ipcRenderer.invoke('storage-file-url',id),
   shareStorageFile:(id,recipient)=>ipcRenderer.invoke('storage-share',id,recipient),
   speechVoices:()=>ipcRenderer.invoke('speech-voices'),
   synthesizeSpeech:(text,voice)=>ipcRenderer.invoke('speech-synthesize',text,voice),

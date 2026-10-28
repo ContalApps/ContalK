@@ -20,6 +20,8 @@ import { useRoleStore } from '../store/useRoleStore'
 import { canMentionRole } from '../roles/permissions'
 import { centralAllows } from '../roles/transport'
 
+const fileUrlCache = new Map<string, string>()
+
 function ImagePreview({src,name}:{src:string;name:string}) {
   const [failed,setFailed]=useState(false)
   const [zoomed,setZoomed]=useState(false)
@@ -33,16 +35,228 @@ function ImagePreview({src,name}:{src:string;name:string}) {
     )}
   </>
 }
+
+function ImageAttachmentPreview({ attachment: a, preview = true }: { attachment: Attachment; preview?: boolean }) {
+  const [url, setUrl] = useState<string | null>(() => {
+    if (a.data && a.data.length > 50) {
+      return a.data.startsWith('data:') ? a.data : `data:${a.type || 'image/png'};base64,${a.data}`
+    }
+    if (a.storageId && fileUrlCache.has(a.storageId)) {
+      return fileUrlCache.get(a.storageId)!
+    }
+    return null
+  })
+  const [downloadError, setDownloadError] = useState('')
+  const [zoomed, setZoomed] = useState(false)
+  const [failed, setFailed] = useState(false)
+
+  const placeholder = a.thumbnail ? `data:image/jpeg;base64,${a.thumbnail}` : null
+
+  useEffect(() => {
+    if (url || !a.storageId) return
+
+    let active = true
+    const fetchUrl = async () => {
+      try {
+        if (window.contalkDesktop?.getStorageFileUrl) {
+          const directUrl = await window.contalkDesktop.getStorageFileUrl(a.storageId!)
+          if (active && directUrl) {
+            fileUrlCache.set(a.storageId!, directUrl)
+            setUrl(directUrl)
+          }
+        }
+      } catch {
+        // Fallback
+      }
+    }
+    void fetchUrl()
+    return () => {
+      active = false
+    }
+  }, [a.storageId, url])
+
+  const effectiveSrc = url || placeholder
+
+  if (!preview) {
+    return (
+      <div className="ct-attachment">
+        <strong>{a.name}</strong>
+        <small>{(a.size / 1024 / 1024).toFixed(2)} MB</small>
+        <button
+          className="ct-download-btn"
+          onClick={() => {
+            setDownloadError('')
+            if (a.storageId) void window.contalkDesktop?.openStorageFile(a.storageId).catch(e => setDownloadError(e.message))
+          }}
+        >
+          <ControlIcon name="download" size={13} /> Baixar imagem
+        </button>
+      </div>
+    )
+  }
+
+  return (
+    <div className="ct-image-attachment-card">
+      <div
+        className="ct-image-attachment-wrapper"
+        onClick={() => effectiveSrc && setZoomed(true)}
+        title="Clique para ver em tamanho original"
+      >
+        {effectiveSrc && !failed ? (
+          <img
+            className="ct-chat-image"
+            src={effectiveSrc}
+            alt={a.name}
+            loading="lazy"
+            onError={() => {
+              if (url && placeholder && effectiveSrc === url) {
+                setUrl(null)
+              } else {
+                setFailed(true)
+              }
+            }}
+          />
+        ) : (
+          <div className="ct-image-fallback">
+            <ControlIcon name="image" size={24} />
+            <span>Imagem</span>
+          </div>
+        )}
+        <div className="ct-image-overlay-hint">
+          <ControlIcon name="expand" size={13} />
+          <span>Ver original</span>
+        </div>
+      </div>
+
+      <div className="ct-image-attachment-footer">
+        <div className="ct-image-attachment-info">
+          <span className="ct-image-attachment-name" title={a.name}>{a.name}</span>
+          <span className="ct-image-attachment-size">
+            {a.size > 1048576
+              ? `${(a.size / 1024 / 1024).toFixed(2)} MB`
+              : `${Math.max(1, Math.round(a.size / 1024))} KB`}
+          </span>
+        </div>
+        <button
+          className="ct-download-icon-btn"
+          title="Baixar imagem original"
+          aria-label={`Baixar imagem ${a.name}`}
+          onClick={e => {
+            e.stopPropagation()
+            setDownloadError('')
+            if (a.storageId) {
+              void window.contalkDesktop?.openStorageFile(a.storageId).catch(err => setDownloadError(err.message))
+            } else if (effectiveSrc) {
+              const aTag = document.createElement('a')
+              aTag.href = effectiveSrc
+              aTag.download = a.name
+              aTag.click()
+            }
+          }}
+        >
+          <ControlIcon name="download" size={14} />
+        </button>
+      </div>
+
+      {downloadError && <p role="alert" className="ct-attachment-error">{downloadError}</p>}
+
+      {zoomed && effectiveSrc && (
+        <div
+          role="dialog"
+          aria-modal="true"
+          className="ct-modal-backdrop ct-image-modal"
+          onClick={() => setZoomed(false)}
+          style={{
+            zIndex: 1000,
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
+            justifyContent: 'center',
+            background: 'rgba(0,0,0,0.88)',
+            cursor: 'zoom-out'
+          }}
+        >
+          <div
+            className="ct-image-modal-body"
+            onClick={e => e.stopPropagation()}
+            style={{ cursor: 'default', display: 'flex', flexDirection: 'column', alignItems: 'center', maxWidth: '92vw', maxHeight: '92vh' }}
+          >
+            <img
+              src={effectiveSrc}
+              alt={a.name}
+              style={{
+                maxWidth: '92vw',
+                maxHeight: '82vh',
+                objectFit: 'contain',
+                borderRadius: '8px',
+                boxShadow: '0 8px 32px rgba(0,0,0,0.85)'
+              }}
+            />
+            <div
+              className="ct-image-modal-toolbar"
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                width: '100%',
+                marginTop: '12px',
+                padding: '6px 12px',
+                background: 'rgba(255,255,255,0.06)',
+                borderRadius: '8px',
+                backdropFilter: 'blur(8px)'
+              }}
+            >
+              <span style={{ fontSize: '13px', color: '#fff', fontWeight: 500 }}>
+                {a.name} · {(a.size / 1024 / 1024).toFixed(2)} MB
+              </span>
+              <div style={{ display: 'flex', gap: '8px' }}>
+                <button
+                  className="ct-secondary"
+                  style={{ padding: '5px 12px', fontSize: '12px' }}
+                  onClick={() => {
+                    if (a.storageId) void window.contalkDesktop?.openStorageFile(a.storageId)
+                    else if (effectiveSrc) {
+                      const link = document.createElement('a')
+                      link.href = effectiveSrc
+                      link.download = a.name
+                      link.click()
+                    }
+                  }}
+                >
+                  <ControlIcon name="download" size={13} /> Baixar
+                </button>
+                <button
+                  className="ct-secondary"
+                  style={{ padding: '5px 12px', fontSize: '12px' }}
+                  onClick={() => setZoomed(false)}
+                >
+                  <ControlIcon name="close" size={13} /> Fechar
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
 const storageMessage='Sua conta ainda não está conectada ao servidor. Saia e entre novamente com a internet ligada.'
 export function AttachmentPreview({attachment:a,preview=true}:{attachment:Attachment;preview?:boolean}) {
   const [downloadError,setDownloadError]=useState('')
+  const isImage =
+    /^image\/(png|jpe?g|gif|webp|svg(\+xml)?)/i.test(a.type) ||
+    /\.(png|jpe?g|gif|webp|svg)$/i.test(a.name)
+
+  if (isImage) {
+    return <ImageAttachmentPreview attachment={a} preview={preview} />
+  }
+
   if(a.storageId)return <div className="ct-attachment">{preview&&a.thumbnail&&<ImagePreview src={'data:image/jpeg;base64,'+a.thumbnail} name={a.name}/>}<strong>{a.name}</strong><small>{(a.size/1024/1024).toFixed(2)} MB</small><button className="ct-download-btn" onClick={()=>{setDownloadError('');void window.contalkDesktop?.openStorageFile(a.storageId!).catch(e=>setDownloadError(e.message))}}><ControlIcon name="download" size={13}/> Baixar arquivo</button>{downloadError&&<p role="alert">{downloadError}</p>}</div>
-  const image=/^image\/(png|jpeg|gif|webp)$/.test(a.type)
-  const src=image?a.data.replace('application/octet-stream',a.type):a.data
   const text=/^(text\/(plain|csv)|application\/json)$/.test(a.type)
   let snippet=''
   if(text)try{snippet=new TextDecoder().decode(Uint8Array.from(atob(a.data.split(',')[1]),c=>c.charCodeAt(0))).slice(0,600)}catch{/* No preview. */}
-  return <div className="ct-attachment">{preview&&image&&<ImagePreview src={src} name={a.name}/>}<a href={a.data} download={a.name} className="ct-download-link"><ControlIcon name="download" size={13}/><strong>{a.name}</strong><small>{Math.max(1,Math.ceil(a.size/1024))} KB · {a.type||'Arquivo'}</small></a>{preview&&snippet&&<pre>{snippet}</pre>}</div>
+  return <div className="ct-attachment"><a href={a.data} download={a.name} className="ct-download-link"><ControlIcon name="download" size={13}/><strong>{a.name}</strong><small>{Math.max(1,Math.ceil(a.size/1024))} KB · {a.type||'Arquivo'}</small></a>{preview&&snippet&&<pre>{snippet}</pre>}</div>
 }
 export function MessageContent({content,attachment,preview=true,roleMentions=[],mentionsEveryone}:{content:string;attachment?:Attachment;preview?:boolean;roleMentions?:string[];mentionsEveryone?:'all'|'online'}) {
   const members=useCommunityStore(s=>s.members)

@@ -32,6 +32,7 @@ export interface LinkPreviewData {
 }
 export interface DesktopBridge {
   fetchLinkPreview?:(url:string)=>Promise<LinkPreviewData|null>
+  getStorageFileUrl?:(id:string)=>Promise<string>
   communityAiStatus:()=>Promise<{configured:boolean;providers:import('../roles/ai').AiProviderId[];contextTokens:number;maxOutputTokens:number}>
   communityAiConfigure:(value:{provider?:import('../roles/ai').AiProviderId;key?:string;contextTokens:number;maxOutputTokens:number})=>Promise<{configured:boolean;providers:import('../roles/ai').AiProviderId[];contextTokens:number;maxOutputTokens:number}>
   communityAiRemove:(provider?:import('../roles/ai').AiProviderId)=>Promise<void>
