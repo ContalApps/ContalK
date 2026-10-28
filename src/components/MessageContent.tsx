@@ -249,5 +249,82 @@ export function ChatMessage({message:m,onOpenChannel,aiPartial,onAiRetry,onAiCan
   const [opened,setOpened]=useState(false),[editing,setEditing]=useState(false),[draft,setDraft]=useState(m.content),[error,setError]=useState(''),[busy,setBusy]=useState(false)
   const change=async(content?:string)=>{setBusy(true);setError('');try{await useCommunityStore.getState().changeMessage(m.channelId,m.id,content);setEditing(false)}catch(e){setError(e instanceof Error?e.message:'Falha ao alterar.')}finally{setBusy(false)}}
   const body=m.ai?<div className="ct-ai-response"><AiText content={m.ai.status==='queued'?'Pedido na fila…':m.ai.status==='running'?(aiPartial||'A IA está respondendo…'):m.content}/>{m.ai.status!=='completed'&&m.ai.status!=='running'&&<small role="status">{m.ai.status==='queued'?'Aguardando a resposta anterior':m.ai.status==='cancelled'?'Resposta interrompida':m.ai.status==='interrupted'?'Serviço reiniciado':'Resposta não concluída'}{m.ai.error?' · '+m.ai.error:''}</small>}{m.ai.status==='completed'&&<small>{m.ai.model} · {m.ai.inputTokens||0} entrada · {m.ai.outputTokens||0} saída</small>}{!!m.ai.files?.length&&<small>Arquivos recebidos: {m.ai.files.map(file=>file.name).join(', ')}. Anexe novamente para reutilizar.</small>}{m.ai.status==='queued'&&onAiCancel&&<button disabled={busy} onClick={()=>{setBusy(true);setError('');void onAiCancel().catch(failure=>setError(failure instanceof Error?failure.message:'Não foi possível retirar da fila.')).finally(()=>setBusy(false))}}>Retirar da fila</button>}{['failed','cancelled','interrupted'].includes(m.ai.status)&&onAiRetry&&<button disabled={busy} onClick={()=>{setBusy(true);setError('');void onAiRetry().catch(failure=>setError(failure instanceof Error?failure.message:'Não foi possível tentar novamente.')).finally(()=>setBusy(false))}}>Tentar novamente</button>}</div>:m.expression?<><MessageContent content={m.content} roleMentions={m.roleMentions} mentionsEveryone={m.mentionsEveryone} preview={m.preview!==false}/><figure className={'ct-message-expression '+m.expression.kind}>{m.attachment?.thumbnail?<img src={'data:image/jpeg;base64,'+m.attachment.thumbnail} alt={m.expression.name}/>:<span>:{m.expression.name}:</span>}<figcaption>{m.expression.name}</figcaption></figure></>:m.voice?<VoiceMessagePlayer message={m}/>:m.poll?<PollCard message={m}/>:<MessageContent content={m.content} attachment={m.attachment} preview={m.preview!==false} roleMentions={m.roleMentions} mentionsEveryone={m.mentionsEveryone}/>
-  return <div>{m.once&&!own?<>{viewed&&!opened?<p>Mensagem já visualizada</p>:<button disabled={busy} onClick={async()=>{setBusy(true);try{if(!window.contalkDesktop)throw new Error('Abra no ConTALK desktop.');const allowed=await window.contalkDesktop.claimMessageView(m.id);localStorage.setItem(storageKey,'true');setViewed(true);if(allowed)setOpened(true)}catch(e){setError(e instanceof Error?e.message:'Não foi possível registrar a visualização.')}finally{setBusy(false)}}}>Abrir uma vez</button>}{opened&&<div role="dialog" aria-modal="true" className="ct-modal-backdrop"><section className="ct-edit-dialog">{body}<button onClick={()=>setOpened(false)}>Fechar visualização</button></section></div>}</>:editing?<form onSubmit={e=>{e.preventDefault();void change(draft)}}><textarea maxLength={2000} value={draft} onChange={e=>setDraft(e.target.value)}/><button disabled={busy}>Salvar</button><button type="button" onClick={()=>setEditing(false)}>Cancelar</button></form>:body}{m.editedAt&&<small>Editada</small>}{own&&<div className="ct-message-actions">{!m.poll&&!m.voice&&<button disabled={busy||!editAllowed} title="Editar mensagem" aria-label="Editar mensagem" onClick={()=>{setDraft(m.content);setEditing(true)}}><ControlIcon name="edit" size={12}/><span>Editar</span></button>}<button disabled={busy||!deleteAllowed} title="Apagar mensagem" aria-label="Apagar mensagem" onClick={()=>void change()}><ControlIcon name="delete" size={12}/><span>Apagar</span></button></div>}{!m.ai&&!editing&&<MessageTools message={m} onOpenChannel={onOpenChannel}/>} {error&&<p role="alert">{error}</p>}</div>
+  const actions = own ? (
+    <span className="ct-message-actions">
+      {!m.poll && !m.voice && (
+        <button
+          disabled={busy || !editAllowed}
+          title="Editar mensagem"
+          aria-label="Editar mensagem"
+          onClick={() => {
+            setDraft(m.content)
+            setEditing(true)
+          }}
+        >
+          <ControlIcon name="edit" size={12} />
+          <span>Editar</span>
+        </button>
+      )}
+      <button
+        disabled={busy || !deleteAllowed}
+        title="Apagar mensagem"
+        aria-label="Apagar mensagem"
+        onClick={() => void change()}
+      >
+        <ControlIcon name="delete" size={12} />
+        <span>Apagar</span>
+      </button>
+    </span>
+  ) : null
+
+  return (
+    <div>
+      {m.once && !own ? (
+        <>
+          {viewed && !opened ? (
+            <p>Mensagem já visualizada</p>
+          ) : (
+            <button
+              disabled={busy}
+              onClick={async () => {
+                setBusy(true)
+                try {
+                  if (!window.contalkDesktop) throw new Error('Abra no ConTALK desktop.')
+                  const allowed = await window.contalkDesktop.claimMessageView(m.id)
+                  localStorage.setItem(storageKey, 'true')
+                  setViewed(true)
+                  if (allowed) setOpened(true)
+                } catch (e) {
+                  setError(e instanceof Error ? e.message : 'Não foi possível registrar a visualização.')
+                } finally {
+                  setBusy(false)
+                }
+              }}
+            >
+              Abrir uma vez
+            </button>
+          )}
+          {opened && (
+            <div role="dialog" aria-modal="true" className="ct-modal-backdrop">
+              <section className="ct-edit-dialog">
+                {body}
+                <button onClick={() => setOpened(false)}>Fechar visualização</button>
+              </section>
+            </div>
+          )}
+        </>
+      ) : editing ? (
+        <form onSubmit={e => { e.preventDefault(); void change(draft) }}>
+          <textarea maxLength={2000} value={draft} onChange={e => setDraft(e.target.value)} />
+          <button disabled={busy}>Salvar</button>
+          <button type="button" onClick={() => setEditing(false)}>Cancelar</button>
+        </form>
+      ) : (
+        body
+      )}
+      {m.editedAt && <small>Editada</small>}
+      {!m.ai && !editing && <MessageTools message={m} onOpenChannel={onOpenChannel} actions={actions} />}
+      {error && <p role="alert">{error}</p>}
+    </div>
+  )
 }

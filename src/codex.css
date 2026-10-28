@@ -696,11 +696,88 @@ body { background:#000; color:#ededed; font-family:'Segoe UI',system-ui,sans-ser
 
   /* Floating Message Hover Actions & Attachments */
   .ct-message { position:relative; }
-  .ct-message-actions { position:absolute; top:4px; right:12px; margin:0; display:inline-flex; align-items:center; gap:4px; background:var(--cx-elevated); border:1px solid var(--cx-border-light); border-radius:6px; padding:2px 6px; box-shadow:0 2px 8px rgba(0,0,0,0.35); opacity:0; pointer-events:none; transition:opacity 0.15s ease; z-index:10; }
-  .ct-message:hover .ct-message-actions, .ct-message-actions:focus-within { opacity:1; pointer-events:auto; }
-  .ct-message-actions button { display:inline-flex; align-items:center; gap:4px; padding:3px 6px; border-radius:4px; font-size:11px; color:var(--cx-fg-3); background:transparent; border:0; cursor:pointer; transition:all 0.1s ease; }
-  .ct-message-actions button:hover:not(:disabled) { background:var(--cx-hover); color:var(--cx-fg); }
-  .ct-message-actions button:disabled { opacity:0.4; cursor:not-allowed; }
+  .ct-message-toolbar {
+    position: absolute;
+    right: 8px;
+    top: 2px;
+    display: inline-flex;
+    align-items: center;
+    gap: 2px;
+    background: var(--cx-elevated, #181818);
+    border: 1px solid var(--cx-border-light, rgba(255, 255, 255, 0.12));
+    border-radius: 6px;
+    padding: 2px 4px;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.35);
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.15s ease;
+    z-index: 10;
+  }
+  .ct-message:hover .ct-message-toolbar,
+  .ct-message:focus-within .ct-message-toolbar,
+  .ct-pinned-message:hover .ct-message-toolbar,
+  .ct-pinned-message:focus-within .ct-message-toolbar {
+    opacity: 1;
+    pointer-events: auto;
+  }
+  .ct-message-toolbar .ct-message-tool {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    height: 24px;
+    width: 26px;
+    padding: 3px;
+    border: 0;
+    border-radius: 4px;
+    background: transparent;
+    color: var(--cx-fg-3, #afafaf);
+    cursor: pointer;
+    transition: all 0.1s ease;
+  }
+  .ct-message-toolbar .ct-message-tool:hover:not(:disabled) {
+    background: var(--cx-hover, rgba(255, 255, 255, 0.08));
+    color: var(--cx-fg, #ffffff);
+  }
+  .ct-message-toolbar .ct-message-tool:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+  }
+  .ct-message-actions {
+    display: inline-flex;
+    align-items: center;
+    gap: 2px;
+    margin: 0;
+    padding: 0 0 0 4px;
+    border: 0;
+    border-left: 1px solid var(--cx-border-light, rgba(255, 255, 255, 0.12));
+    background: transparent;
+    position: static;
+    box-shadow: none;
+    opacity: 1;
+    pointer-events: auto;
+  }
+  .ct-message-actions button {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 2px 6px;
+    height: 24px;
+    border-radius: 4px;
+    font-size: 11px;
+    color: var(--cx-fg-3, #afafaf);
+    background: transparent;
+    border: 0;
+    cursor: pointer;
+    transition: all 0.1s ease;
+  }
+  .ct-message-actions button:hover:not(:disabled) {
+    background: var(--cx-hover, rgba(255, 255, 255, 0.08));
+    color: var(--cx-fg, #ffffff);
+  }
+  .ct-message-actions button:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+  }
 
   /* Anexos e download */
   .ct-download-btn, .ct-download-link { display:inline-flex; align-items:center; gap:6px; padding:6px 12px; border-radius:6px; background:var(--cx-hover); color:var(--cx-fg-2); border:1px solid var(--cx-border-light); font-size:12px; cursor:pointer; text-decoration:none; width:fit-content; transition:all 0.1s ease; }
