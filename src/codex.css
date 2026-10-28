@@ -514,6 +514,8 @@ body { background:#000; color:#ededed; font-family:'Segoe UI',system-ui,sans-ser
   .ct-dev-tab-dirty { color:var(--cx-accent); font-size:14px; margin-left:-2px; margin-right:2px; font-weight:bold; }
   .ct-dev-tab-close { background:none; border:0; color:var(--cx-fg-3); cursor:pointer; padding:2px; border-radius:3px; display:grid; place-items:center; }
   .ct-dev-tab-close:hover { color:var(--cx-fg); background:var(--cx-hover); }
+  .ct-dev-tab-add { background:none; border:0; color:var(--cx-fg-3); cursor:pointer; padding:6px 10px; display:inline-flex; align-items:center; justify-content:center; }
+  .ct-dev-tab-add:hover { color:var(--cx-fg); background:var(--cx-hover); }
   .ct-dev-editor-subbar { display:flex; align-items:center; justify-content:space-between; padding:6px 14px; background:#0b0b0b; border-bottom:1px solid var(--cx-border-light); font-size:11px; }
   .ct-dev-breadcrumb { display:flex; align-items:center; gap:4px; color:var(--cx-fg-3); }
   .ct-dev-sep { color:#ffffff33; margin:0 2px; }

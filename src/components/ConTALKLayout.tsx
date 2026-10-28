@@ -259,6 +259,19 @@ export function initYjsProvider(room: string, doc: Y.Doc) {
     setTabCodes(prev => ({ ...prev, [activeEditorTab]: newCode }))
     setEditorTabs(tabs => tabs.map(tab => tab.id === activeEditorTab ? { ...tab, isDirty: true } : tab))
   }
+  const handleNewTab = () => {
+    const num = editorTabs.length + 1
+    const newId = `untitled-${num}.ts`
+    const newTab: DevEditorTab = {
+      id: newId,
+      name: newId,
+      path: `workspace/${newId}`,
+      isDirty: false
+    }
+    setEditorTabs(tabs => [...tabs, newTab])
+    setTabCodes(codes => ({ ...codes, [newId]: `// ${newId}\n\nexport function main() {\n  console.log('Olá do ConTALK!')\n}\n` }))
+    setActiveEditorTab(newId)
+  }
   const handleSaveActiveCode = async () => {
     const currentTab = editorTabs.find(t => t.id === activeEditorTab)
     if (!currentTab) return
@@ -471,6 +484,7 @@ export function initYjsProvider(room: string, doc: Y.Doc) {
   onSave={handleSaveActiveCode}
   isSaving={isSavingCode}
   cursors={devCursors}
+  onNewTab={handleNewTab}
 />
 </div></></>}</> }</main>{preferences.bottomPanelOpen&&<TerminalPanel request={terminalRequest} onClose={()=>preferences.update({bottomPanelOpen:false})}/>}</div>
     {(view==='server'||!!voice.activeChannelId)&&!preferences.membersCollapsed&&<RightPanel onOpenChannel={openVoiceChannel} members={<><div className="ct-heading"><h2>{view==='server'?'Membros':'Seus amigos'}</h2><span className="ct-online-dot"/></div><div className="ct-section-label">{community.status==='online'?(view==='server'?'Membros':'Amigos'):'Presença indisponível'} — {activityMembers.length}</div>{groupedMembers.map((m,index)=><Fragment key={m.username}>{groupRole(m.username)&&groupRole(m.username)?.id!==groupRole(groupedMembers[index-1]?.username||'')?.id&&<div className="ct-section-label ct-role-group-label">{groupRole(m.username)?.name}</div>}<button className="ct-person ct-activity-person" data-profile-identity={m.username} data-profile-name={m.display_name} title={serverName(m.username,m.display_name)} key={m.username} onClick={()=>setProfile(m.display_name,m.username)}><Avatar name={m.display_name} identity={m.username} live={liveIdentities.has(m.username)}/><span><strong><RoleName serverId={view==='server'?server.id:undefined} identity={m.username} name={m.display_name}/></strong><small className={voice.participants.some(p=>p.identity===m.username&&p.isScreenShareEnabled)?'ct-member-live':''}>{voice.participants.some(p=>p.identity===m.username&&p.isScreenShareEnabled)?'Ao vivo na '+voice.activeChannelName:statusText(m.username)}</small></span><i className={m.online?"ct-online-dot":"ct-offline-dot"}/></button></Fragment>)}{!activityMembers.length&&<p className="ct-muted">{view==='server'?'Nenhuma pessoa encontrada.':'Adicione alguém da call ou do servidor para aparecer aqui.'}</p>}</>}/>}

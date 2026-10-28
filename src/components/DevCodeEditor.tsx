@@ -22,6 +22,7 @@ interface DevEditorProps {
   activeTabId: string
   onSelectTab: (id: string) => void
   onCloseTab: (id: string) => void
+  onNewTab?: () => void
   branch: string
   fileName?: string
   filePath: string
@@ -62,6 +63,7 @@ export function DevCodeEditor({
   activeTabId,
   onSelectTab,
   onCloseTab,
+  onNewTab,
   branch,
   filePath,
   code,
@@ -167,6 +169,17 @@ export function DevCodeEditor({
             </button>
           </div>
         ))}
+        {onNewTab && (
+          <button
+            type="button"
+            className="ct-dev-tab-add"
+            aria-label="Novo arquivo"
+            title="Novo arquivo"
+            onClick={onNewTab}
+          >
+            <ControlIcon name="plus" size={12} />
+          </button>
+        )}
       </div>
 
       {/* Breadcrumb e Status da Branch */}
