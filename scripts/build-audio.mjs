@@ -3,6 +3,9 @@ import { existsSync, mkdirSync } from 'node:fs'
 import path from 'node:path'
 
 if (process.platform !== 'win32') throw new Error('O helper de áudio requer Windows e Visual Studio C++ Build Tools.')
+if (existsSync('native/bin/contalk-audio.exe') && existsSync('native/bin/contalk-update.exe')) {
+  console.log('Helpers nativos já compilados em native/bin.'); process.exit(0)
+}
 const vswhere = path.join(process.env['ProgramFiles(x86)'] || '', 'Microsoft Visual Studio', 'Installer', 'vswhere.exe')
 if (!existsSync(vswhere)) throw new Error('Instale o Visual Studio C++ Build Tools com o Windows SDK.')
 const install = execFileSync(vswhere, ['-latest', '-products', '*', '-requires', 'Microsoft.VisualStudio.Component.VC.Tools.x86.x64', '-property', 'installationPath'], { encoding: 'utf8' }).trim()
