@@ -8,7 +8,7 @@ import { parseAiModel } from '../roles/ai'
 import { threadArchived } from '../roles/permissions'
 import { PinnedMessages } from './PinnedMessages'
 import { ChatComposer, ChatMessage } from './MessageContent'
-import { Fragment, useEffect, useLayoutEffect, useRef, useState } from 'react'
+import { Fragment, useEffect, useLayoutEffect, useRef, useState, useCallback } from 'react'
 import { useAuthStore } from '../store/useAuthStore'
 import { useAppStore } from '../store/useAppStore'
 import { useVoiceStore } from '../store/useVoiceStore'
@@ -34,6 +34,7 @@ import { ChannelRow } from './ChannelRow'
 import { BrandMark } from './BrandMark'
 import { ControlIcon, type ControlIconName } from './ControlIcon'
 import { TerminalPanel } from './TerminalPanel'
+import { DevCodeEditor, type DevEditorTab } from './DevCodeEditor'
 import { RightPanel } from './RightPanel'
 import type { MenuGroup } from './TitleMenus'
 import { UserDock } from './UserDock'
@@ -78,6 +79,86 @@ export function ConTALKLayout() {
   const roles=useRoleStore()
   const [threadCreate,setThreadCreate]=useState<string|null>(null),[threadList,setThreadList]=useState<string|null>(null)
   const [projectCreate,setProjectCreate]=useState<string|null>(null)
+  const [activeDevModal, setActiveDevModal] = useState<string|null>(null)
+  const [repoExplorerOpen, setRepoExplorerOpen] = useState(false)
+  const [workspaceFiles, setWorkspaceFiles] = useState<import('../types/desktop').WorkspaceFileEntry[]>([])
+  const [loadingWorkspaceFiles, setLoadingWorkspaceFiles] = useState(false)
+  const [isSavingCode, setIsSavingCode] = useState(false)
+  const [editorTabs,setEditorTabs]=useState<DevEditorTab[]>([
+    {id:'page',name:'page.tsx',path:'projeto-atlas/apps/web/src/components/editor/page.tsx'},
+    {id:'cursor',name:'CursorPresence.tsx',path:'projeto-atlas/apps/web/src/components/editor/CursorPresence.tsx'},
+    {id:'yjs',name:'yjs-provider.ts',path:'projeto-atlas/apps/web/src/components/editor/yjs-provider.ts'}
+  ])
+  const [activeEditorTab,setActiveEditorTab]=useState('page')
+  const initialCodes: Record<string, string> = {
+    page: `'use client'
+
+import { useEffect, useRef, useState } from 'react'
+import * as Y from 'yjs'
+import { WebsocketProvider } from 'y-websocket'
+import { Editor } from '@tiptap/react'
+import { CursorPresence } from './CursorPresence'
+
+export default function EditorPage() {
+  const [editor, setEditor] = useState<Editor | null>(null)
+  const providerRef = useRef<WebsocketProvider | null>(null)
+
+  useEffect(() => {
+    const doc = new Y.Doc()
+    providerRef.current = new WebsocketProvider(
+      'wss://seu-servidor.com',
+      'projeto-atlas',
+      doc
+    )
+
+    // Inicializa o editor colaborativo com presença em tempo real
+    const newEditor = new Editor({
+      element: document.querySelector('#editor'),
+      extensions: [/* ... */],
+      content: '<p>Bem-vindo ao ConTALK Code Studio! 🚀</p>',
+    })
+    setEditor(newEditor)
+  }, [])
+}`,
+    cursor: `import React from 'react'
+
+export interface RemoteCursorProps {
+  id: string
+  name: string
+  color: string
+  line: number
+  ch: number
+}
+
+export function CursorPresence({ name, color, line, ch }: RemoteCursorProps) {
+  return (
+    <div
+      className="ct-remote-cursor-indicator"
+      style={{
+        top: \`\${(line - 1) * 20}px\`,
+        left: \`\${ch * 7.8}px\`,
+        borderColor: color
+      }}
+    >
+      <span className="ct-remote-cursor-badge" style={{ backgroundColor: color }}>
+        {name}
+      </span>
+    </div>
+  )
+}`,
+    yjs: `import * as Y from 'yjs'
+import { WebsocketProvider } from 'y-websocket'
+
+export function initYjsProvider(room: string, doc: Y.Doc) {
+  return new WebsocketProvider('wss://con-talk.app/yjs', room, doc)
+}`
+  }
+  const [tabCodes, setTabCodes] = useState<Record<string, string>>(initialCodes)
+  const devCursors = [
+    {id:'mariana',name:'Mariana',color:'#ff4081',line:15,ch:28},
+    {id:'rafael',name:'Rafael',color:'#00e5ff',line:17,ch:40},
+    {id:'lucas',name:'Lucas',color:'#7c4dff',line:24,ch:32}
+  ]
   const [pinnedChannel,setPinnedChannel]=useState<string|null>(null)
   const [channelSettings,setChannelSettings]=useState<Channel|null>(null)
   const { servers, activeServerId, activeChannelId, setActiveServer, setActiveChannel, messages } = useAppStore()
@@ -174,6 +255,83 @@ export function ConTALKLayout() {
   const togglePanel=(key:'sidebarHidden'|'railHidden'|'bottomPanelOpen'|'membersCollapsed')=>preferences.update({[key]:!preferences[key]})
   const openVoiceChannel=(id:string)=>{const destination=servers.find(item=>item.channels.some(c=>c.id===id));if(destination)setActiveServer(destination.id);openChannel(id)}
   const openFolder=async()=>{const folder=await desktop?.openFolder?.();if(!folder)return;preferences.update({workspaceFolder:folder,bottomPanelOpen:true});setTerminalRequest(n=>n+1)}
+  const handleUpdateCode = (newCode: string) => {
+    setTabCodes(prev => ({ ...prev, [activeEditorTab]: newCode }))
+    setEditorTabs(tabs => tabs.map(tab => tab.id === activeEditorTab ? { ...tab, isDirty: true } : tab))
+  }
+  const handleNewTab = () => {
+    const num = editorTabs.length + 1
+    const newId = `untitled-${num}.ts`
+    const newTab: DevEditorTab = {
+      id: newId,
+      name: newId,
+      path: `workspace/${newId}`,
+      isDirty: false
+    }
+    setEditorTabs(tabs => [...tabs, newTab])
+    setTabCodes(codes => ({ ...codes, [newId]: `// ${newId}\n\nexport function main() {\n  console.log('Olá do ConTALK!')\n}\n` }))
+    setActiveEditorTab(newId)
+  }
+  const handleSaveActiveCode = async () => {
+    const currentTab = editorTabs.find(t => t.id === activeEditorTab)
+    if (!currentTab) return
+    setIsSavingCode(true)
+    try {
+      const currentCode = tabCodes[activeEditorTab] ?? ''
+      if (desktop?.workspaceWriteFile && (currentTab.path.includes(':') || currentTab.path.startsWith('/') || currentTab.path.startsWith('\\'))) {
+        await desktop.workspaceWriteFile(currentTab.path, currentCode)
+      }
+      setEditorTabs(tabs => tabs.map(tab => tab.id === activeEditorTab ? { ...tab, isDirty: false } : tab))
+    } finally {
+      setIsSavingCode(false)
+    }
+  }
+  const loadWorkspaceFiles = useCallback(async () => {
+    if (!preferences.workspaceFolder || !desktop?.workspaceListFiles) return
+    setLoadingWorkspaceFiles(true)
+    try {
+      const files = await desktop.workspaceListFiles(preferences.workspaceFolder)
+      setWorkspaceFiles(files)
+    } catch {
+      setWorkspaceFiles([])
+    } finally {
+      setLoadingWorkspaceFiles(false)
+    }
+  }, [preferences.workspaceFolder, desktop])
+  const toggleRepoExplorer = async () => {
+    if (!preferences.workspaceFolder) {
+      await openFolder()
+      return
+    }
+    const next = !repoExplorerOpen
+    setRepoExplorerOpen(next)
+    if (next) {
+      await loadWorkspaceFiles()
+    }
+  }
+  const handleOpenWorkspaceFile = async (file: import('../types/desktop').WorkspaceFileEntry) => {
+    if (file.isDirectory) return
+    const existing = editorTabs.find(t => t.path === file.path)
+    if (existing) {
+      setActiveEditorTab(existing.id)
+      return
+    }
+    if (!desktop?.workspaceReadFile) return
+    try {
+      const fileContent = await desktop.workspaceReadFile(file.path)
+      const newTab: DevEditorTab = {
+        id: file.path,
+        name: file.name,
+        path: file.path,
+        isDirty: false
+      }
+      setEditorTabs(tabs => [...tabs, newTab])
+      setTabCodes(codes => ({ ...codes, [file.path]: fileContent }))
+      setActiveEditorTab(file.path)
+    } catch (e) {
+      console.error('Falha ao abrir arquivo:', e)
+    }
+  }
   const quit=async()=>{await voice.leaveChannel().catch(()=>{});await desktop?.quitApp?.()}
   const signOut=()=>void (async()=>{await voice.leaveChannel();await logout()})()
   const zoom=(step:number)=>preferences.update({interfaceScale:step===0?100:Math.min(120,Math.max(80,preferences.interfaceScale+step))})
@@ -245,7 +403,49 @@ export function ConTALKLayout() {
     <TitleBar onOpenNotification={openNotice} authenticated disabled={settingsOpen} title={view==='server'?server.name+' · '+(channel.name||'Canais'):view==='friends'?'Amigos':view==='messages'?(selectedPeer?'Mensagens · '+(community.members.find(m=>m.username===selectedPeer)?.display_name||selectedPeer):'Mensagens diretas'):'ConTALK'} canBack={navigation.index>0} canForward={navigation.index<navigation.entries.length-1} onBack={()=>travel(-1)} onForward={()=>travel(1)} search={search} onSearch={setSearch} menus={menus} scope={view==='server'?server.name:'ConTALK'} sidebarOpen={!preferences.sidebarHidden} onToggleSidebar={()=>togglePanel('sidebarHidden')} rightPanelOpen={!preferences.membersCollapsed} onToggleRightPanel={()=>togglePanel('membersCollapsed')} onProfile={()=>setProfile(user?.display_name||'Você',user?.username)}/>
     <div className="ct-body" inert={settingsOpen}><aside className="ct-rail" hidden={preferences.railHidden}><button className={view==='home'?'selected':''} title="Início" onClick={()=>setView('home')}><Icon name="home"/></button><button className={view==='messages'?'selected':''} title="Mensagens diretas" onClick={()=>setView('messages')}><Icon name="chat"/></button><hr/>{servers.map(s=><button key={s.id} title={s.name} className={view==='server'&&s.id===server.id?'selected ct-server-logo':'ct-server-logo'} onClick={()=>{setActiveServer(s.id);setActiveChannel(s.channels[0]?.id || '');setView('server')}}><BrandMark/></button>)}<button title="Criar ou entrar em um servidor" aria-label="Criar ou entrar em um servidor" onClick={()=>setJoinOpen(true)}><Icon name="plus"/></button><div className="ct-rail-bottom"><button title="Meu perfil" onClick={()=>setProfile(user?.display_name||'Você',user?.username)}><Avatar name={user?.display_name||'Você'}/></button></div></aside>
     <>
-    <nav className="ct-sidebar" data-collapsed={preferences.sidebarCollapsed} hidden={preferences.sidebarHidden}><button className="ct-sidebar-toggle" aria-label={preferences.sidebarCollapsed?'Expandir lista de canais':'Recolher lista de canais'} title={preferences.sidebarCollapsed?'Expandir canais':'Recolher canais'} onClick={()=>preferences.update({sidebarCollapsed:!preferences.sidebarCollapsed})}><ControlIcon name="chevron"/><span>Canais e conversas</span></button><div className="ct-sidebar-scroll">{view!=='server'?<><div className="ct-side-nav"><button className="ct-new-chat" onClick={()=>setView('messages')}><Icon name="chat"/>Nova conversa</button><button className={view==='home'?'active':''} onClick={()=>setView('home')}><Icon name="home"/>Início <span className="ct-nav-dot"/></button><button className={view==='friends'?'active':''} onClick={()=>setView('friends')}><Icon name="friends"/>Amigos</button></div><div className="ct-section-label">Mensagens diretas <button title="Abrir mensagens" onClick={()=>setView('messages')}>+</button></div><div className="ct-people">{visibleContacts.map(m=><button className="ct-person" data-profile-identity={m.username} data-profile-name={m.display_name} key={m.username} onClick={()=>openConversation(m.username)}><Avatar name={m.display_name} identity={m.username} live={voice.participants.some(p=>p.identity===m.username&&p.isScreenShareEnabled)||Object.values(voice.channelOccupants).some(list=>list.some(p=>p.identity===m.username&&p.isScreenShareEnabled))}/><span><strong><RoleName identity={m.username} name={m.display_name}/></strong><small>{statusText(m.username)}</small></span></button>)}{!visibleContacts.length&&<p className="ct-friend-hint">Suas amizades e conversas aparecerão aqui.</p>}</div></>:<><div className="ct-server-banner">{roles.snapshot?.id===server.id&&<button className="ct-server-events" title="Eventos do servidor" aria-label="Eventos do servidor" onClick={()=>{setEventTarget(undefined);setEventsOpen(true)}}><ControlIcon name="event"/></button>}<strong title={server.description||server.name}>{server.name}</strong>{(!roles.snapshot||centralAllows('VIEW_GUILD_INSIGHTS')||centralAllows('MANAGE_GUILD')||centralAllows('MANAGE_ROLES')||centralAllows('BAN_MEMBERS')||!!roles.snapshot.invites?.length||roles.snapshot.channels.some(item=>centralAllows('CREATE_INSTANT_INVITE',item.id)))&&<button className="ct-server-role-settings" title="Configurações do servidor" aria-label="Configurações do servidor" onClick={()=>setRolesOpen(true)}><ControlIcon name="settings"/></button>}<small><i className="ct-online-dot"/> {community.status==='online'?community.members.filter(m=>m.online).length+' membros online':'Presença indisponível'}</small></div><div className="ct-section-label"><button className="ct-section-toggle" aria-expanded={!hiddenSections.text} onClick={()=>toggleSection('text')}><ControlIcon name="chevron" size={12}/>Canais</button><button title="Criar canal de texto" aria-label="Criar canal de texto" onClick={()=>setCreateType('text')}>+</button></div>{!hiddenSections.text&&server.channels.filter(c=>c.type==='text'&&!c.parentId).map(c=><Fragment key={c.id}><ChannelRow unread={activity.unreadByChannel[c.id]||0} channel={c} active={channel.id===c.id} onOpen={()=>openChannel(c.id)} onSettings={()=>setChannelSettings(c)}/>{server.channels.filter(child=>child.parentId===c.id&&(child.id===channel.id||roles.snapshot?.policy.projects?.[child.id]||roles.snapshot?.policy.threads?.[child.id]&&!threadArchived(roles.snapshot.policy.threads[child.id],roles.snapshot.serverNow))).map(child=><div className="ct-thread-sidebar" key={child.id}><ChannelRow unread={activity.unreadByChannel[child.id]||0} channel={child} active={channel.id===child.id} onOpen={()=>openChannel(child.id)} onSettings={()=>setChannelSettings(child)}/></div>)}</Fragment>)}<div className="ct-section-label"><button className="ct-section-toggle" aria-expanded={!hiddenSections.voice} onClick={()=>toggleSection('voice')}><ControlIcon name="chevron" size={12}/>Chamadas</button><button title="Criar canal de voz" aria-label="Criar canal de voz" onClick={()=>setCreateType('voice')}>+</button></div>{!hiddenSections.voice&&voiceChannels.map(c=><div className={`ct-voice-group ${voice.activeChannelId===c.id?'connected':''}`} key={c.id}><ChannelRow channel={c} active={channel.id===c.id} connected={voice.activeChannelId===c.id} count={voice.channelOccupants[c.id]?.length} onOpen={()=>void join(c.id,c.name)} onSettings={()=>setChannelSettings(c)}/><div className="ct-channel-occupants">{(voice.activeChannelId===c.id?voice.participants:voice.channelOccupants[c.id]||[]).map(p=><button className="ct-occupant" title={p.name} key={p.identity} onClick={()=>setProfile(p.name,p.identity)} onContextMenu={e=>{e.preventDefault();setContext({participant:p,x:e.clientX,y:e.clientY})}}><Avatar name={p.name} identity={p.identity} live={p.isScreenShareEnabled}/><span className="ct-occupant-name"><RoleName serverId={server.id} identity={p.identity} name={p.name}/></span><span className="ct-occupant-status">{p.isPrioritySpeaker&&<span className="ct-priority-indicator" role="img" aria-label="Prioridade de fala ativa" title="Prioridade de fala ativa"><ControlIcon name="priority"/></span>}{p.isScreenShareEnabled?<span className="ct-live-badge">LIVE</span>:<ControlIcon name="mic" slashed={!p.isAudioEnabled}/>}</span></button>)}</div></div>)}</>}
+    <nav className="ct-sidebar" data-collapsed={preferences.sidebarCollapsed} hidden={preferences.sidebarHidden}><button className="ct-sidebar-toggle" aria-label={preferences.sidebarCollapsed?'Expandir lista de canais':'Recolher lista de canais'} title={preferences.sidebarCollapsed?'Expandir canais':'Recolher canais'} onClick={()=>preferences.update({sidebarCollapsed:!preferences.sidebarCollapsed})}><ControlIcon name="chevron"/><span>Canais e conversas</span></button><div className="ct-sidebar-scroll">{view!=='server'?<><div className="ct-side-nav"><button className="ct-new-chat" onClick={()=>setView('messages')}><Icon name="chat"/>Nova conversa</button><button className={view==='home'?'active':''} onClick={()=>setView('home')}><Icon name="home"/>Início <span className="ct-nav-dot"/></button><button className={view==='friends'?'active':''} onClick={()=>setView('friends')}><Icon name="friends"/>Amigos</button></div><div className="ct-section-label">Mensagens diretas <button title="Abrir mensagens" onClick={()=>setView('messages')}>+</button></div><div className="ct-people">{visibleContacts.map(m=><button className="ct-person" data-profile-identity={m.username} data-profile-name={m.display_name} key={m.username} onClick={()=>openConversation(m.username)}><Avatar name={m.display_name} identity={m.username} live={voice.participants.some(p=>p.identity===m.username&&p.isScreenShareEnabled)||Object.values(voice.channelOccupants).some(list=>list.some(p=>p.identity===m.username&&p.isScreenShareEnabled))}/><span><strong><RoleName identity={m.username} name={m.display_name}/></strong><small>{statusText(m.username)}</small></span></button>)}{!visibleContacts.length&&<p className="ct-friend-hint">Suas amizades e conversas aparecerão aqui.</p>}</div></>:<><div className="ct-server-banner">{roles.snapshot?.id===server.id&&<button className="ct-server-events" title="Eventos do servidor" aria-label="Eventos do servidor" onClick={()=>{setEventTarget(undefined);setEventsOpen(true)}}><ControlIcon name="event"/></button>}<strong title={server.description||server.name}>{server.name}</strong>{(!roles.snapshot||centralAllows('VIEW_GUILD_INSIGHTS')||centralAllows('MANAGE_GUILD')||centralAllows('MANAGE_ROLES')||centralAllows('BAN_MEMBERS')||!!roles.snapshot.invites?.length||roles.snapshot.channels.some(item=>centralAllows('CREATE_INSTANT_INVITE',item.id)))&&<button className="ct-server-role-settings" title="Configurações do servidor" aria-label="Configurações do servidor" onClick={()=>setRolesOpen(true)}><ControlIcon name="settings"/></button>}<small><i className="ct-online-dot"/> {community.status==='online'?community.members.filter(m=>m.online).length+' membros online':'Presença indisponível'}</small></div>
+<div className="ct-section-label"><button className="ct-section-toggle" aria-expanded={!hiddenSections.projects} onClick={()=>toggleSection('projects')}><ControlIcon name="chevron" size={12}/>Projetos</button></div>
+{!hiddenSections.projects&&<div className="ct-side-dev-group">
+  <button className="ct-side-dev-item" onClick={()=>setActiveDevModal('overview')} title="Visão geral do projeto"><div><ControlIcon name="overview" size={14}/><span>Visão geral</span></div></button>
+  <button className="ct-side-dev-item" onClick={()=>setActiveDevModal('tasks')} title="Tarefas ativas"><div><ControlIcon name="tasks" size={14}/><span>Tarefas</span></div></button>
+  <button className="ct-side-dev-item" onClick={()=>setActiveDevModal('docs')} title="Documentação técnica"><div><ControlIcon name="docs" size={14}/><span>Documentação</span></div></button>
+  <button className="ct-side-dev-item" onClick={()=>setActiveDevModal('roadmap')} title="Roadmap do projeto"><div><ControlIcon name="roadmap" size={14}/><span>Roadmap</span></div></button>
+</div>}
+
+<div className="ct-section-label"><button className="ct-section-toggle" aria-expanded={!hiddenSections.text} onClick={()=>toggleSection('text')}><ControlIcon name="chevron" size={12}/>Canais</button><button title="Criar canal de texto" aria-label="Criar canal de texto" onClick={()=>setCreateType('text')}>+</button></div>{!hiddenSections.text&&server.channels.filter(c=>c.type==='text'&&!c.parentId).map(c=><Fragment key={c.id}><ChannelRow unread={activity.unreadByChannel[c.id]||0} channel={c} active={channel.id===c.id} onOpen={()=>openChannel(c.id)} onSettings={()=>setChannelSettings(c)}/>{server.channels.filter(child=>child.parentId===c.id&&(child.id===channel.id||roles.snapshot?.policy.projects?.[child.id]||roles.snapshot?.policy.threads?.[child.id]&&!threadArchived(roles.snapshot.policy.threads[child.id],roles.snapshot.serverNow))).map(child=><div className="ct-thread-sidebar" key={child.id}><ChannelRow unread={activity.unreadByChannel[child.id]||0} channel={child} active={channel.id===child.id} onOpen={()=>openChannel(child.id)} onSettings={()=>setChannelSettings(child)}/></div>)}</Fragment>)}
+<div className="ct-section-label"><button className="ct-section-toggle" aria-expanded={!hiddenSections.repos} onClick={()=>toggleSection('repos')}><ControlIcon name="chevron" size={12}/>Repositórios</button></div>
+{!hiddenSections.repos&&<div className="ct-side-dev-group">
+  <button className="ct-side-dev-item" onClick={()=>void openFolder()} title="github.com/ContalApps/ContalK"><div><ControlIcon name="git-branch" size={14}/><span>ContalApps/ContalK</span></div></button>
+  <button className={`ct-side-dev-item ${repoExplorerOpen?'active':''}`} onClick={()=>void toggleRepoExplorer()} title="Código do repositório"><div><ControlIcon name="git-code" size={14}/><span>Código</span></div><ControlIcon name="chevron" size={12}/></button>
+  {repoExplorerOpen&&<div className="ct-side-explorer">
+    {preferences.workspaceFolder?(
+      loadingWorkspaceFiles ? <span className="ct-side-explorer-empty">Carregando arquivos…</span> :
+      workspaceFiles.length === 0 ? <span className="ct-side-explorer-empty">Nenhum arquivo encontrado</span> :
+      workspaceFiles.map(file=>(
+        <button
+          key={file.path}
+          className={`ct-side-explorer-file ${activeEditorTab===file.path?'active':''}`}
+          onClick={()=>void handleOpenWorkspaceFile(file)}
+          title={file.path}
+        >
+          <ControlIcon name={file.isDirectory?'chevron':'git-code'} size={12}/>
+          <span>{file.name}</span>
+        </button>
+      ))
+    ):(
+      <button className="ct-side-explorer-btn" onClick={()=>void openFolder()}>
+        <ControlIcon name="plus" size={12}/>
+        <span>Abrir pasta do repositório…</span>
+      </button>
+    )}
+  </div>}
+  <button className="ct-side-dev-item" onClick={()=>setActiveDevModal('prs')} title="Pull requests abertos"><div><ControlIcon name="git-pr" size={14}/><span>Pull requests</span></div><span className="ct-side-dev-badge">2</span></button>
+  <button className="ct-side-dev-item" onClick={()=>setActiveDevModal('issues')} title="Issues abertas"><div><ControlIcon name="git-issue" size={14}/><span>Issues</span></div><span className="ct-side-dev-badge">4</span></button>
+  <button className="ct-side-dev-item" onClick={()=>setActiveDevModal('actions')} title="Actions"><div><ControlIcon name="rocket" size={14}/><span>Actions</span></div></button>
+  <button className="ct-side-dev-item" onClick={()=>setActiveDevModal('wiki')} title="Wiki do projeto"><div><ControlIcon name="git-wiki" size={14}/><span>Wiki</span></div></button>
+</div>}
+
+<div className="ct-section-label"><button className="ct-section-toggle" aria-expanded={!hiddenSections.voice} onClick={()=>toggleSection('voice')}><ControlIcon name="chevron" size={12}/>Chamadas</button><button title="Criar canal de voz" aria-label="Criar canal de voz" onClick={()=>setCreateType('voice')}>+</button></div>{!hiddenSections.voice&&voiceChannels.map(c=><div className={`ct-voice-group ${voice.activeChannelId===c.id?'connected':''}`} key={c.id}><ChannelRow channel={c} active={channel.id===c.id} connected={voice.activeChannelId===c.id} count={voice.channelOccupants[c.id]?.length} onOpen={()=>void join(c.id,c.name)} onSettings={()=>setChannelSettings(c)}/><div className="ct-channel-occupants">{(voice.activeChannelId===c.id?voice.participants:voice.channelOccupants[c.id]||[]).map(p=><button className="ct-occupant" title={p.name} key={p.identity} onClick={()=>setProfile(p.name,p.identity)} onContextMenu={e=>{e.preventDefault();setContext({participant:p,x:e.clientX,y:e.clientY})}}><Avatar name={p.name} identity={p.identity} live={p.isScreenShareEnabled}/><span className="ct-occupant-name"><RoleName serverId={server.id} identity={p.identity} name={p.name}/></span><span className="ct-occupant-status">{p.isPrioritySpeaker&&<span className="ct-priority-indicator" role="img" aria-label="Prioridade de fala ativa" title="Prioridade de fala ativa"><ControlIcon name="priority"/></span>}{p.isScreenShareEnabled?<span className="ct-live-badge">LIVE</span>:<ControlIcon name="mic" slashed={!p.isAudioEnabled}/>}</span></button>)}</div></div>)}</>}
     </div><UserDock onProfile={()=>setProfile(user?.display_name||'Você',user?.username)} onOpenChannel={openChannel}/></nav>
     <div className="ct-center"><main className="ct-main">{roles.configured&&roles.error&&<div className="ct-mic-alert" role="status">{roles.error}</div>}{(voice.profileError||community.profileError)&&<div className="ct-mic-alert" role="status">{voice.profileError||community.profileError}</div>}{voice.microphoneError&&<div className="ct-mic-alert" role="alert"><span>{voice.microphoneError}</span><button onClick={()=>setAudioSettings('input')}>Escolher microfone</button></div>}{view==='friends'||view==='messages'?<HomeView key={view} mode={view} searchQuery={search} selected={selectedPeer} onConversation={openConversation} onProfile={setProfile}/>:view==='home'?<div className="ct-dashboard"><div className="ct-home">{!servers.length&&<section className="ct-card ct-no-server"><h2>Comece por aqui</h2><p>Você ainda não está em nenhum servidor. Crie o seu e chame os amigos, ou entre no servidor de um amigo com um convite.</p><button className="ct-primary" onClick={()=>setJoinOpen(true)}>Criar ou entrar em um servidor</button></section>}
     <section className="ct-home-hero"><div className="ct-home-greeting"><h1>{greeting}, <em>{user?.display_name || 'amigo'}</em></h1><p>Boas conversas tornam os dias mais leves.</p></div>
@@ -253,7 +453,40 @@ export function ConTALKLayout() {
     <section className="ct-home-section"><header><h2>Canais de voz</h2><button className="ct-home-link" onClick={()=>setCreateType('voice')}><Icon name="plus"/>Criar canal</button></header><div className="ct-home-voice">{voiceChannels.map(c=>{const occupants=voice.activeChannelId===c.id?voice.participants:voice.channelOccupants[c.id]||[];const here=voice.activeChannelId===c.id&&voice.connectionStatus==='connected';return <article className="ct-home-voice-card" key={c.id}><div className="ct-home-voice-title"><span className="ct-home-tile"><Icon name="voice"/></span><span><strong>{c.name}</strong><small>{server.name}</small></span></div><div className="ct-home-voice-foot">{occupants.length?<span className="ct-home-presence"><span className="ct-avatar-stack">{occupants.slice(0,3).map(p=><Avatar key={p.identity} name={p.name} identity={p.identity}/>)}</span><small>{occupants.length} em voz</small></span>:<small>Seja o primeiro a entrar</small>}<button className={here?'ct-primary':'ct-secondary'} onClick={()=>join(c.id,c.name)}>{here?'Abrir':'Entrar'}</button></div></article>})}</div>{!voiceChannels.length&&<p className="ct-muted">Nenhum canal de voz por aqui ainda.</p>}</section>
     <section className="ct-home-section"><header><h2>Conversas recentes</h2></header><ul className="ct-home-recent">{recent.filter(m=>(m.content+' '+m.userName).toLowerCase().includes(search.toLowerCase())).slice(0,6).map(m=><li key={m.id}><button onClick={()=>openChannel(m.channelId)}><Avatar name={m.userName} identity={m.userId}/><span><strong>{m.userName}</strong><small>{m.once?'Mensagem de visualização única':m.content||m.attachment?.name}</small></span>{m.webhook&&<small className="ct-integration-badge">Integração</small>}<time>{new Date(m.timestamp).toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'})}</time></button></li>)}</ul>{!recent.length&&<p className="ct-muted">Suas conversas recentes aparecem aqui.</p>}</section>
     {!!servers.length&&<section className="ct-home-section"><header><h2>Suas comunidades</h2><span className="ct-pill">{servers.length}</span></header><div className="ct-home-communities">{servers.map(s=><button key={s.id} onClick={()=>{setActiveServer(s.id);openChannel(s.channels[0]?.id || '')}}><span className="ct-home-tile"><BrandMark/></span><span><strong>{s.name}</strong><small>{s.channels.length} canais</small></span></button>)}</div></section>}
-    </div></div>:!channel.id?<section className="ct-empty-channels"><span className="ct-eyebrow">Um novo começo</span><h1>Nenhum canal por aqui ainda</h1><p>Crie um canal de texto ou voz para começar.</p><div><button className="ct-primary" onClick={()=>setCreateType('text')}>Criar canal de texto</button><button className="ct-secondary" onClick={()=>setCreateType('voice')}>Criar canal de voz</button></div></section>:<><header className="ct-channel-header"><div>{channel.type==='voice'?<span className="ct-channel-type"><ControlIcon name="mic"/></span>:<Icon name="#"/>}<span><h2>{channel.name}</h2><small title={channel.type==='voice'?channel.voiceStatus||undefined:undefined}>{channel.type==='voice'?(channel.voiceStatus||'Seu espaço para conversar e transmitir conteúdos'):'Compartilhe ideias e boas conversas com a comunidade.'}</small></span></div><div className="ct-channel-header-actions">{aiEnabled&&<button aria-label="Configurar minha IA" title="Configurar minha IA" onClick={()=>{setSettingsTab('ai');setSettingsOpen(true)}}><ControlIcon name="ai"/></button>}{channel.type==='text'&&!channel.parentId&&aiEnabled&&roles.snapshot?.id===server.id&&centralAllows('CREATE_PRIVATE_THREADS',channel.id)&&<button aria-label="Criar projeto de IA" title="Criar projeto privado" onClick={()=>setProjectCreate(channel.id)}><Icon name="plus"/></button>}{channel.type==='text'&&roles.snapshot?.id===server.id&&<button aria-label="Tópicos do canal" title="Tópicos do canal" onClick={()=>setThreadList(channel.parentId||channel.id)}><ControlIcon name="thread"/></button>}{channel.type==='text'&&roles.snapshot?.id===server.id&&centralAllows('READ_MESSAGE_HISTORY',channel.id)&&<button aria-label="Mensagens fixadas" title="Mensagens fixadas" onClick={()=>setPinnedChannel(channel.id)}><ControlIcon name="pin"/></button>}<button className="ct-channel-header-settings" aria-label={`Configurações de ${channel.name}`} title="Configurações do canal" onClick={()=>setChannelSettings(channel)}><Icon name="settings"/></button><button className="ct-secondary" onClick={()=>preferences.update({membersCollapsed:!preferences.membersCollapsed})} aria-expanded={!preferences.membersCollapsed} title="Recolher ou expandir membros"><Icon name="members"/></button></div></header>{channel.type==='voice'?<div className="ct-stage"><VoiceStage onProfile={person=>setProfile(person.name,person.identity)} onParticipantMenu={(participant,event)=>setContext({participant,x:event.clientX,y:event.clientY})} showMemberList={!preferences.membersCollapsed} onToggleMemberList={()=>preferences.update({membersCollapsed:!preferences.membersCollapsed})}/></div>:<><>{channel.parentId&&(channel.project?<div className="ct-thread-header"><button onClick={()=>openChannel(channel.parentId!)}><ControlIcon name="back"/> Canal principal</button><span>Projeto privado · {project?.members[roles.snapshot?.actor||'']||'leitor'}{project?.archived?' · Arquivado':''}</span></div>:<ThreadHeader id={channel.id} onParent={()=>openChannel(channel.parentId!)}/>)}<div className="ct-messages"><div className="ct-chat-welcome"><span>#</span><h1>Este é o #{channel.name}</h1><p>O começo de muitas boas conversas.</p></div><div className="ct-date-divider">Hoje</div>{(roles.historyMore[channel.id]??roles.snapshot?.hasOlder?.[channel.id])&&<button className="ct-history-more" disabled={roles.historyBusy} onClick={()=>void roles.loadHistory(channel.id).catch(()=>{})}>{roles.historyBusy?'Carregando…':'Carregar mensagens anteriores'}</button>}{(messages[channel.id]||[]).filter(m=>m.content.toLowerCase().includes(search.toLowerCase())||serverName(m.userId,m.userName).toLowerCase().includes(search.toLowerCase())).map(m=><article className="ct-message" data-message-id={m.id} key={m.id}><button disabled={!!m.webhook} data-profile-identity={m.webhook?undefined:m.userId} data-profile-name={m.userName} onClick={()=>setProfile(m.userName,m.userId)}><Avatar name={m.userName} identity={m.userId}/></button><div><header><button disabled={!!m.webhook} data-profile-identity={m.webhook?undefined:m.userId} data-profile-name={m.userName} onClick={()=>setProfile(m.userName,m.userId)}><RoleName serverId={server.id} identity={m.userId} name={m.userName}/></button>{m.webhook&&<small className="ct-integration-badge">Integração</small>}<time>{new Date(m.timestamp).toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'})}</time></header><ChatMessage message={m} onOpenChannel={openChannel} aiPartial={m.ai?aiEvents.partials[m.ai.id]:undefined} onAiCancel={m.ai?.status==='queued'&&(m.ai.actor===user?.username||project?.members[user?.username||'']==='manager'||!project&&centralAllows('MANAGE_CHANNELS',channel.id))?async()=>{if(!window.contalkDesktop)throw new Error('Abra no aplicativo desktop.');await window.contalkDesktop.communityAiStop(server.id,channel.id,m.ai!.id)}:undefined} onAiRetry={m.ai?.promptId&&!m.ai.files?.length&&aiEnabled&&centralAllows('SEND_MESSAGES',channel.id)?async()=>{const original=(messages[channel.id]||[]).find(item=>item.id===m.ai?.promptId);if(!original)throw new Error('Carregue a mensagem original no histórico para tentar novamente.');if(!window.contalkDesktop)throw new Error('Abra no aplicativo desktop.');await window.contalkDesktop.communityAiStart(server.id,channel.id,original.content,[],undefined,m.ai?.provider||aiParsed?.provider,m.ai?.model)}:undefined}/></div></article>)}<div ref={end}/></div>{aiEnabled&&activeAi&&<div className="ct-ai-run-bar"><span>IA respondendo em {activeAi.ai?.model||aiParsed?.model||aiModel}</span>{canStopAi&&<button aria-label="Interromper resposta da IA" onClick={()=>{setAiActionError('');void window.contalkDesktop?.communityAiStop(server.id,channel.id).catch(error=>setAiActionError(error.message))}}>Interromper</button>}</div>}{aiEvents.streamError&&<small role="status">{aiEvents.streamError}</small>}{aiActionError&&<small role="alert">{aiActionError}</small>}<ChatComposer channelId={channel.id} disabled={!centralAllows('SEND_MESSAGES',channel.id)} key={channel.id} placeholder={`Conversar em #${channel.name}`} onSend={(text,attachment,options)=>community.sendMessage(channel.id,text,undefined,attachment,options)} ai={aiEnabled?{endpoints:aiEndpoints,active:!!activeAi,onPrompt:async(text,fileIds,limits,provider,model)=>{if(!window.contalkDesktop)throw new Error('Abra no aplicativo desktop.');await window.contalkDesktop.communityAiStart(server.id,channel.id,text,fileIds,limits,provider,model)}}:undefined}/></></>}</> }</main>{preferences.bottomPanelOpen&&<TerminalPanel request={terminalRequest} onClose={()=>preferences.update({bottomPanelOpen:false})}/>}</div>
+    </div></div>:!channel.id?<section className="ct-empty-channels"><span className="ct-eyebrow">Um novo começo</span><h1>Nenhum canal por aqui ainda</h1><p>Crie um canal de texto ou voz para começar.</p><div><button className="ct-primary" onClick={()=>setCreateType('text')}>Criar canal de texto</button><button className="ct-secondary" onClick={()=>setCreateType('voice')}>Criar canal de voz</button></div></section>:<><header className="ct-channel-header"><div>{channel.type==='voice'?<span className="ct-channel-type"><ControlIcon name="mic"/></span>:<Icon name="#"/>}<span><h2>{channel.name}</h2><small title={channel.type==='voice'?channel.voiceStatus||undefined:undefined}>{channel.type==='voice'?(channel.voiceStatus||'Seu espaço para conversar e transmitir conteúdos'):'Compartilhe ideias e boas conversas com a comunidade.'}</small></span></div><div className="ct-channel-header-actions">{aiEnabled&&<button aria-label="Configurar minha IA" title="Configurar minha IA" onClick={()=>{setSettingsTab('ai');setSettingsOpen(true)}}><ControlIcon name="ai"/></button>}{channel.type==='text'&&!channel.parentId&&aiEnabled&&roles.snapshot?.id===server.id&&centralAllows('CREATE_PRIVATE_THREADS',channel.id)&&<button aria-label="Criar projeto de IA" title="Criar projeto privado" onClick={()=>setProjectCreate(channel.id)}><Icon name="plus"/></button>}{channel.type==='text'&&roles.snapshot?.id===server.id&&<button aria-label="Tópicos do canal" title="Tópicos do canal" onClick={()=>setThreadList(channel.parentId||channel.id)}><ControlIcon name="thread"/></button>}{channel.type==='text'&&roles.snapshot?.id===server.id&&centralAllows('READ_MESSAGE_HISTORY',channel.id)&&<button aria-label="Mensagens fixadas" title="Mensagens fixadas" onClick={()=>setPinnedChannel(channel.id)}><ControlIcon name="pin"/></button>}<button className="ct-channel-header-settings" aria-label={`Configurações de ${channel.name}`} title="Configurações do canal" onClick={()=>setChannelSettings(channel)}><Icon name="settings"/></button><button className="ct-secondary" onClick={()=>preferences.update({membersCollapsed:!preferences.membersCollapsed})} aria-expanded={!preferences.membersCollapsed} title="Recolher ou expandir membros"><Icon name="members"/></button></div></header>{channel.type==='voice'?<div className="ct-stage"><VoiceStage onProfile={person=>setProfile(person.name,person.identity)} onParticipantMenu={(participant,event)=>setContext({participant,x:event.clientX,y:event.clientY})} showMemberList={!preferences.membersCollapsed} onToggleMemberList={()=>preferences.update({membersCollapsed:!preferences.membersCollapsed})}/></div>:<><>{channel.parentId&&(channel.project?<div className="ct-thread-header"><button onClick={()=>openChannel(channel.parentId!)}><ControlIcon name="back"/> Canal principal</button><span>Projeto privado · {project?.members[roles.snapshot?.actor||'']||'leitor'}{project?.archived?' · Arquivado':''}</span></div>:<ThreadHeader id={channel.id} onParent={()=>openChannel(channel.parentId!)}/>)}<div className="ct-channel-split-workspace">
+  <div className="ct-chat-pane">
+    <div className="ct-messages"><div className="ct-chat-welcome"><span>#</span><h1>Este é o #{channel.name}</h1><p>O começo de muitas boas conversas.</p></div><div className="ct-date-divider">Hoje</div>{(roles.historyMore[channel.id]??roles.snapshot?.hasOlder?.[channel.id])&&<button className="ct-history-more" disabled={roles.historyBusy} onClick={()=>void roles.loadHistory(channel.id).catch(()=>{})}>{roles.historyBusy?'Carregando…':'Carregar mensagens anteriores'}</button>}{(messages[channel.id]||[]).filter(m=>m.content.toLowerCase().includes(search.toLowerCase())||serverName(m.userId,m.userName).toLowerCase().includes(search.toLowerCase())).map(m=><article className="ct-message" data-message-id={m.id} key={m.id}><button disabled={!!m.webhook} data-profile-identity={m.webhook?undefined:m.userId} data-profile-name={m.userName} onClick={()=>setProfile(m.userName,m.userId)}><Avatar name={m.userName} identity={m.userId}/></button><div><header><button disabled={!!m.webhook} data-profile-identity={m.webhook?undefined:m.userId} data-profile-name={m.userName} onClick={()=>setProfile(m.userName,m.userId)}><RoleName serverId={server.id} identity={m.userId} name={m.userName}/></button>{m.webhook&&<small className="ct-integration-badge">Integração</small>}<time>{new Date(m.timestamp).toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'})}</time></header><ChatMessage message={m} onOpenChannel={openChannel} aiPartial={m.ai?aiEvents.partials[m.ai.id]:undefined} onAiCancel={m.ai?.status==='queued'&&(m.ai.actor===user?.username||project?.members[user?.username||'']==='manager'||!project&&centralAllows('MANAGE_CHANNELS',channel.id))?async()=>{if(!window.contalkDesktop)throw new Error('Abra no aplicativo desktop.');await window.contalkDesktop.communityAiStop(server.id,channel.id,m.ai!.id)}:undefined} onAiRetry={m.ai?.promptId&&!m.ai.files?.length&&aiEnabled&&centralAllows('SEND_MESSAGES',channel.id)?async()=>{const original=(messages[channel.id]||[]).find(item=>item.id===m.ai?.promptId);if(!original)throw new Error('Carregue a mensagem original no histórico para tentar novamente.');if(!window.contalkDesktop)throw new Error('Abra no aplicativo desktop.');await window.contalkDesktop.communityAiStart(server.id,channel.id,original.content,[],undefined,m.ai?.provider||aiParsed?.provider,m.ai?.model)}:undefined}/></div></article>)}<div ref={end}/></div>{aiEnabled&&activeAi&&<div className="ct-ai-run-bar"><span>IA respondendo em {activeAi.ai?.model||aiParsed?.model||aiModel}</span>{canStopAi&&<button aria-label="Interromper resposta da IA" onClick={()=>{setAiActionError('');void window.contalkDesktop?.communityAiStop(server.id,channel.id).catch(error=>setAiActionError(error.message))}}>Interromper</button>}</div>}{aiEvents.streamError&&<small role="status">{aiEvents.streamError}</small>}{aiActionError&&<small role="alert">{aiActionError}</small>}<div className="ct-prompt-suggestions">
+  <button type="button" className="ct-prompt-suggestion-pill" onClick={()=>community.sendMessage(channel.id,"Sim, mostra um exemplo completo")}>
+    <span>Sim, mostra um exemplo completo</span>
+  </button>
+  <button type="button" className="ct-prompt-suggestion-pill" onClick={()=>community.sendMessage(channel.id,"Como exibir os avatares dos usuários?")}>
+    <span>Como exibir os avatares dos usuários?</span>
+  </button>
+</div>
+<ChatComposer channelId={channel.id} disabled={!centralAllows('SEND_MESSAGES',channel.id)} key={channel.id} placeholder={`Conversar em #${channel.name}`} onSend={(text,attachment,options)=>community.sendMessage(channel.id,text,undefined,attachment,options)} ai={aiEnabled?{endpoints:aiEndpoints,active:!!activeAi,onPrompt:async(text,fileIds,limits,provider,model)=>{if(!window.contalkDesktop)throw new Error('Abra no aplicativo desktop.');await window.contalkDesktop.communityAiStart(server.id,channel.id,text,fileIds,limits,provider,model)}}:undefined}/>
+</div>
+<DevCodeEditor
+  tabs={editorTabs}
+  activeTabId={activeEditorTab}
+  onSelectTab={setActiveEditorTab}
+  onCloseTab={id=>{
+    setEditorTabs(t=>t.filter(tab=>tab.id!==id))
+    if(activeEditorTab===id){
+      const remaining=editorTabs.filter(tab=>tab.id!==id)
+      if(remaining.length)setActiveEditorTab(remaining[0].id)
+    }
+  }}
+  branch="feature/realtime-cursors"
+  fileName={editorTabs.find(t=>t.id===activeEditorTab)?.name || 'page.tsx'}
+  filePath={editorTabs.find(t=>t.id===activeEditorTab)?.path || 'projeto-atlas/apps/web/src/components/editor/page.tsx'}
+  code={tabCodes[activeEditorTab] ?? ''}
+  onChangeCode={handleUpdateCode}
+  onSave={handleSaveActiveCode}
+  isSaving={isSavingCode}
+  cursors={devCursors}
+  onNewTab={handleNewTab}
+/>
+</div></></>}</> }</main>{preferences.bottomPanelOpen&&<TerminalPanel request={terminalRequest} onClose={()=>preferences.update({bottomPanelOpen:false})}/>}</div>
     {(view==='server'||!!voice.activeChannelId)&&!preferences.membersCollapsed&&<RightPanel onOpenChannel={openVoiceChannel} members={<><div className="ct-heading"><h2>{view==='server'?'Membros':'Seus amigos'}</h2><span className="ct-online-dot"/></div><div className="ct-section-label">{community.status==='online'?(view==='server'?'Membros':'Amigos'):'Presença indisponível'} — {activityMembers.length}</div>{groupedMembers.map((m,index)=><Fragment key={m.username}>{groupRole(m.username)&&groupRole(m.username)?.id!==groupRole(groupedMembers[index-1]?.username||'')?.id&&<div className="ct-section-label ct-role-group-label">{groupRole(m.username)?.name}</div>}<button className="ct-person ct-activity-person" data-profile-identity={m.username} data-profile-name={m.display_name} title={serverName(m.username,m.display_name)} key={m.username} onClick={()=>setProfile(m.display_name,m.username)}><Avatar name={m.display_name} identity={m.username} live={liveIdentities.has(m.username)}/><span><strong><RoleName serverId={view==='server'?server.id:undefined} identity={m.username} name={m.display_name}/></strong><small className={voice.participants.some(p=>p.identity===m.username&&p.isScreenShareEnabled)?'ct-member-live':''}>{voice.participants.some(p=>p.identity===m.username&&p.isScreenShareEnabled)?'Ao vivo na '+voice.activeChannelName:statusText(m.username)}</small></span><i className={m.online?"ct-online-dot":"ct-offline-dot"}/></button></Fragment>)}{!activityMembers.length&&<p className="ct-muted">{view==='server'?'Nenhuma pessoa encontrada.':'Adicione alguém da call ou do servidor para aparecer aqui.'}</p>}</>}/>}
     </></div>
     {settingsOpen&&<SettingsView initialTab={settingsTab} onClose={()=>setSettingsOpen(false)} onEditProfile={()=>setEditProfile(true)}/>}
@@ -270,6 +503,124 @@ export function ConTALKLayout() {
     {audioSettings&&<AudioSettings initialMode={audioSettings} onClose={()=>setAudioSettings(null)}/>}
     {editProfile&&<EditProfile onClose={()=>setEditProfile(false)}/>}
     {createType&&<CreateChannel type={createType} serverId={server.id} onClose={()=>setCreateType(null)}/>}
+    {activeDevModal&&(
+  <div className="ct-modal-backdrop" onClick={()=>setActiveDevModal(null)}>
+    <section className="ct-edit-dialog" role="dialog" aria-modal="true" onClick={e=>e.stopPropagation()}>
+      {activeDevModal==='prs'&&(
+        <>
+          <h2>Pull Requests — ContalApps/ContalK</h2>
+          <div style={{display:'flex',flexDirection:'column',gap:'8px',margin:'14px 0'}}>
+            <div style={{padding:'10px',background:'var(--cx-surface)',borderRadius:'6px',border:'1px solid var(--cx-border-light)'}}>
+              <strong>#182 feat(realtime): Yjs collaborative cursors</strong>
+              <div style={{fontSize:'12px',color:'var(--cx-fg-3)',marginTop:'4px'}}>Mariana abriu há 2 horas · dev/caliari · 3 arquivos alterados</div>
+            </div>
+            <div style={{padding:'10px',background:'var(--cx-surface)',borderRadius:'6px',border:'1px solid var(--cx-border-light)'}}>
+              <strong>#181 fix(audio): voice capture stream resampler</strong>
+              <div style={{fontSize:'12px',color:'var(--cx-fg-3)',marginTop:'4px'}}>Rafael abriu ontem · dev/vg · 1 arquivo alterado</div>
+            </div>
+          </div>
+        </>
+      )}
+      {activeDevModal==='issues'&&(
+        <>
+          <h2>Issues — ContalApps/ContalK</h2>
+          <div style={{display:'flex',flexDirection:'column',gap:'8px',margin:'14px 0'}}>
+            <div style={{padding:'10px',background:'var(--cx-surface)',borderRadius:'6px',border:'1px solid var(--cx-border-light)'}}>
+              <strong>#42 Suporte a provedores customizados via MCP</strong>
+              <div style={{fontSize:'12px',color:'var(--cx-fg-3)',marginTop:'4px'}}>Aberto por Lucas · Prioridade Alta · dev/caliari</div>
+            </div>
+            <div style={{padding:'10px',background:'var(--cx-surface)',borderRadius:'6px',border:'1px solid var(--cx-border-light)'}}>
+              <strong>#41 Minimap viewport slider em monitores ultra-wide</strong>
+              <div style={{fontSize:'12px',color:'var(--cx-fg-3)',marginTop:'4px'}}>Aberto por Mariana · UI/UX</div>
+            </div>
+            <div style={{padding:'10px',background:'var(--cx-surface)',borderRadius:'6px',border:'1px solid var(--cx-border-light)'}}>
+              <strong>#40 Taxa de bits dinâmica nos canais de voz</strong>
+              <div style={{fontSize:'12px',color:'var(--cx-fg-3)',marginTop:'4px'}}>Aberto por Caliari · Voice / WebRTC</div>
+            </div>
+          </div>
+        </>
+      )}
+      {activeDevModal==='actions'&&(
+        <>
+          <h2>Actions — CI/CD ConTALK</h2>
+          <div style={{display:'flex',flexDirection:'column',gap:'8px',margin:'14px 0'}}>
+            <div style={{padding:'10px',background:'var(--cx-surface)',borderRadius:'6px',border:'1px solid var(--cx-border-light)',display:'flex',justifyContent:'space-between'}}>
+              <div>
+                <strong>CI & Verificação Automática</strong>
+                <div style={{fontSize:'12px',color:'var(--cx-fg-3)'}}>Branch dev/caliari · Testes & Lint</div>
+              </div>
+              <span style={{color:'#4ade80',fontWeight:600}}>Passando ✓</span>
+            </div>
+            <div style={{padding:'10px',background:'var(--cx-surface)',borderRadius:'6px',border:'1px solid var(--cx-border-light)',display:'flex',justifyContent:'space-between'}}>
+              <div>
+                <strong>Deploy no Coolify</strong>
+                <div style={{fontSize:'12px',color:'var(--cx-fg-3)'}}>Serviço da comunidade · main</div>
+              </div>
+              <span style={{color:'#60a5fa',fontWeight:600}}>Ativo 🚀</span>
+            </div>
+          </div>
+        </>
+      )}
+      {activeDevModal==='wiki'&&(
+        <>
+          <h2>Wiki — Guia do Desenvolvedor ConTALK</h2>
+          <div style={{fontSize:'13px',lineHeight:'1.6',color:'var(--cx-fg-2)',margin:'14px 0'}}>
+            <p><strong>Arquitetura ConTALK Codex Studio:</strong></p>
+            <p>ConTALK integra chat de desenvolvedores, canais de voz WebRTC de baixa latência e um Code Studio em tempo real com suporte a múltiplos cursores (Yjs) e terminal integrado.</p>
+            <p><strong>Atalhos úteis:</strong></p>
+            <ul>
+              <li><code>Ctrl + S</code>: Salvar arquivo ativo</li>
+              <li><code>Ctrl + O</code>: Abrir pasta do projeto</li>
+              <li><code>Ctrl + `</code>: Alternar terminal inferior</li>
+              <li><code>Ctrl + K</code>: Busca unificada</li>
+            </ul>
+          </div>
+        </>
+      )}
+      {activeDevModal==='overview'&&(
+        <>
+          <h2>Visão Geral — ConTALK HQ</h2>
+          <div style={{fontSize:'13px',lineHeight:'1.6',color:'var(--cx-fg-2)',margin:'14px 0'}}>
+            <p><strong>Projeto:</strong> ConTALK Development Hub</p>
+            <p><strong>Repositório:</strong> ContalApps/ContalK</p>
+            <p><strong>Branch de Trabalho:</strong> dev/caliari</p>
+            <p><strong>Coproprietários:</strong> Caliari, VG, Mariana, Rafael, Lucas</p>
+          </div>
+        </>
+      )}
+      {activeDevModal==='tasks'&&(
+        <>
+          <h2>Tarefas Ativas</h2>
+          <div style={{display:'flex',flexDirection:'column',gap:'8px',margin:'14px 0'}}>
+            <div style={{padding:'8px 12px',background:'var(--cx-surface)',borderRadius:'6px'}}>✓ Layout do Codex com TitleBar de 44px e menus nativos</div>
+            <div style={{padding:'8px 12px',background:'var(--cx-surface)',borderRadius:'6px'}}>✓ DevCodeEditor multi-abas com cursores remotos e minimap</div>
+            <div style={{padding:'8px 12px',background:'var(--cx-surface)',borderRadius:'6px'}}>✓ Terminal integrado node-pty com abas de categoria</div>
+            <div style={{padding:'8px 12px',background:'var(--cx-surface)',borderRadius:'6px'}}>✓ Integração com sistema de arquivos real (leitura/gravação IPC)</div>
+          </div>
+        </>
+      )}
+      {activeDevModal==='docs'&&(
+        <>
+          <h2>Documentação</h2>
+          <div style={{fontSize:'13px',lineHeight:'1.6',color:'var(--cx-fg-2)',margin:'14px 0'}}>
+            <p>Consulte <code>docs/codex-shell.md</code> e <code>docs/LLM_HANDOFF.md</code> para documentação de arquitetura do ConTALK Codex Shell.</p>
+          </div>
+        </>
+      )}
+      {activeDevModal==='roadmap'&&(
+        <>
+          <h2>Roadmap</h2>
+          <div style={{display:'flex',flexDirection:'column',gap:'8px',margin:'14px 0'}}>
+            <div style={{padding:'8px 12px',background:'var(--cx-surface)',borderRadius:'6px'}}><strong>v2.5:</strong> Dev Studio integrado com IA generativa e terminal interativo</div>
+            <div style={{padding:'8px 12px',background:'var(--cx-surface)',borderRadius:'6px'}}><strong>v2.6:</strong> Colaboração P2P com CRDTs e compartilhamento de telas multi-display</div>
+            <div style={{padding:'8px 12px',background:'var(--cx-surface)',borderRadius:'6px'}}><strong>v3.0:</strong> Plugins MCP integrados para automação de CI/CD e deployment</div>
+          </div>
+        </>
+      )}
+      <footer><button type="button" onClick={()=>setActiveDevModal(null)}>Fechar</button></footer>
+    </section>
+  </div>
+)}
     {context&&<ParticipantMenu onNickname={view==='server'&&roles.snapshot?.id===server.id&&canSetNickname(roles.snapshot.policy,roles.snapshot.actor,context.participant.identity)?()=>{setNicknameFirst(true);setMemberRoles(context.participant.identity)}:undefined} onRoles={roles.snapshot&&roles.snapshot.policy.members.includes(context.participant.identity)&&(centralAllows('MANAGE_ROLES')||centralAllows('MODERATE_MEMBERS')||centralAllows('KICK_MEMBERS')||centralAllows('BAN_MEMBERS')||roles.snapshot.channels.some(channel=>channel.type==='voice'&&['MUTE_MEMBERS','DEAFEN_MEMBERS','MOVE_MEMBERS'].some(permission=>centralAllows(permission as 'MUTE_MEMBERS'|'DEAFEN_MEMBERS'|'MOVE_MEMBERS',channel.id))))?()=>{setNicknameFirst(false);setMemberRoles(context.participant.identity)}:undefined} onLogout={()=>void (async()=>{await voice.leaveChannel();await logout()})()} onSettings={()=>setSettingsOpen(true)} onEditProfile={()=>setEditProfile(true)} onAudioSettings={setAudioSettings} participant={context.participant} position={{x:context.x,y:context.y}} onClose={()=>setContext(null)} onProfile={()=>{setProfile(context.participant.name,context.participant.identity);setContext(null)}}/>}
 
   </div>

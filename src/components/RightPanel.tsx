@@ -56,6 +56,38 @@ export function RightPanel({ onOpenChannel, members }: { onOpenChannel: (id: str
       </button>)}</div>
     </section>}
     <section className="ct-rp-section ct-rp-members">{members}</section>
+    <section className="ct-rp-section ct-rp-github-section">
+      <div className="ct-rp-github-card">
+        <header className="ct-rp-github-header">
+          <div className="ct-rp-github-title">
+            <ControlIcon name="git-branch" size={14}/>
+            <span>GitHub</span>
+          </div>
+          <a href="https://github.com/ContalApps/ContalK" target="_blank" rel="noopener noreferrer" className="ct-rp-github-link">
+            Abrir no GitHub
+          </a>
+        </header>
+        <div className="ct-rp-github-repo">github.com/ContalApps/ContalK</div>
+        <div className="ct-rp-github-branch">
+          <small>Branch atual</small>
+          <div className="ct-rp-branch-pill">
+            <ControlIcon name="git-branch" size={12}/>
+            <span>dev/caliari</span>
+          </div>
+        </div>
+        <div className="ct-rp-github-commit">
+          <div className="ct-rp-commit-header">
+            <ControlIcon name="git-commit" size={12}/>
+            <span>feature/collaborative-dev</span>
+          </div>
+          <p className="ct-rp-commit-msg">Central colaborativa de desenvolvimento</p>
+          <div className="ct-rp-commit-meta">
+            <small>Por Caliari · agora</small>
+            <code>a3f9c2d</code>
+          </div>
+        </div>
+      </div>
+    </section>
     <ScreenShareModal isOpen={shareOpen && connected} onClose={() => setShareOpen(false)} onStartShare={(source, options) => voice.startScreenShareWithOptions(source, options)}/>
   </aside>
 }

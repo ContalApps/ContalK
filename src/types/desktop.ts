@@ -16,6 +16,12 @@ export interface DesktopSource {
   height: number
   isPrimary: boolean
 }
+export interface WorkspaceFileEntry {
+  name: string
+  path: string
+  isDirectory: boolean
+  size?: number
+}
 export interface DesktopBridge {
   communityAiStatus:()=>Promise<{configured:boolean;providers:import('../roles/ai').AiProviderId[];contextTokens:number;maxOutputTokens:number}>
   communityAiConfigure:(value:{provider?:import('../roles/ai').AiProviderId;key?:string;contextTokens:number;maxOutputTokens:number})=>Promise<{configured:boolean;providers:import('../roles/ai').AiProviderId[];contextTokens:number;maxOutputTokens:number}>
@@ -51,6 +57,9 @@ export interface DesktopBridge {
   editCommand:(command:'undo'|'redo'|'cut'|'copy'|'paste'|'delete'|'selectAll')=>Promise<void>
   toggleFullScreen:()=>Promise<boolean>
   openFolder:()=>Promise<string|null>
+  workspaceListFiles:(dirPath:string)=>Promise<WorkspaceFileEntry[]>
+  workspaceReadFile:(filePath:string)=>Promise<string>
+  workspaceWriteFile:(filePath:string,content:string)=>Promise<boolean>
   terminalCreate:(cwd:string|null,cols:number,rows:number)=>Promise<{id:string;shell:string;cwd:string}>
   terminalInput:(id:string,data:string)=>void
   terminalResize:(id:string,cols:number,rows:number)=>void
@@ -78,7 +87,7 @@ export interface DesktopBridge {
   setSpeaking: (speaking:boolean)=>void
   setTrayState:(state:{connected:boolean;micMuted:boolean;deafened:boolean;micBlocked?:boolean;outputBlocked?:boolean})=>void
   onTrayAction:(listener:(action:string)=>void)=>()=>void
-  notifyActivity:(notice:import('../store/useNotificationStore').ActivityNotice)=>void
+  notifyActivity: (notice: import('../store/useNotificationStore').ActivityNotice) => void
   onNotificationOpen:(listener:(id:string)=>void)=>()=>void
   setInterfaceScale:(percent:number)=>void
   setTitleBarAppearance: (theme: 'classic' | 'vice-city', scale: number) => void
