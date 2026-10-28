@@ -76,6 +76,36 @@ export function AiModelSelector({
     }
   }
 
+  // Pre-select saved model for this provider or default to first model and keep selection
+  useEffect(() => {
+    if (!combinedModels.length) return
+    // If current model is already selected and valid in combinedModels, keep it
+    if (model && combinedModels.some(m => m.id === model)) return
+
+    // Try to restore saved model for this provider
+    try {
+      if (typeof localStorage !== 'undefined') {
+        const savedForProvider = localStorage.getItem(`contalk:preferred-ai-model:${provider}`)
+        if (savedForProvider && combinedModels.some(m => m.id === savedForProvider)) {
+          onChange(provider, savedForProvider)
+          return
+        }
+        const generalSaved = localStorage.getItem('contalk:preferred-ai-model')
+        if (generalSaved && combinedModels.some(m => m.id === generalSaved)) {
+          onChange(provider, generalSaved)
+          return
+        }
+      }
+    } catch {
+      /* ignore storage error */
+    }
+
+    // Default to the first available model if none selected
+    if (!model && combinedModels[0]?.id) {
+      onChange(provider, combinedModels[0].id)
+    }
+  }, [combinedModels.length, provider, model])
+
   return (
     <div className="ct-ai-model-picker">
       <div className="ct-ai-picker-fields">
@@ -87,7 +117,19 @@ export function AiModelSelector({
             className="ct-ai-picker-select"
             aria-label="Provedor de IA para este pedido"
             value={provider}
-            onChange={event => onChange(event.target.value as AiProviderId, '')}
+            onChange={event => {
+              const nextProvider = event.target.value as AiProviderId
+              let nextModel = ''
+              try {
+                if (typeof localStorage !== 'undefined') {
+                  nextModel = localStorage.getItem(`contalk:preferred-ai-model:${nextProvider}`) || ''
+                  localStorage.setItem('contalk:preferred-ai-provider', nextProvider)
+                }
+              } catch {
+                /* ignore */
+              }
+              onChange(nextProvider, nextModel)
+            }}
           >
             {availableProviders.map(item => (
               <option key={item} value={item}>
@@ -106,7 +148,19 @@ export function AiModelSelector({
             aria-label="Modelo de IA para este pedido"
             value={combinedModels.some(item => item.id === model) ? model : ''}
             onChange={event => {
-              if (event.target.value) onChange(provider, event.target.value)
+              const val = event.target.value
+              if (val) {
+                onChange(provider, val)
+                try {
+                  if (typeof localStorage !== 'undefined') {
+                    localStorage.setItem(`contalk:preferred-ai-model:${provider}`, val)
+                    localStorage.setItem('contalk:preferred-ai-model', val)
+                    localStorage.setItem('contalk:preferred-ai-provider', provider)
+                  }
+                } catch {
+                  /* ignore */
+                }
+              }
             }}
             disabled={loading || !combinedModels.length}
           >
@@ -147,7 +201,21 @@ export function AiModelSelector({
             value={model}
             placeholder="Ou digite o ID..."
             maxLength={100}
-            onChange={event => onChange(provider, event.target.value.trim())}
+            onChange={event => {
+              const val = event.target.value.trim()
+              onChange(provider, val)
+              if (val) {
+                try {
+                  if (typeof localStorage !== 'undefined') {
+                    localStorage.setItem(`contalk:preferred-ai-model:${provider}`, val)
+                    localStorage.setItem('contalk:preferred-ai-model', val)
+                    localStorage.setItem('contalk:preferred-ai-provider', provider)
+                  }
+                } catch {
+                  /* ignore */
+                }
+              }
+            }}
           />
         </div>
       </div>
