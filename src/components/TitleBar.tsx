@@ -11,9 +11,9 @@ function TitleIcon({name}: {name: 'back' | 'forward' | 'search' | 'help' | 'clos
   return <ControlIcon name={name}/>
 }
 
-export function TitleBar({title = 'ConTALK', authenticated = false, disabled = false, canBack = false, canForward = false, onBack, onForward, search = '', onSearch,onOpenNotification,menus,scope,onToggleSidebar,sidebarOpen=true,onToggleRightPanel,rightPanelOpen=false,onProfile}: {
+export function TitleBar({title = 'ConTALK', authenticated = false, disabled = false, canBack = false, canForward = false, onBack, onForward, search = '', onSearch,onOpenNotification,menus,scope,onToggleSidebar,sidebarOpen=true,onToggleRightPanel,rightPanelOpen=false,onProfile,onOpenCommandMenu}: {
   title?: string; authenticated?: boolean; disabled?: boolean; canBack?: boolean; canForward?: boolean; onBack?: () => void; onForward?: () => void; search?: string; onSearch?: (value: string) => void;onOpenNotification?:(id:string)=>void
-  menus?: MenuGroup[]; scope?: string; onToggleSidebar?: () => void; sidebarOpen?: boolean; onToggleRightPanel?: () => void; rightPanelOpen?: boolean; onProfile?: () => void
+  menus?: MenuGroup[]; scope?: string; onToggleSidebar?: () => void; sidebarOpen?: boolean; onToggleRightPanel?: () => void; rightPanelOpen?: boolean; onProfile?: () => void; onOpenCommandMenu?: () => void
 }) {
   const user = useAuthStore(s => s.user)
   const preferences = usePreferencesStore()
@@ -41,7 +41,11 @@ export function TitleBar({title = 'ConTALK', authenticated = false, disabled = f
     if (!authenticated || disabled) return
     const keys = (event: KeyboardEvent) => {
       if (document.querySelector('[aria-modal=true]')) return
-      if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'k') { event.preventDefault(); setPanel('search') }
+      if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'k') {
+        event.preventDefault()
+        if (onOpenCommandMenu) onOpenCommandMenu()
+        else setPanel('search')
+      }
       if (event.key === 'F1') { event.preventDefault(); setPanel('help') }
       const editing = event.target instanceof Element && event.target.closest('input,textarea,select,[contenteditable=true],[role=dialog]')
       if (event.altKey && !editing) {
@@ -62,7 +66,7 @@ export function TitleBar({title = 'ConTALK', authenticated = false, disabled = f
         {onToggleSidebar && <button aria-label={sidebarOpen ? 'Ocultar barra lateral' : 'Mostrar barra lateral'} title="Barra lateral (Ctrl+B)" aria-pressed={sidebarOpen} onClick={onToggleSidebar}><ControlIcon name="sidebar"/></button>}
         {menus && <TitleMenus menus={menus}/>}
       </>}{!authenticated && <span className="ct-titlebar-brand"><BrandMark/>ConTALK</span>}</nav>
-      <div className="ct-titlebar-context" title={title}>{authenticated && preferences.titleBarSearch ? <button className="ct-titlebar-search-trigger" ref={searchButton} aria-label="Buscar no ConTALK" aria-expanded={panel==='search'} onClick={()=>setPanel(panel==='search'?null:'search')} data-active={!!search}><TitleIcon name="search"/><span>{search || `Pesquisar em ${scope || title}…`}</span><kbd>Ctrl K</kbd></button> : authenticated ? <><BrandMark/><span>{title}</span></> : null}</div>
+      <div className="ct-titlebar-context" title={title}>{authenticated && preferences.titleBarSearch ? <button className="ct-titlebar-search-trigger" ref={searchButton} aria-label="Buscar no ConTALK" aria-expanded={panel==='search'} onClick={()=>onOpenCommandMenu ? onOpenCommandMenu() : setPanel(panel==='search'?null:'search')} data-active={!!search}><TitleIcon name="search"/><span>{search || `Pesquisar em ${scope || title}…`}</span><kbd>Ctrl K</kbd></button> : authenticated ? <><BrandMark/><span>{title}</span></> : null}</div>
       <div className="ct-titlebar-actions">{authenticated && <>
         <UpdateNotification onOpenNotification={onOpenNotification}/>
         {onToggleRightPanel && <button aria-label={rightPanelOpen ? 'Ocultar painel direito' : 'Mostrar painel direito'} title="Painel direito (Ctrl+Alt+B)" aria-pressed={rightPanelOpen} onClick={onToggleRightPanel}><ControlIcon name="friends"/></button>}

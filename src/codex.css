@@ -2,8 +2,15 @@
    superfície preta, bordas white/8%, texto 14px, raio lg 10px, rail 52px, sidebar 275px, toolbar 46px. */
 .ct-app:not([data-theme=vice-city]) {
   color-scheme: dark;
-  --cx-bg:#000; --cx-surface:#0d0d0d; --cx-elevated:#181818; --cx-fg:#ededed;
+  --cx-bg:#0d0d0d; --cx-surface:#141414; --cx-surface-2:#1c1c1c; --cx-elevated:#212121; --cx-fg:#ededed;
   --cx-fg-2:#ffffffb3; --cx-fg-3:#ffffff80; --cx-border:#ffffff14; --cx-border-light:#ffffff0a;
+  --cx-border-strong:#ffffff24;
+  --elevation-stroke:0 0 0 .5px var(--cx-border-strong);
+  --elevation-stroke-subtle:0 0 0 .5px rgba(255, 255, 255, 0.06);
+  --elevation-prominent:var(--elevation-stroke), 0 3px 7.5px rgba(0, 0, 0, 0.2), 0 0 20px rgba(0, 0, 0, 0.4);
+  --elevation-sidebar:var(--elevation-stroke), 0 3px 7.5px rgba(0, 0, 0, 0.15), 0 0 16px rgba(0, 0, 0, 0.3);
+  --elevation-composer:0 0 0 1px rgba(0, 0, 0, 0.3), 0 2px 8px 0 rgba(0, 0, 0, 0.2), 0 4px 80px 8px rgba(0, 0, 0, 0.25);
+  --elevation-composer-dark:inset 0 0 1px 0 rgba(255, 255, 255, 0.15);
   --cx-hover:#ffffff12; --cx-active:#ffffff1f; --cx-accent:#339cff; --cx-radius:10px;
   --ct-border:var(--cx-border); --ct-muted:var(--cx-fg-3); --ct-accent:var(--cx-fg);
   --ct-settings-bg:var(--cx-bg); --ct-settings-nav:var(--cx-bg); --ct-settings-card:var(--cx-elevated); --ct-settings-line:var(--cx-border);
@@ -1017,4 +1024,418 @@ select option:hover, select option:focus, select option:checked {
   font-size: 13px;
   color: var(--cx-fg, #ededed);
   margin: 0;
+}
+
+/* ==========================================================================
+   Command Palette (Ctrl+K) — Alinhamento Fiel ao Codex CommandMenuDialog
+   ========================================================================== */
+.ct-command-palette-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.65);
+  backdrop-filter: blur(8px);
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
+  padding-top: 14vh;
+  z-index: 9999;
+}
+.ct-command-palette-dialog {
+  width: min(640px, calc(100% - 32px));
+  background: #141414;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 14px;
+  box-shadow: 0 16px 48px rgba(0, 0, 0, 0.6), 0 0 0 1px rgba(255, 255, 255, 0.08);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  animation: ct-cmd-in 0.15s cubic-bezier(0.16, 1, 0.3, 1);
+}
+@keyframes ct-cmd-in {
+  from { opacity: 0; transform: translateY(-8px) scale(0.98); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+.ct-command-input-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 14px 16px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  color: var(--cx-fg-3);
+}
+.ct-command-search-input {
+  flex: 1;
+  background: transparent;
+  border: 0;
+  outline: none;
+  font-size: 15px;
+  color: var(--cx-fg);
+  font-family: inherit;
+}
+.ct-command-search-input::placeholder {
+  color: rgba(255, 255, 255, 0.35);
+}
+.ct-command-clear-btn {
+  background: none;
+  border: 0;
+  color: var(--cx-fg-3);
+  cursor: pointer;
+  padding: 4px;
+  display: grid;
+  place-items: center;
+  border-radius: 4px;
+}
+.ct-command-clear-btn:hover {
+  background: rgba(255, 255, 255, 0.08);
+  color: var(--cx-fg);
+}
+.ct-command-kbd {
+  font-size: 11px;
+  font-family: inherit;
+  padding: 2px 6px;
+  border-radius: 4px;
+  background: rgba(255, 255, 255, 0.08);
+  color: var(--cx-fg-3);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+.ct-command-list {
+  max-height: 380px;
+  overflow-y: auto;
+  padding: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.ct-command-empty {
+  padding: 32px 16px;
+  text-align: center;
+  color: var(--cx-fg-3);
+  font-size: 13px;
+}
+.ct-command-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 12px;
+  border-radius: 8px;
+  cursor: pointer;
+  user-select: none;
+  transition: background 0.1s ease;
+}
+.ct-command-item.selected, .ct-command-item:hover {
+  background: rgba(255, 255, 255, 0.08);
+}
+.ct-command-item-left {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+.ct-command-item-icon {
+  color: var(--cx-fg-3);
+  display: grid;
+  place-items: center;
+}
+.ct-command-item.selected .ct-command-item-icon {
+  color: #fff;
+}
+.ct-command-item-title {
+  font-size: 13px;
+  color: var(--cx-fg);
+  font-weight: 500;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.ct-command-item-badge {
+  font-size: 10px;
+  padding: 1px 6px;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.06);
+  color: rgba(255, 255, 255, 0.45);
+  margin-left: 6px;
+}
+.ct-command-item-shortcut {
+  font-size: 11px;
+  padding: 2px 6px;
+  border-radius: 4px;
+  background: rgba(255, 255, 255, 0.06);
+  color: rgba(255, 255, 255, 0.6);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  flex-shrink: 0;
+}
+.ct-command-footer {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 8px 16px;
+  background: #0f0f0f;
+  border-top: 1px solid rgba(255, 255, 255, 0.06);
+  font-size: 11px;
+  color: rgba(255, 255, 255, 0.4);
+}
+.ct-command-footer strong {
+  color: rgba(255, 255, 255, 0.7);
+}
+
+/* ==========================================================================
+   Review Panel (Ctrl+Alt+R) — Painel de Alterações do Codex
+   ========================================================================== */
+.ct-review-panel {
+  position: fixed;
+  top: 40px;
+  right: 0;
+  bottom: 0;
+  width: min(520px, 92vw);
+  background: #111111;
+  border-left: 1px solid rgba(255, 255, 255, 0.1);
+  box-shadow: -8px 0 24px rgba(0, 0, 0, 0.5);
+  display: flex;
+  flex-direction: column;
+  z-index: 100;
+  animation: ct-review-in 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+}
+@keyframes ct-review-in {
+  from { transform: translateX(100%); }
+  to { transform: translateX(0); }
+}
+.ct-review-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 14px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  background: #141414;
+}
+.ct-review-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.ct-review-title h2 {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--cx-fg);
+  margin: 0;
+}
+.ct-review-branch-badge {
+  font-size: 11px;
+  padding: 1px 7px;
+  border-radius: 10px;
+  background: #1e3a5f;
+  color: #58a6ff;
+  font-family: monospace;
+}
+.ct-review-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.ct-review-stat-summary {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  font-weight: 600;
+}
+.ct-stat-add {
+  color: #34d399;
+}
+.ct-stat-del {
+  color: #f87171;
+}
+.ct-review-close-btn {
+  background: none;
+  border: 0;
+  color: var(--cx-fg-3);
+  cursor: pointer;
+  padding: 3px;
+  border-radius: 4px;
+  display: grid;
+  place-items: center;
+}
+.ct-review-close-btn:hover {
+  background: rgba(255, 255, 255, 0.08);
+  color: var(--cx-fg);
+}
+.ct-review-body {
+  display: flex;
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+}
+.ct-review-file-list {
+  width: 180px;
+  flex-shrink: 0;
+  border-right: 1px solid rgba(255, 255, 255, 0.08);
+  background: #0d0d0d;
+  overflow-y: auto;
+  padding: 6px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.ct-review-section-title {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--cx-fg-3);
+  padding: 6px 8px;
+}
+.ct-review-file-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 6px 8px;
+  border-radius: 6px;
+  background: transparent;
+  border: 0;
+  color: var(--cx-fg-2);
+  font-size: 12px;
+  cursor: pointer;
+  text-align: left;
+}
+.ct-review-file-item:hover {
+  background: rgba(255, 255, 255, 0.05);
+  color: var(--cx-fg);
+}
+.ct-review-file-item.active {
+  background: rgba(255, 255, 255, 0.1);
+  color: var(--cx-fg);
+  font-weight: 500;
+}
+.ct-file-status-tag {
+  font-size: 10px;
+  font-weight: bold;
+  padding: 1px 4px;
+  border-radius: 3px;
+  margin-right: 6px;
+  flex-shrink: 0;
+}
+.ct-file-status-tag.modified {
+  background: #eab30822;
+  color: #facc15;
+}
+.ct-file-status-tag.added {
+  background: #10b98122;
+  color: #34d399;
+}
+.ct-file-status-tag.deleted {
+  background: #ef444422;
+  color: #f87171;
+}
+.ct-review-file-name {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.ct-review-file-diff-counts {
+  display: flex;
+  gap: 4px;
+  font-size: 10px;
+}
+.ct-review-diff-viewer {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  background: #080808;
+  overflow: hidden;
+}
+.ct-diff-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 12px;
+  background: #121212;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+  font-size: 11px;
+}
+.ct-diff-path {
+  font-family: monospace;
+  color: var(--cx-fg);
+}
+.ct-diff-status-label {
+  font-size: 10px;
+  color: var(--cx-fg-3);
+  font-weight: bold;
+}
+.ct-diff-content {
+  flex: 1;
+  overflow: auto;
+  font-family: ui-monospace, Consolas, monospace;
+  font-size: 12px;
+  line-height: 19px;
+  padding: 6px 0;
+}
+.ct-diff-line {
+  display: flex;
+  padding: 0 10px;
+  white-space: pre-wrap;
+  word-break: break-all;
+}
+.ct-diff-line.is-add {
+  background: rgba(16, 185, 129, 0.12);
+  color: #a7f3d0;
+}
+.ct-diff-line.is-del {
+  background: rgba(239, 68, 68, 0.12);
+  color: #fca5a5;
+}
+.ct-diff-line.is-hunk {
+  background: rgba(51, 156, 255, 0.08);
+  color: #93c5fd;
+  font-weight: 500;
+}
+.ct-diff-gutter {
+  width: 32px;
+  flex-shrink: 0;
+  color: rgba(255, 255, 255, 0.2);
+  user-select: none;
+  text-align: right;
+  padding-right: 10px;
+}
+.ct-diff-text {
+  flex: 1;
+}
+.ct-review-footer {
+  padding: 10px 14px;
+  background: #141414;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+}
+.ct-commit-input-wrapper {
+  display: flex;
+  gap: 8px;
+}
+.ct-commit-input {
+  flex: 1;
+  background: #0d0d0d;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 6px;
+  padding: 6px 10px;
+  color: var(--cx-fg);
+  font-size: 12px;
+  font-family: inherit;
+  outline: none;
+}
+.ct-commit-input:focus {
+  border-color: var(--cx-accent);
+}
+.ct-commit-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  border-radius: 6px;
+  background: var(--cx-accent);
+  color: #fff;
+  border: 0;
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+.ct-commit-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
 }

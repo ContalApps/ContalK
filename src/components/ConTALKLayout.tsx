@@ -36,6 +36,8 @@ import { ControlIcon, type ControlIconName } from './ControlIcon'
 import { TerminalPanel } from './TerminalPanel'
 import { DevCodeEditor, type DevEditorTab } from './DevCodeEditor'
 import { useDevCollaborationStore } from '../store/useDevCollaborationStore'
+import { CommandMenuModal } from './CommandMenuModal'
+import { ReviewPanel } from './ReviewPanel'
 import { ActiveCallCard } from './ActiveCallCard'
 import { McpManagerModal } from './McpManagerModal'
 import { RightPanel } from './RightPanel'
@@ -92,6 +94,8 @@ export function ConTALKLayout() {
   const [activeDevModal, setActiveDevModal] = useState<string|null>(null)
   const [repoExplorerOpen, setRepoExplorerOpen] = useState(false)
   const [devEditorOpen, setDevEditorOpen] = useState(false)
+  const [commandMenuOpen, setCommandMenuOpen] = useState(false)
+  const [reviewPanelOpen, setReviewPanelOpen] = useState(false)
   const [showPromptSuggestions, setShowPromptSuggestions] = useState(true)
   const [toastMessage, setToastMessage] = useState<string | null>(null)
   const showToast = useCallback((msg: string) => {
@@ -424,6 +428,7 @@ export function initYjsProvider(room: string, doc: Y.Doc) {
   }, [view, server, channel, user, voice, preferences, devEditorOpen, showToast])
   const menus:MenuGroup[]=[
     {label:'Arquivo',items:[
+      {label:'Menu de comandos…',shortcut:'Ctrl+K',onSelect:()=>setCommandMenuOpen(true)},
       {label:'Nova janela',shortcut:'Ctrl+N',disabled:true,hint:'em breve'},
       {label:'Nova conversa',shortcut:'Ctrl+Shift+N',onSelect:()=>setView('messages')},
       {label:'Nova conversa temporária',disabled:true,hint:'em breve'},
@@ -451,6 +456,7 @@ export function initYjsProvider(room: string, doc: Y.Doc) {
       {label:'Barra lateral',shortcut:'Ctrl+B',checked:!preferences.sidebarHidden,onSelect:()=>togglePanel('sidebarHidden')},
       {label:'Terminal',shortcut:'Ctrl+J',checked:preferences.bottomPanelOpen,onSelect:()=>togglePanel('bottomPanelOpen')},
       {label:'Editor de código (Split)',shortcut:'Ctrl+Alt+E',checked:devEditorOpen,onSelect:()=>setDevEditorOpen(v=>!v)},
+      {label:'Painel de alterações (Review)',shortcut:'Ctrl+Alt+R',checked:reviewPanelOpen,onSelect:()=>setReviewPanelOpen(v=>!v)},
       {label:'Painel direito',shortcut:'Ctrl+Alt+B',checked:!preferences.membersCollapsed,onSelect:()=>togglePanel('membersCollapsed')},
       {label:'Barra de servidores',checked:!preferences.railHidden,onSelect:()=>togglePanel('railHidden')},
       {label:'Mensagens fixadas do canal',disabled:!(view==='server'&&channel.type==='text'&&!!channel.id),onSelect:()=>setPinnedChannel(channel.id)},
@@ -479,6 +485,8 @@ export function initYjsProvider(room: string, doc: Y.Doc) {
       if(!ctrl)return
       if(key==='b'&&event.altKey){event.preventDefault();togglePanel('membersCollapsed')}
       else if(key==='e'&&event.altKey){event.preventDefault();setDevEditorOpen(v=>!v)}
+      else if(key==='r'&&event.altKey){event.preventDefault();setReviewPanelOpen(v=>!v)}
+      else if(key==='k'&&!event.altKey){event.preventDefault();setCommandMenuOpen(true)}
       else if(key==='b'&&!event.shiftKey){event.preventDefault();togglePanel('sidebarHidden')}
       else if((key==='j'||event.key==='`')&&!event.shiftKey&&!event.altKey){event.preventDefault();togglePanel('bottomPanelOpen')}
       else if(key==='n'&&event.shiftKey){event.preventDefault();setView('messages')}
@@ -498,7 +506,7 @@ export function initYjsProvider(room: string, doc: Y.Doc) {
       const person=voice.participants.find(p=>p.identity===identity)
       setContext({participant:person||{identity,name:globalName(identity,target.dataset.profileName||identity),serverNickname:view==='server'&&roles.snapshot?.id===server.id?roles.snapshot.nicknames?.[identity]:undefined,isLocal:identity===user?.username,isSpeaking:false,isAudioEnabled:true,isVideoEnabled:false,isScreenShareEnabled:false},x:event.clientX,y:event.clientY})
     }}>
-    <TitleBar onOpenNotification={openNotice} authenticated disabled={settingsOpen} title={view==='server'?server.name+' · '+(channel.name||'Canais'):view==='friends'?'Amigos':view==='messages'?(selectedPeer?'Mensagens · '+(community.members.find(m=>m.username===selectedPeer)?.display_name||selectedPeer):'Mensagens diretas'):'ConTALK'} canBack={navigation.index>0} canForward={navigation.index<navigation.entries.length-1} onBack={()=>travel(-1)} onForward={()=>travel(1)} search={search} onSearch={setSearch} menus={menus} scope={view==='server'?server.name:'ConTALK'} sidebarOpen={!preferences.sidebarHidden} onToggleSidebar={()=>togglePanel('sidebarHidden')} rightPanelOpen={!preferences.membersCollapsed} onToggleRightPanel={()=>togglePanel('membersCollapsed')} onProfile={()=>setProfile(user?.display_name||'Você',user?.username)}/>
+    <TitleBar onOpenNotification={openNotice} authenticated disabled={settingsOpen} title={view==='server'?server.name+' · '+(channel.name||'Canais'):view==='friends'?'Amigos':view==='messages'?(selectedPeer?'Mensagens · '+(community.members.find(m=>m.username===selectedPeer)?.display_name||selectedPeer):'Mensagens diretas'):'ConTALK'} canBack={navigation.index>0} canForward={navigation.index<navigation.entries.length-1} onBack={()=>travel(-1)} onForward={()=>travel(1)} search={search} onSearch={setSearch} menus={menus} scope={view==='server'?server.name:'ConTALK'} sidebarOpen={!preferences.sidebarHidden} onToggleSidebar={()=>togglePanel('sidebarHidden')} rightPanelOpen={!preferences.membersCollapsed} onToggleRightPanel={()=>togglePanel('membersCollapsed')} onProfile={()=>setProfile(user?.display_name||'Você',user?.username)} onOpenCommandMenu={()=>setCommandMenuOpen(true)}/>
     <div className="ct-body" inert={settingsOpen}><aside className="ct-rail" hidden={preferences.railHidden}><button className={view==='home'?'selected':''} title="Início" onClick={()=>setView('home')}><Icon name="home"/></button><button className={view==='messages'?'selected':''} title="Mensagens diretas" onClick={()=>setView('messages')}><Icon name="chat"/></button><hr/>{servers.map(s=><button key={s.id} title={s.name} className={view==='server'&&s.id===server.id?'selected ct-server-logo':'ct-server-logo'} onClick={()=>{setActiveServer(s.id);setActiveChannel(s.channels[0]?.id || '');setView('server')}}><BrandMark/></button>)}<button title="Criar ou entrar em um servidor" aria-label="Criar ou entrar em um servidor" onClick={()=>setJoinOpen(true)}><Icon name="plus"/></button><div className="ct-rail-bottom"><button title="Meu perfil" onClick={()=>setProfile(user?.display_name||'Você',user?.username)}><Avatar name={user?.display_name||'Você'}/></button></div></aside>
     <>
     <nav className="ct-sidebar" data-collapsed={preferences.sidebarCollapsed} hidden={preferences.sidebarHidden}><button className="ct-sidebar-toggle" aria-label={preferences.sidebarCollapsed?'Expandir lista de canais':'Recolher lista de canais'} title={preferences.sidebarCollapsed?'Expandir canais':'Recolher canais'} onClick={()=>preferences.update({sidebarCollapsed:!preferences.sidebarCollapsed})}><ControlIcon name="chevron"/><span>Canais e conversas</span></button><div className="ct-sidebar-scroll">{view!=='server'?<><div className="ct-side-nav"><button className="ct-new-chat" onClick={()=>setView('messages')}><Icon name="chat"/>Nova conversa</button><button className={view==='home'?'active':''} onClick={()=>setView('home')}><Icon name="home"/>Início <span className="ct-nav-dot"/></button><button className={view==='friends'?'active':''} onClick={()=>setView('friends')}><Icon name="friends"/>Amigos</button></div><div className="ct-section-label">Mensagens diretas <button title="Abrir mensagens" onClick={()=>setView('messages')}>+</button></div><div className="ct-people">{visibleContacts.map(m=><button className="ct-person" data-profile-identity={m.username} data-profile-name={m.display_name} key={m.username} onClick={()=>openConversation(m.username)}><Avatar name={m.display_name} identity={m.username} live={voice.participants.some(p=>p.identity===m.username&&p.isScreenShareEnabled)||Object.values(voice.channelOccupants).some(list=>list.some(p=>p.identity===m.username&&p.isScreenShareEnabled))}/><span><strong><RoleName identity={m.username} name={m.display_name}/></strong><small>{statusText(m.username)}</small></span></button>)}{!visibleContacts.length&&<p className="ct-friend-hint">Suas amizades e conversas aparecerão aqui.</p>}</div></>:<><div className="ct-server-banner">{roles.snapshot?.id===server.id&&<button className="ct-server-events" title="Eventos do servidor" aria-label="Eventos do servidor" onClick={()=>{setEventTarget(undefined);setEventsOpen(true)}}><ControlIcon name="event"/></button>}<strong title={server.description||server.name}>{server.name}</strong>{(!roles.snapshot||centralAllows('VIEW_GUILD_INSIGHTS')||centralAllows('MANAGE_GUILD')||centralAllows('MANAGE_ROLES')||centralAllows('BAN_MEMBERS')||!!roles.snapshot.invites?.length||roles.snapshot.channels.some(item=>centralAllows('CREATE_INSTANT_INVITE',item.id)))&&<button className="ct-server-role-settings" title="Configurações do servidor" aria-label="Configurações do servidor" onClick={()=>setRolesOpen(true)}><ControlIcon name="settings"/></button>}<small><i className="ct-online-dot"/> {community.status==='online'?community.members.filter(m=>m.online).length+' membros online':'Presença indisponível'}</small></div>
@@ -751,6 +759,25 @@ export function initYjsProvider(room: string, doc: Y.Doc) {
   </div>
 )}
     {context&&<ParticipantMenu onNickname={view==='server'&&roles.snapshot?.id===server.id&&canSetNickname(roles.snapshot.policy,roles.snapshot.actor,context.participant.identity)?()=>{setNicknameFirst(true);setMemberRoles(context.participant.identity)}:undefined} onRoles={roles.snapshot&&roles.snapshot.policy.members.includes(context.participant.identity)&&(centralAllows('MANAGE_ROLES')||centralAllows('MODERATE_MEMBERS')||centralAllows('KICK_MEMBERS')||centralAllows('BAN_MEMBERS')||roles.snapshot.channels.some(channel=>channel.type==='voice'&&['MUTE_MEMBERS','DEAFEN_MEMBERS','MOVE_MEMBERS'].some(permission=>centralAllows(permission as 'MUTE_MEMBERS'|'DEAFEN_MEMBERS'|'MOVE_MEMBERS',channel.id))))?()=>{setNicknameFirst(false);setMemberRoles(context.participant.identity)}:undefined} onLogout={()=>void (async()=>{await voice.leaveChannel();await logout()})()} onSettings={()=>setSettingsOpen(true)} onEditProfile={()=>setEditProfile(true)} onAudioSettings={setAudioSettings} participant={context.participant} position={{x:context.x,y:context.y}} onClose={()=>setContext(null)} onProfile={()=>{setProfile(context.participant.name,context.participant.identity);setContext(null)}}/>}
+    {commandMenuOpen && (
+      <CommandMenuModal
+        onClose={() => setCommandMenuOpen(false)}
+        onToggleDevEditor={() => setDevEditorOpen(v => !v)}
+        onToggleReviewPanel={() => setReviewPanelOpen(v => !v)}
+        onOpenSettings={tab => {
+          if (tab) setSettingsTab(tab)
+          setSettingsOpen(true)
+        }}
+        onOpenHelp={() => document.dispatchEvent(new KeyboardEvent('keydown', { key: 'F1', bubbles: true }))}
+        onOpenFolder={() => void openFolder()}
+      />
+    )}
+    {reviewPanelOpen && (
+      <ReviewPanel
+        onClose={() => setReviewPanelOpen(false)}
+        branch="dev/caliari"
+      />
+    )}
     {toastMessage && (
       <div className="ct-toast-notification" role="status">
         <ControlIcon name="check" size={14} />

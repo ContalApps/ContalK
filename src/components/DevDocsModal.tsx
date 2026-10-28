@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useDevStore } from '../store/useDevStore'
 import { ControlIcon } from './ControlIcon'
 
@@ -18,6 +18,17 @@ export function DevDocsModal({ onClose, onOpenAtlassian }: { onClose: () => void
   const [search, setSearch] = useState('')
   const [viewMode, setViewMode] = useState<'edit' | 'preview' | 'split'>('edit')
   const [copied, setCopied] = useState(false)
+
+  useEffect(() => {
+    const handleKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        e.preventDefault()
+        onClose()
+      }
+    }
+    window.addEventListener('keydown', handleKey)
+    return () => window.removeEventListener('keydown', handleKey)
+  }, [onClose])
 
   const activeDoc = devDocs.find(d => d.id === activeDocId) || devDocs[0] || null
 
