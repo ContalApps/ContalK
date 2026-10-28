@@ -365,17 +365,63 @@ export function ConTALKLayout() {
       const detail = (event as CustomEvent<{ path: string; content: string }>).detail
       if (!detail?.path) return
       setDevEditorOpen(true)
+      const fileName = detail.path.split(/[/\\]/).filter(Boolean).pop() || detail.path
       setEditorTabs(tabs => {
-        const found = tabs.find(t => t.path === detail.path || t.name === detail.path.split(/[/\\]/).pop())
+        const found = tabs.find(t => t.path === detail.path || t.name === fileName)
         if (found) {
           setTabCodes(codes => ({ ...codes, [found.id]: detail.content }))
+          return tabs
         }
-        return tabs
+        const newTab: DevEditorTab = {
+          id: detail.path,
+          name: fileName,
+          path: detail.path,
+          isDirty: false
+        }
+        setTabCodes(codes => ({ ...codes, [detail.path]: detail.content }))
+        return [...tabs, newTab]
       })
+      setActiveEditorTab(detail.path)
+      void loadWorkspaceFiles()
     }
+
+    const handleOpenEditorFile = async (event: Event) => {
+      const detail = (event as CustomEvent<{ path: string; content?: string }>).detail
+      if (!detail?.path) return
+      setDevEditorOpen(true)
+      const fileName = detail.path.split(/[/\\]/).filter(Boolean).pop() || detail.path
+      const existing = editorTabs.find(t => t.path === detail.path || t.name === fileName)
+      if (existing) {
+        setActiveEditorTab(existing.id)
+        if (detail.content !== undefined) {
+          setTabCodes(codes => ({ ...codes, [existing.id]: detail.content! }))
+        }
+        return
+      }
+      let content = detail.content
+      if (content === undefined && desktop?.workspaceReadFile) {
+        try {
+          content = await desktop.workspaceReadFile(detail.path)
+        } catch { content = '' }
+      }
+      const newTab: DevEditorTab = {
+        id: detail.path,
+        name: fileName,
+        path: detail.path,
+        isDirty: false
+      }
+      setEditorTabs(tabs => [...tabs, newTab])
+      setTabCodes(codes => ({ ...codes, [detail.path]: content || '' }))
+      setActiveEditorTab(detail.path)
+    }
+
     window.addEventListener('contalk-file-written', handleFileWritten)
-    return () => window.removeEventListener('contalk-file-written', handleFileWritten)
-  }, [])
+    window.addEventListener('contalk-open-editor-file', handleOpenEditorFile)
+    return () => {
+      window.removeEventListener('contalk-file-written', handleFileWritten)
+      window.removeEventListener('contalk-open-editor-file', handleOpenEditorFile)
+    }
+  }, [loadWorkspaceFiles, desktop, editorTabs])
 
   const toggleRepoExplorer = async () => {
     if (!preferences.workspaceFolder) {

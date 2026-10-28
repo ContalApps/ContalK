@@ -408,3 +408,201 @@
   overflow-y: auto;
   white-space: pre-wrap;
 }
+
+/* Barra de Vinculação de Pasta do Projeto no Chat com IA */
+.ct-ai-workspace-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 6px 10px;
+  margin-top: 6px;
+  background: var(--cx-elevated, #161616);
+  border: 1px dashed var(--cx-border-light, #2e2e2e);
+  border-radius: 6px;
+  font-size: 11px;
+}
+
+.ct-ai-workspace-info {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--cx-fg-2, #ccc);
+}
+
+.ct-ai-workspace-name {
+  color: var(--cx-fg, #ededed);
+  font-size: 11px;
+}
+
+.ct-ai-workspace-name strong {
+  color: #58a6ff;
+  font-weight: 600;
+  margin-right: 2px;
+}
+
+.ct-ai-workspace-empty {
+  color: var(--cx-fg-3, #777);
+  font-style: italic;
+}
+
+.ct-ai-workspace-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.ct-ai-workspace-toggle {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 11px;
+  color: var(--cx-fg-2, #bbb);
+  cursor: pointer;
+  user-select: none;
+}
+
+.ct-ai-workspace-toggle input {
+  cursor: pointer;
+  accent-color: #238636;
+}
+
+.ct-ai-workspace-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 8px;
+  font-size: 11px;
+  border-radius: 4px;
+  background: var(--cx-surface-2, #242424);
+  border: 1px solid var(--cx-border-light, #383838);
+  color: var(--cx-fg, #ededed);
+  cursor: pointer;
+  transition: all 0.12s ease;
+}
+
+.ct-ai-workspace-btn:hover {
+  background: var(--cx-hover, #2c2c2c);
+  border-color: rgba(255, 255, 255, 0.25);
+}
+
+.ct-ai-workspace-btn.is-highlight {
+  background: rgba(35, 134, 54, 0.2);
+  border-color: #2ea043;
+  color: #3fb950;
+  font-weight: 500;
+}
+
+.ct-ai-workspace-btn.is-highlight:hover {
+  background: rgba(35, 134, 54, 0.35);
+}
+
+.ct-ai-workspace-btn.is-disconnect {
+  color: #f87171;
+  background: rgba(239, 68, 68, 0.08);
+  border-color: rgba(239, 68, 68, 0.2);
+}
+
+.ct-ai-workspace-btn.is-disconnect:hover {
+  background: rgba(239, 68, 68, 0.18);
+}
+
+/* Melhorias no AiCodeBlock para ações de arquivo do projeto */
+.ct-ai-code {
+  position: relative;
+  margin: 8px 0;
+  border-radius: 6px;
+  border: 1px solid var(--cx-border-light, #2e2e2e);
+  background: #0d1117;
+  overflow: hidden;
+}
+
+.ct-ai-code-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 6px 10px;
+  background: #161b22;
+  border-bottom: 1px solid #30363d;
+  font-size: 11px;
+}
+
+.ct-ai-code-header-info {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.ct-ai-code-filepath {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-family: ui-monospace, Consolas, monospace;
+  font-size: 11px;
+  color: #58a6ff;
+  background: rgba(88, 166, 255, 0.1);
+  padding: 1px 6px;
+  border-radius: 4px;
+  border: 1px solid rgba(88, 166, 255, 0.2);
+}
+
+.ct-ai-code-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.ct-ai-code-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 8px;
+  font-size: 11px;
+  border-radius: 4px;
+  cursor: pointer;
+  border: 1px solid transparent;
+  transition: all 0.12s ease;
+}
+
+.ct-ai-code-apply-btn {
+  background: #238636;
+  border-color: #2ea043;
+  color: #ffffff;
+  font-weight: 500;
+}
+
+.ct-ai-code-apply-btn:hover {
+  background: #2ea043;
+}
+
+.ct-ai-code-apply-btn.is-applied {
+  background: #1a7f37;
+  border-color: #3fb950;
+  color: #aff5b4;
+}
+
+.ct-ai-code-open-btn {
+  background: #21262d;
+  border-color: #30363d;
+  color: #c9d1d9;
+}
+
+.ct-ai-code-open-btn:hover {
+  background: #30363d;
+  color: #f0f6fc;
+}
+
+.ct-ai-code-error {
+  padding: 4px 10px;
+  background: rgba(239, 68, 68, 0.15);
+  color: #f87171;
+  font-size: 11px;
+  border-bottom: 1px solid rgba(239, 68, 68, 0.25);
+}

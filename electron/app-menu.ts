@@ -81,6 +81,7 @@ export function setupAppMenu(window: BrowserWindow, onQuit: () => void) {
     if (typeof content !== 'string') throw new Error('Conteúdo inválido.')
     const resolvedPath = path.isAbsolute(filePath) ? filePath : path.resolve(process.cwd(), filePath)
     try {
+      await fs.mkdir(path.dirname(resolvedPath), { recursive: true })
       await fs.writeFile(resolvedPath, content, 'utf8')
       return true
     } catch (e) {

@@ -15,6 +15,8 @@ import { MessageTools } from './MessageTools'
 import { useEffect, useState } from 'react'
 import { useAuthStore } from '../store/useAuthStore'
 import { useCommunityStore } from '../store/useCommunityStore'
+import { usePreferencesStore } from '../store/usePreferencesStore'
+import { useDevCollaborationStore } from '../store/useDevCollaborationStore'
 import type { Message, MessageOptions, Attachment } from '../store/useAppStore'
 import { useRoleStore } from '../store/useRoleStore'
 import { canMentionRole } from '../roles/permissions'
@@ -311,6 +313,35 @@ export function MessageContent({content,attachment,preview=true,roleMentions=[],
 }
 function AiCodeBlock({language,code}:{language:string;code:string}){
   const [copied,setCopied]=useState(false)
+  const [applied,setApplied]=useState(false)
+  const [applying,setApplying]=useState(false)
+  const [applyError,setApplyError]=useState('')
+
+  // Parse path and clean language
+  let detectedFilePath = ''
+  let cleanLang = language.trim()
+
+  if (cleanLang.includes(':')) {
+    const parts = cleanLang.split(':')
+    if (parts[0] === 'file' || parts[0] === 'path') {
+      detectedFilePath = parts.slice(1).join(':').trim()
+      cleanLang = detectedFilePath.split('.').pop() || 'código'
+    } else {
+      cleanLang = parts[0].trim()
+      detectedFilePath = parts.slice(1).join(':').trim()
+    }
+  } else if (cleanLang.includes('/') || cleanLang.includes('\\')) {
+    detectedFilePath = cleanLang
+    cleanLang = detectedFilePath.split('.').pop() || 'código'
+  } else {
+    // Check first line comment
+    const firstLine = code.split('\n')[0] || ''
+    const match = /^(?:\/\/|#|\/\*)\s*(?:file:\s*|filepath:\s*|path:\s*)?([a-zA-Z0-9_\-./\\]+\.[a-zA-Z0-9]+)\b/.exec(firstLine)
+    if (match) {
+      detectedFilePath = match[1].trim()
+    }
+  }
+
   const copy=async()=>{
     try{
       await navigator.clipboard.writeText(code)
@@ -318,14 +349,96 @@ function AiCodeBlock({language,code}:{language:string;code:string}){
       setTimeout(()=>setCopied(false),2000)
     }catch{/* ignore */}
   }
+
+  const applyToProject = async () => {
+    if (!detectedFilePath || applying) return
+    setApplying(true)
+    setApplyError('')
+    try {
+      const desktop = window.contalkDesktop
+      if (!desktop?.workspaceWriteFile) {
+        throw new Error('Ambiente desktop indisponível para gravar arquivos.')
+      }
+      const workspaceFolder = usePreferencesStore.getState().workspaceFolder || ''
+      let targetPath = detectedFilePath
+      const isAbs = /^[a-zA-Z]:[/\\]|^\/|^\\\\/.test(detectedFilePath)
+      if (workspaceFolder && !isAbs) {
+        targetPath = `${workspaceFolder.replace(/\\/g, '/').replace(/\/+$/, '')}/${detectedFilePath.replace(/^\/+/, '')}`
+      }
+      await desktop.workspaceWriteFile(targetPath, code)
+      try {
+        useDevCollaborationStore.getState().broadcastCode(targetPath, code)
+      } catch { /* ignore */ }
+      window.dispatchEvent(new CustomEvent('contalk-file-written', {
+        detail: { path: targetPath, content: code }
+      }))
+      setApplied(true)
+      setTimeout(() => setApplied(false), 3000)
+    } catch (e) {
+      setApplyError(e instanceof Error ? e.message : 'Falha ao aplicar arquivo.')
+      setTimeout(() => setApplyError(''), 4000)
+    } finally {
+      setApplying(false)
+    }
+  }
+
+  const openInEditor = () => {
+    if (!detectedFilePath) return
+    const workspaceFolder = usePreferencesStore.getState().workspaceFolder || ''
+    let targetPath = detectedFilePath
+    const isAbs = /^[a-zA-Z]:[/\\]|^\/|^\\\\/.test(detectedFilePath)
+    if (workspaceFolder && !isAbs) {
+      targetPath = `${workspaceFolder.replace(/\\/g, '/').replace(/\/+$/, '')}/${detectedFilePath.replace(/^\/+/, '')}`
+    }
+    window.dispatchEvent(new CustomEvent('contalk-open-editor-file', {
+      detail: { path: targetPath, content: code }
+    }))
+  }
+
   return <div className="ct-ai-code">
     <div className="ct-ai-code-header">
-      <small>{language||"código"}</small>
-      <button type="button" className="ct-ai-code-copy" aria-label="Copiar código" title="Copiar código" onClick={()=>void copy()}>
-        <ControlIcon name={copied?"check":"copy"} size={12}/>
-        <span>{copied?"Copiado":"Copiar"}</span>
-      </button>
+      <div className="ct-ai-code-header-info">
+        <small>{cleanLang||"código"}</small>
+        {detectedFilePath && (
+          <span className="ct-ai-code-filepath" title={detectedFilePath}>
+            <ControlIcon name="git-code" size={11} />
+            <span>{detectedFilePath}</span>
+          </span>
+        )}
+      </div>
+      <div className="ct-ai-code-actions">
+        {detectedFilePath && (
+          <>
+            <button
+              type="button"
+              className={`ct-ai-code-btn ct-ai-code-apply-btn ${applied ? 'is-applied' : ''}`}
+              aria-label="Aplicar arquivo no projeto local"
+              title="Salvar este arquivo diretamente no projeto local"
+              disabled={applying}
+              onClick={() => void applyToProject()}
+            >
+              <ControlIcon name={applied ? "check" : "download"} size={12}/>
+              <span>{applied ? "Aplicado!" : applying ? "Salvando…" : "Aplicar no Projeto"}</span>
+            </button>
+            <button
+              type="button"
+              className="ct-ai-code-btn ct-ai-code-open-btn"
+              aria-label="Abrir no editor colaborativo"
+              title="Abrir no editor de código do ConTALK"
+              onClick={openInEditor}
+            >
+              <ControlIcon name="git-code" size={12}/>
+              <span>Abrir no Editor</span>
+            </button>
+          </>
+        )}
+        <button type="button" className="ct-ai-code-copy" aria-label="Copiar código" title="Copiar código" onClick={()=>void copy()}>
+          <ControlIcon name={copied?"check":"copy"} size={12}/>
+          <span>{copied?"Copiado":"Copiar"}</span>
+        </button>
+      </div>
     </div>
+    {applyError && <div className="ct-ai-code-error" role="alert">{applyError}</div>}
     <pre><code>{code}</code></pre>
   </div>
 }
@@ -352,6 +465,17 @@ function AiText({content}:{content:string}){
 }
 export function ChatComposer({onSend,placeholder,disabled=false,channelId,ai}:{onSend:(text:string,attachment?:Attachment,options?:MessageOptions)=>Promise<void>;placeholder:string;disabled?:boolean;channelId?:string;ai?:{onPrompt:(text:string,fileIds:string[],limits:{contextTokens:number;maxOutputTokens:number},provider:AiProviderId,model:string)=>Promise<void>;active:boolean;endpoints:NonNullable<import('../store/useAppStore').Channel['aiEndpoints']>}}) {
   const [text,setText]=useState(''),[attachment,setAttachment]=useState<Attachment>(),[busy,setBusy]=useState(false),[error,setError]=useState('')
+  const workspaceFolder = usePreferencesStore(s => s.workspaceFolder)
+  const updatePreferences = usePreferencesStore(s => s.update)
+  const [agentMode, setAgentMode] = useState(() => {
+    try {
+      if (typeof localStorage !== 'undefined') {
+        const saved = localStorage.getItem('contalk:chat-agent-mode')
+        if (saved !== null) return saved === 'true'
+      }
+    } catch {}
+    return true
+  })
   const [sendToAi,setSendToAi]=useState(()=>{
     if(!ai) return false
     try {
@@ -442,7 +566,7 @@ export function ChatComposer({onSend,placeholder,disabled=false,channelId,ai}:{o
     }catch{setError('Não foi possível ler o arquivo.')}finally{setBusy(false)}
   }
   const pick=async()=>{setError('');try{const desktop=window.contalkDesktop;if(!desktop)throw new Error('Use o aplicativo desktop para anexar arquivos.');if(sendToAi){const files=await desktop.communityAiSelectFiles();if(files.length)setAiFiles(files);return}if(!await desktop.storageStatus())throw new Error(storageMessage);const file=await desktop.selectStorageFile();if(file){setLocalFile(file);setAttachment(undefined)}}catch(e){setError(e instanceof Error?e.message:'Falha ao selecionar.')}}
-  return <div className="ct-chat-compose">{localFile&&<div className="ct-pending-attachment">{preview&&localFile.thumbnail&&<ImagePreview src={'data:image/jpeg;base64,'+localFile.thumbnail} name={localFile.name}/>}<strong>{localFile.name}</strong><small>{(localFile.size/1024/1024).toFixed(2)} MB</small><button onClick={()=>setLocalFile(undefined)}>Remover anexo</button></div>}{ai&&<div className={`ct-composer-ai-wrapper ${sendToAi ? 'is-active' : ''}`}><div className="ct-ai-toggle-bar"><label className="ct-ai-toggle"><input type="checkbox" aria-label="Enviar à IA" checked={sendToAi} onChange={event=>{const checked=event.target.checked;setSendToAi(checked);try{if(typeof localStorage!=='undefined'){localStorage.setItem('contalk:chat-send-to-ai',String(checked))}}catch{}setAttachment(undefined);setLocalFile(undefined);setExpression(null);setAiFiles([]);setOnce(false);setTts(false)}}/><span className="ct-ai-toggle-brand"><ControlIcon name="ai" size={13}/> Assistente de IA</span></label>{sendToAi&&<span className="ct-ai-toggle-active-tag">Modo IA Ativo</span>}{sendToAi&&<button type="button" className="ct-ai-deactivate-btn" title="Desativar modo IA e voltar ao chat normal" aria-label="Desativar IA no chat" onClick={()=>{setSendToAi(false);try{if(typeof localStorage!=='undefined'){localStorage.setItem('contalk:chat-send-to-ai','false')}}catch{}}}><ControlIcon name="close" size={11}/><span>Desativar IA</span></button>}</div>{sendToAi&&<div className="ct-ai-expanded-controls"><AiModelSelector endpoints={ai.endpoints} provider={selectedProvider} model={selectedModel} onChange={(provider,model)=>{setSelectedProvider(provider);setSelectedModel(model);try{if(typeof localStorage!=='undefined'){localStorage.setItem('contalk:preferred-ai-provider',provider);if(model){localStorage.setItem('contalk:preferred-ai-model',model);localStorage.setItem(`contalk:preferred-ai-model:${provider}`,model)}}}catch{}}}/><div className="ct-ai-economy-picker"><label htmlFor="ct-composer-economy">Economia:</label><select id="ct-composer-economy" aria-label="Economia de Tokens" className="ct-ai-picker-select" value={getEconomyMode(aiLimits.contextTokens, aiLimits.maxOutputTokens)} onChange={e=>{const mode=e.target.value as TokenEconomyMode;const cfg=TOKEN_ECONOMY_CONFIG[mode];setAiLimits({contextTokens:cfg.contextTokens,maxOutputTokens:cfg.maxOutputTokens})}}><option value="standard">Padrão (Sem economia)</option><option value="moderate">Moderada (Recomendado)</option><option value="aggressive">Bruta (Máx economia)</option></select></div></div>}</div>}{!!aiFiles.length&&<div className="ct-pending-attachment">{aiFiles.map(file=><span key={file.id}>{file.name} · {(file.size/1024/1024).toFixed(2)} MB </span>)}<button type="button" onClick={()=>setAiFiles([])}>Remover</button></div>}{!sendToAi&&<div className="ct-send-options"><label><input type="checkbox" checked={preview&&canPreview} disabled={!canPreview} onChange={e=>setPreview(e.target.checked)}/> Gerar prévia</label><label><input type="checkbox" checked={once} onChange={e=>setOnce(e.target.checked)}/> Visualização única por pessoa</label><label><input type="checkbox" aria-label="Enviar com leitura em voz" checked={tts} disabled={!canTts&&!tts} onChange={event=>setTts(event.target.checked)}/> Leitura em voz</label><select aria-label="Mencionar pessoa" className="ct-mention-select" value="" onChange={e=>{const value=e.target.value;setText(text+(value.startsWith('role:')?' <@&'+value.slice(5)+'> ':value.startsWith('all:')?' @'+value.slice(4)+' ':' @'+value+' '))}}><option value="">@ Mencionar</option>{members.map(m=><option key={m.username} value={m.username}>{m.display_name}</option>)}{mentionRoles.length>0&&<optgroup label="Cargos">{mentionRoles.map(role=><option key={role.id} value={'role:'+role.id}>{role.name}</option>)}</optgroup>}{channelId&&snapshot&&centralAllows('MENTION_EVERYONE',channelId)&&<optgroup label="Todos"><option value="all:everyone">@everyone</option><option value="all:here">@here</option></optgroup>}</select></div>}{expression&&<div className="ct-pending-expression"><img src={'data:image/jpeg;base64,'+expression.attachment.thumbnail} alt=""/><span>{expression.name}</span><button disabled={busy} onClick={()=>setExpression(null)}>Remover expressão</button></div>}{attachment&&<div className="ct-pending-attachment"><AttachmentPreview attachment={attachment}/><button type="button" disabled={busy} onClick={()=>setAttachment(undefined)}>Remover anexo</button></div>}<form className="ct-composer" onSubmit={async e=>{e.preventDefault();if(busy||disabled||cooling||(!text.trim()&&!attachment&&!localFile&&!expression))return;if(expression&&(once||tts||attachment||localFile)){setError('Envie a expressão sem anexo, leitura em voz ou visualização única.');return}if(tts&&(once||attachment||localFile)){setError('Leitura em voz exige texto sem anexo ou visualização única.');return}setBusy(true);setError('');try{if(sendToAi&&ai){if(!validAiModel(aiModelId(selectedProvider,selectedModel)))throw new Error('Selecione um modelo de IA válido.');await ai.onPrompt(text,aiFiles.map(file=>file.id),aiLimits,selectedProvider,selectedModel);setText('');setAiFiles([]);return}let uploaded=attachment
+  return <div className="ct-chat-compose">{localFile&&<div className="ct-pending-attachment">{preview&&localFile.thumbnail&&<ImagePreview src={'data:image/jpeg;base64,'+localFile.thumbnail} name={localFile.name}/>}<strong>{localFile.name}</strong><small>{(localFile.size/1024/1024).toFixed(2)} MB</small><button onClick={()=>setLocalFile(undefined)}>Remover anexo</button></div>}{ai&&<div className={`ct-composer-ai-wrapper ${sendToAi ? 'is-active' : ''}`}><div className="ct-ai-toggle-bar"><label className="ct-ai-toggle"><input type="checkbox" aria-label="Enviar à IA" checked={sendToAi} onChange={event=>{const checked=event.target.checked;setSendToAi(checked);try{if(typeof localStorage!=='undefined'){localStorage.setItem('contalk:chat-send-to-ai',String(checked))}}catch{}setAttachment(undefined);setLocalFile(undefined);setExpression(null);setAiFiles([]);setOnce(false);setTts(false)}}/><span className="ct-ai-toggle-brand"><ControlIcon name="ai" size={13}/> Assistente de IA</span></label>{sendToAi&&<span className="ct-ai-toggle-active-tag">Modo IA Ativo</span>}{sendToAi&&<button type="button" className="ct-ai-deactivate-btn" title="Desativar modo IA e voltar ao chat normal" aria-label="Desativar IA no chat" onClick={()=>{setSendToAi(false);try{if(typeof localStorage!=='undefined'){localStorage.setItem('contalk:chat-send-to-ai','false')}}catch{}}}><ControlIcon name="close" size={11}/><span>Desativar IA</span></button>}</div>{sendToAi&&<div className="ct-ai-expanded-controls"><AiModelSelector endpoints={ai.endpoints} provider={selectedProvider} model={selectedModel} onChange={(provider,model)=>{setSelectedProvider(provider);setSelectedModel(model);try{if(typeof localStorage!=='undefined'){localStorage.setItem('contalk:preferred-ai-provider',provider);if(model){localStorage.setItem('contalk:preferred-ai-model',model);localStorage.setItem(`contalk:preferred-ai-model:${provider}`,model)}}}catch{}}}/><div className="ct-ai-economy-picker"><label htmlFor="ct-composer-economy">Economia:</label><select id="ct-composer-economy" aria-label="Economia de Tokens" className="ct-ai-picker-select" value={getEconomyMode(aiLimits.contextTokens, aiLimits.maxOutputTokens)} onChange={e=>{const mode=e.target.value as TokenEconomyMode;const cfg=TOKEN_ECONOMY_CONFIG[mode];setAiLimits({contextTokens:cfg.contextTokens,maxOutputTokens:cfg.maxOutputTokens})}}><option value="standard">Padrão (Sem economia)</option><option value="moderate">Moderada (Recomendado)</option><option value="aggressive">Bruta (Máx economia)</option></select></div></div>}{sendToAi&&<div className="ct-ai-workspace-bar"><div className="ct-ai-workspace-info"><ControlIcon name="folder" size={13}/>{workspaceFolder?<span className="ct-ai-workspace-name" title={workspaceFolder}><strong>Projeto:</strong> {workspaceFolder.split(/[/\\]/).filter(Boolean).pop()||workspaceFolder}</span>:<span className="ct-ai-workspace-empty">Nenhuma pasta vinculada</span>}</div><div className="ct-ai-workspace-actions"><label className="ct-ai-workspace-toggle" title="Permitir que a IA veja a estrutura do projeto e sugira criações, edições e comandos executáveis"><input type="checkbox" checked={agentMode} onChange={e=>{const next=e.target.checked;setAgentMode(next);try{if(typeof localStorage!=='undefined')localStorage.setItem('contalk:chat-agent-mode',String(next))}catch{}}}/><span>Modo Agente no Projeto</span></label><button type="button" className={`ct-ai-workspace-btn ${!workspaceFolder?'is-highlight':''}`} title={workspaceFolder?'Trocar pasta vinculada':'Selecionar pasta do computador'} onClick={async()=>{try{const folder=await window.contalkDesktop?.openFolder?.();if(folder)updatePreferences({workspaceFolder:folder})}catch{}}}><ControlIcon name="folder" size={11}/><span>{workspaceFolder?'Trocar Pasta':'Vincular Pasta'}</span></button>{workspaceFolder&&<button type="button" className="ct-ai-workspace-btn is-disconnect" title="Desvincular pasta do chat" onClick={()=>updatePreferences({workspaceFolder:''})}><ControlIcon name="close" size={11}/><span>Desvincular</span></button>}</div></div>}</div>}{!!aiFiles.length&&<div className="ct-pending-attachment">{aiFiles.map(file=><span key={file.id}>{file.name} · {(file.size/1024/1024).toFixed(2)} MB </span>)}<button type="button" onClick={()=>setAiFiles([])}>Remover</button></div>}{!sendToAi&&<div className="ct-send-options"><label><input type="checkbox" checked={preview&&canPreview} disabled={!canPreview} onChange={e=>setPreview(e.target.checked)}/> Gerar prévia</label><label><input type="checkbox" checked={once} onChange={e=>setOnce(e.target.checked)}/> Visualização única por pessoa</label><label><input type="checkbox" aria-label="Enviar com leitura em voz" checked={tts} disabled={!canTts&&!tts} onChange={event=>setTts(event.target.checked)}/> Leitura em voz</label><select aria-label="Mencionar pessoa" className="ct-mention-select" value="" onChange={e=>{const value=e.target.value;setText(text+(value.startsWith('role:')?' <@&'+value.slice(5)+'> ':value.startsWith('all:')?' @'+value.slice(4)+' ':' @'+value+' '))}}><option value="">@ Mencionar</option>{members.map(m=><option key={m.username} value={m.username}>{m.display_name}</option>)}{mentionRoles.length>0&&<optgroup label="Cargos">{mentionRoles.map(role=><option key={role.id} value={'role:'+role.id}>{role.name}</option>)}</optgroup>}{channelId&&snapshot&&centralAllows('MENTION_EVERYONE',channelId)&&<optgroup label="Todos"><option value="all:everyone">@everyone</option><option value="all:here">@here</option></optgroup>}</select></div>}{expression&&<div className="ct-pending-expression"><img src={'data:image/jpeg;base64,'+expression.attachment.thumbnail} alt=""/><span>{expression.name}</span><button disabled={busy} onClick={()=>setExpression(null)}>Remover expressão</button></div>}{attachment&&<div className="ct-pending-attachment"><AttachmentPreview attachment={attachment}/><button type="button" disabled={busy} onClick={()=>setAttachment(undefined)}>Remover anexo</button></div>}<form className="ct-composer" onSubmit={async e=>{e.preventDefault();if(busy||disabled||cooling||(!text.trim()&&!attachment&&!localFile&&!expression))return;if(expression&&(once||tts||attachment||localFile)){setError('Envie a expressão sem anexo, leitura em voz ou visualização única.');return}if(tts&&(once||attachment||localFile)){setError('Leitura em voz exige texto sem anexo ou visualização única.');return}setBusy(true);setError('');try{if(sendToAi&&ai){if(!validAiModel(aiModelId(selectedProvider,selectedModel)))throw new Error('Selecione um modelo de IA válido.');let promptText=text;if(workspaceFolder&&agentMode){try{const desktop=window.contalkDesktop;let fileListing='';if(desktop?.workspaceListFiles){const entries=await desktop.workspaceListFiles(workspaceFolder);const summary=entries.slice(0,40).map(e=>`${e.isDirectory?'[DIR] ':'      '}${e.name}`).join('\n');if(summary)fileListing=`\nArquivos detectados na raiz do projeto:\n${summary}`}const projectHeader=`[CONTEXTO DO PROJETO LOCAL]:\nPasta raiz do projeto: "${workspaceFolder}"${fileListing}\n\n[DIRETRIZES DO AGENTE CONTALK]:\n- Você tem permissão de leitura, escrita e execução neste projeto local do usuário e time colaborativo.\n- Para criar ou alterar arquivos, identifique o caminho relativo exato no cabeçalho do bloco de código (ex: \`\`\`tsx:src/caminho/arquivo.ext) ou utilize <agent_action tool="write_file" path="src/caminho/arquivo.ext">conteúdo</agent_action>.\n- Para comandos de terminal, utilize \`\`\`bash:run ou <agent_action tool="run_command">comando</agent_action>.\n- O usuário e time podem aplicar suas alterações com 1 clique diretamente no projeto.\n\n`;promptText=projectHeader+text}catch{/* proceed with raw text */}}await ai.onPrompt(promptText,aiFiles.map(file=>file.id),aiLimits,selectedProvider,selectedModel);setText('');setAiFiles([]);return}let uploaded=attachment
       if(localFile)uploaded=await window.contalkDesktop!.uploadStorageFile(localFile.id)
       else if(attachment&&!attachment.storageId){if(!window.contalkDesktop)throw new Error('Use o aplicativo desktop para enviar anexos.');if(!await window.contalkDesktop.storageStatus())throw new Error(storageMessage);uploaded=await window.contalkDesktop.uploadInlineAttachment(attachment)}
       if(uploaded){setAttachment(uploaded);setLocalFile(undefined)}

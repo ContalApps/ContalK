@@ -1,6 +1,8 @@
 import { useState } from 'react'
 import { ControlIcon } from './ControlIcon'
 import { AiGeneratedImage } from './AiGeneratedImage'
+import { usePreferencesStore } from '../store/usePreferencesStore'
+import { useDevCollaborationStore } from '../store/useDevCollaborationStore'
 
 export type AgentToolType = 'run_command' | 'write_file' | 'edit_file' | 'read_file' | 'list_files' | 'mcp_call' | 'generate_image'
 
@@ -33,10 +35,9 @@ export function parseAgentActions(content: string): ParsedBlock[] {
   const blocks: ParsedBlock[] = []
   
   // Regex to match:
-  // 1. ```tool_call ... ```
+  // 1. ```(?:tool_call(?::(\w+))?|file:([^\r\n]+)|(?:bash|sh|terminal|cmd):run)\s*[\r\n]+([\s\S]*?)```
   // 2. <agent_action ...>...</agent_action>
-  // 3. ```tool_call:run_command ... ```
-  const actionRegex = /(```tool_call(?::(\w+))?\s*[\r\n]+([\s\S]*?)```|<agent_action\s+tool="([^"]+)"(?:\s+path="([^"]+)")?(?:\s+server="([^"]+)")?(?:\s+tool_name="([^"]+)")?>([\s\S]*?)<\/agent_action>)/gi
+  const actionRegex = /(```(?:tool_call(?::(\w+))?|file:([^\r\n]+)|(?:bash|sh|terminal|cmd):run)\s*[\r\n]+([\s\S]*?)```|<agent_action\s+tool="([^"]+)"(?:\s+path="([^"]+)")?(?:\s+server="([^"]+)")?(?:\s+tool_name="([^"]+)")?>([\s\S]*?)<\/agent_action>)/gi
 
   let lastIndex = 0
   let match: RegExpExecArray | null
@@ -47,22 +48,39 @@ export function parseAgentActions(content: string): ParsedBlock[] {
     }
 
     const fullMatch = match[0]
-    const blockCodeKind = match[2]
-    const blockCodeContent = match[3]
-    const tagTool = match[4]
-    const tagPath = match[5]
-    const tagServer = match[6]
-    const tagToolName = match[7]
-    const tagBody = match[8]
+    const blockToolCallKind = match[2]
+    const blockFilePath = match[3]
+    const blockCodeContent = match[4]
+    const tagTool = match[5]
+    const tagPath = match[6]
+    const tagServer = match[7]
+    const tagToolName = match[8]
+    const tagBody = match[9]
 
     let action: AgentAction | null = null
     const id = `action_${++actionCounter}_${Date.now()}`
 
-    if (blockCodeContent !== undefined) {
-      // Code fence format
+    if (blockFilePath !== undefined) {
+      // ```file:path/to/file.ext format
+      action = {
+        id,
+        tool: 'write_file',
+        path: blockFilePath.trim(),
+        content: blockCodeContent !== undefined ? blockCodeContent.trimEnd() : '',
+        raw: fullMatch
+      }
+    } else if (fullMatch.startsWith('```bash:run') || fullMatch.startsWith('```sh:run') || fullMatch.startsWith('```terminal:run') || fullMatch.startsWith('```cmd:run')) {
+      action = {
+        id,
+        tool: 'run_command',
+        command: (blockCodeContent || '').trim(),
+        raw: fullMatch
+      }
+    } else if (blockCodeContent !== undefined) {
+      // Code fence format: ```tool_call...
       const trimmed = blockCodeContent.trim()
-      if (blockCodeKind) {
-        const toolKind = blockCodeKind as AgentToolType
+      if (blockToolCallKind) {
+        const toolKind = blockToolCallKind as AgentToolType
         if (toolKind === 'run_command') {
           action = { id, tool: 'run_command', command: trimmed, raw: fullMatch }
         } else if (toolKind === 'write_file') {
@@ -175,8 +193,9 @@ export function AgentActionCard({ action }: { action: AgentAction }) {
     setStatus('running')
     setErrorMessage('')
     try {
+      const workspaceFolder = usePreferencesStore.getState().workspaceFolder || undefined
       if (inBackground && desktop?.workspaceExecCommand) {
-        const res = await desktop.workspaceExecCommand(action.command)
+        const res = await desktop.workspaceExecCommand(action.command, workspaceFolder)
         setOutput(res)
         setStatus('executed')
       } else if (!inBackground && desktop?.terminalInput) {
@@ -185,7 +204,7 @@ export function AgentActionCard({ action }: { action: AgentAction }) {
         setStatus('executed')
         setOutput({ stdout: `Comando enviado ao terminal ativo:\n$ ${action.command}`, stderr: '' })
       } else if (desktop?.workspaceExecCommand) {
-        const res = await desktop.workspaceExecCommand(action.command)
+        const res = await desktop.workspaceExecCommand(action.command, workspaceFolder)
         setOutput(res)
         setStatus('executed')
       } else {
@@ -206,25 +225,36 @@ export function AgentActionCard({ action }: { action: AgentAction }) {
         throw new Error('Ambiente desktop indisponível para alterar arquivos.')
       }
 
+      const workspaceFolder = usePreferencesStore.getState().workspaceFolder || ''
+      let targetPath = action.path
+      const isAbs = /^[a-zA-Z]:[/\\]|^\/|^\\\\/.test(action.path)
+      if (workspaceFolder && !isAbs) {
+        targetPath = `${workspaceFolder.replace(/\\/g, '/').replace(/\/+$/, '')}/${action.path.replace(/^\/+/, '')}`
+      }
+
       let finalContent = action.content || ''
       if (action.tool === 'edit_file' && action.target !== undefined && action.replacement !== undefined) {
         if (!desktop.workspaceReadFile) throw new Error('Não foi possível ler o arquivo original.')
-        const original = await desktop.workspaceReadFile(action.path)
+        const original = await desktop.workspaceReadFile(targetPath)
         if (!original.includes(action.target)) {
           throw new Error('O trecho de código a ser substituído não foi encontrado no arquivo.')
         }
         finalContent = original.replace(action.target, action.replacement)
       }
 
-      await desktop.workspaceWriteFile(action.path, finalContent)
+      await desktop.workspaceWriteFile(targetPath, finalContent)
       
+      try {
+        useDevCollaborationStore.getState().broadcastCode(targetPath, finalContent)
+      } catch { /* ignore */ }
+
       // Notify application of file change so active DevCodeEditor tab can update
       window.dispatchEvent(new CustomEvent('contalk-file-written', {
-        detail: { path: action.path, content: finalContent }
+        detail: { path: targetPath, content: finalContent }
       }))
 
       setStatus('executed')
-      setOutput({ stdout: `Arquivo atualizado com sucesso: ${action.path}`, stderr: '' })
+      setOutput({ stdout: `Arquivo atualizado com sucesso no projeto: ${targetPath}`, stderr: '' })
     } catch (e) {
       setStatus('pending')
       setErrorMessage(e instanceof Error ? e.message : 'Falha ao gravar arquivo.')
@@ -344,14 +374,35 @@ export function AgentActionCard({ action }: { action: AgentAction }) {
           )}
 
           {(action.tool === 'write_file' || action.tool === 'edit_file') && (
-            <button
-              type="button"
-              className="ct-btn-primary ct-agent-btn"
-              onClick={() => void handleApplyFileChange()}
-            >
-              <ControlIcon name="check" size={13} />
-              <span>Aplicar Alteração</span>
-            </button>
+            <>
+              <button
+                type="button"
+                className="ct-btn-primary ct-agent-btn"
+                onClick={() => void handleApplyFileChange()}
+              >
+                <ControlIcon name="check" size={13} />
+                <span>Aplicar no Projeto</span>
+              </button>
+              <button
+                type="button"
+                className="ct-btn-secondary ct-agent-btn"
+                onClick={() => {
+                  const workspaceFolder = usePreferencesStore.getState().workspaceFolder || ''
+                  let targetPath = action.path || ''
+                  const isAbs = /^[a-zA-Z]:[/\\]|^\/|^\\\\/.test(targetPath)
+                  if (workspaceFolder && !isAbs) {
+                    targetPath = `${workspaceFolder.replace(/\\/g, '/').replace(/\/+$/, '')}/${targetPath.replace(/^\/+/, '')}`
+                  }
+                  window.dispatchEvent(new CustomEvent('contalk-open-editor-file', {
+                    detail: { path: targetPath, content: action.content || action.replacement || '' }
+                  }))
+                }}
+                title="Abrir no editor colaborativo de código"
+              >
+                <ControlIcon name="git-code" size={13} />
+                <span>Abrir no Editor</span>
+              </button>
+            </>
           )}
 
           {action.tool === 'mcp_call' && (

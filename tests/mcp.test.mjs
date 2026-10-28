@@ -71,7 +71,9 @@ test('parseAgentActions correctly parses tool calls in markdown and xml formats'
   const { parseAgentActions } = loadTypescript('src/components/AgentActionCard.tsx', {
     react: { useState() { return [] } },
     './ControlIcon': { ControlIcon: () => null },
-    './AiGeneratedImage': { AiGeneratedImage: () => null }
+    './AiGeneratedImage': { AiGeneratedImage: () => null },
+    '../store/usePreferencesStore': { usePreferencesStore: { getState() { return { workspaceFolder: '' } } } },
+    '../store/useDevCollaborationStore': { useDevCollaborationStore: { getState() { return { broadcastCode() {} } } } }
   })
 
   // Test 1: Code fence with JSON
