@@ -1,5 +1,15 @@
 # Retomada do ConTALK
 
+## Entrega 0.1.28: Harness de IA para Desenvolvimento e Protocolo MCP
+
+Em `dev/caliari`, foram implementadas todas as capacidades para transformar o ConTALK em um harness autônomo e completo de IA para desenvolvimento, eliminando a necessidade de ferramentas externas (Claude Code, Codex CLI, ChatGPT web):
+- **Chamada de Ferramentas Estruturadas:** Reconhecimento e parsing de ações propostas pela IA (`run_command`, `write_file`, `edit_file`, `read_file`, `list_files`, `mcp_call`) a partir de blocos de código e tags XML.
+- **Agent Action Cards Interativos:** Renderização no chat de cards com botões de aprovação e rejeição ("Aprovar e Executar", "No Terminal", "Aplicar Alteração", "Rejeitar").
+- **Ponte de Execução Segura:** Execução de comandos no terminal (`workspaceExecCommand` e `terminalInput`) e aplicação imediata de arquivos no workspace (`workspaceWriteFile`), com atualização reativa do `DevCodeEditor` em tempo real.
+- **Protocolo MCP (Model Context Protocol):** Gerenciador de servidores MCP via stdio (`electron/mcp.ts`) com inicialização, handshake JSON-RPC 2.0, listagem de ferramentas (`tools/list`) e chamada de ferramentas (`tools/call`).
+- **Modal de Gerenciamento MCP:** Interface visual para adicionar, inspecionar ferramentas e remover servidores MCP, acessível pelo menu do topo e pela sidebar de Repositórios.
+- **Validação:** Tipos TypeScript (`tsc --noEmit && tsc -p tsconfig.electron.json`), 308 testes unitários aprovados e build de produção Vite e Electron concluídos com sucesso.
+
 ## Entrega 0.1.27: Codex Studio Colaborativo e Integração de Desenvolvimento
 
 Em `dev/caliari`, foram implementadas e concluídas todas as funcionalidades da central de desenvolvimento inspirada no Codex e integrada à comunicação em equipe:
