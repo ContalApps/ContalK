@@ -40,6 +40,7 @@ import { CommandMenuModal } from './CommandMenuModal'
 import { ReviewPanel } from './ReviewPanel'
 import { ActiveCallCard } from './ActiveCallCard'
 import { McpManagerModal } from './McpManagerModal'
+import { InternalBrowserModal } from './InternalBrowserModal'
 import { RightPanel } from './RightPanel'
 import type { MenuGroup } from './TitleMenus'
 import { UserDock } from './UserDock'
@@ -534,6 +535,7 @@ export function ConTALKLayout() {
       {label:'Barra de servidores',checked:!preferences.railHidden,onSelect:()=>togglePanel('railHidden')},
       {label:'Mensagens fixadas do canal',disabled:!(view==='server'&&channel.type==='text'&&!!channel.id),onSelect:()=>setPinnedChannel(channel.id)},
       {label:'Servidores MCP (IA)...',onSelect:()=>setActiveDevModal('mcp')},
+      {label:'Navegador Web Interno...',shortcut:'Ctrl+Shift+B',onSelect:()=>setActiveDevModal('browser')},
       'separator',
       {label:'Aumentar zoom',disabled:preferences.interfaceScale>=120,onSelect:()=>zoom(10)},
       {label:'Diminuir zoom',disabled:preferences.interfaceScale<=80,onSelect:()=>zoom(-10)},
@@ -560,6 +562,7 @@ export function ConTALKLayout() {
       else if(key==='e'&&event.altKey){event.preventDefault();setDevEditorOpen(v=>!v)}
       else if(key==='r'&&event.altKey){event.preventDefault();setReviewPanelOpen(v=>!v)}
       else if(key==='k'&&!event.altKey){event.preventDefault();setCommandMenuOpen(true)}
+      else if(key==='b'&&event.shiftKey){event.preventDefault();setActiveDevModal('browser')}
       else if(key==='b'&&!event.shiftKey){event.preventDefault();togglePanel('sidebarHidden')}
       else if((key==='j'||event.key==='`')&&!event.shiftKey&&!event.altKey){event.preventDefault();togglePanel('bottomPanelOpen')}
       else if(key==='n'&&event.shiftKey){event.preventDefault();setView('messages')}
@@ -722,6 +725,7 @@ export function ConTALKLayout() {
   <button className="ct-side-dev-item" onClick={()=>setActiveDevModal('issues')} title="Issues abertas"><div><ControlIcon name="git-issue" size={14}/><span>Issues</span></div><span className="ct-side-dev-badge">4</span></button>
   <button className="ct-side-dev-item" onClick={()=>setActiveDevModal('actions')} title="Actions"><div><ControlIcon name="rocket" size={14}/><span>Actions</span></div></button>
   <button className="ct-side-dev-item" onClick={()=>setActiveDevModal('mcp')} title="Servidores MCP configurados"><div><ControlIcon name="ai" size={14}/><span>Servidores MCP</span></div></button>
+  <button className="ct-side-dev-item" onClick={()=>setActiveDevModal('browser')} title="Navegador Web Integrado (com Automação por IA)"><div><ControlIcon name="globe" size={14}/><span>Navegador Web</span></div></button>
   <button className="ct-side-dev-item" onClick={()=>setActiveDevModal('wiki')} title="Wiki do projeto"><div><ControlIcon name="git-wiki" size={14}/><span>Wiki</span></div></button>
 </div>}
 
@@ -801,6 +805,7 @@ export function ConTALKLayout() {
     {editProfile&&<EditProfile onClose={()=>setEditProfile(false)}/>}
     {createType&&<CreateChannel type={createType} serverId={server.id} onClose={()=>setCreateType(null)}/>}
     {activeDevModal==='mcp'&&<McpManagerModal onClose={()=>setActiveDevModal(null)}/>}
+    {activeDevModal==='browser'&&<InternalBrowserModal onClose={()=>setActiveDevModal(null)}/>}
     {activeDevModal==='overview'&&<DevKanbanModal onClose={()=>setActiveDevModal(null)} onOpenAtlassian={()=>setActiveDevModal('atlassian')} onSwitchTab={tab=>setActiveDevModal(tab)}/>}
     {activeDevModal==='tasks'&&<DevTasksModal onClose={()=>setActiveDevModal(null)} onOpenAtlassian={()=>setActiveDevModal('atlassian')} onSwitchTab={tab=>setActiveDevModal(tab)}/>}
     {activeDevModal==='docs'&&<DevDocsModal onClose={()=>setActiveDevModal(null)} onOpenAtlassian={()=>setActiveDevModal('atlassian')} onSwitchTab={tab=>setActiveDevModal(tab)}/>}
@@ -808,7 +813,7 @@ export function ConTALKLayout() {
     {activeDevModal==='github-accounts'&&<DevGitHubAccountsModal onClose={()=>setActiveDevModal(null)}/>}
     {(activeDevModal==='repositories'||activeDevModal==='repos')&&<DevRepositoriesModal onClose={()=>setActiveDevModal(null)} onOpenAccounts={()=>setActiveDevModal('github-accounts')}/>}
     {activeDevModal==='atlassian'&&<AtlassianConfigModal onClose={()=>setActiveDevModal(null)}/>}
-    {activeDevModal&&!['mcp','overview','tasks','docs','roadmap','github-accounts','repositories','repos','atlassian'].includes(activeDevModal)&&(
+    {activeDevModal&&!['mcp','browser','overview','tasks','docs','roadmap','github-accounts','repositories','repos','atlassian'].includes(activeDevModal)&&(
   <div className="ct-modal-backdrop" onClick={()=>setActiveDevModal(null)}>
     <section className="ct-edit-dialog" role="dialog" aria-modal="true" onClick={e=>e.stopPropagation()}>
       {activeDevModal==='prs'&&(

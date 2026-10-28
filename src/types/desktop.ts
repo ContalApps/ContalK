@@ -79,6 +79,19 @@ export interface DesktopBridge {
   mcpCallTool:(serverName:string,toolName:string,args?:Record<string,unknown>)=>Promise<any>
   appsGetConfig?:()=>Promise<any>
   appsSaveConfig?:(config:any)=>Promise<boolean>
+  browserOpen?:(url?:string,show?:boolean)=>Promise<any>
+  browserNavigate?:(url:string)=>Promise<{success:boolean;url:string;title:string}>
+  browserClick?:(selector:string)=>Promise<{success:boolean;message:string;tag?:string;text?:string}>
+  browserType?:(selector:string,text:string,submit?:boolean)=>Promise<{success:boolean;message:string;value?:string}>
+  browserReadContent?:(selector?:string)=>Promise<{title:string;url:string;content:string;links:Array<{text:string;href:string}>;forms:Array<{name:string;type:string;placeholder:string}>}>
+  browserScreenshot?:()=>Promise<{src:string;url:string;title:string}>
+  browserScroll?:(direction?:'up'|'down',amount?:number)=>Promise<{success:boolean;direction:string}>
+  browserEvaluate?:(script:string)=>Promise<any>
+  browserGetStatus?:()=>Promise<any>
+  browserShow?:()=>Promise<boolean>
+  browserHide?:()=>Promise<boolean>
+  browserClose?:()=>Promise<boolean>
+  onBrowserStatusChanged?:(listener:(status:any)=>void)=>()=>void
   terminalCreate:(cwd:string|null,cols:number,rows:number)=>Promise<{id:string;shell:string;cwd:string}>
   terminalInput:(id:string,data:string)=>void
   terminalResize:(id:string,cols:number,rows:number)=>void

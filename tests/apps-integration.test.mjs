@@ -13,6 +13,7 @@ test('Apps integration handles Google Workspace and GitHub tools correctly', asy
   const {
     BUILTIN_GOOGLE_TOOLS,
     BUILTIN_GITHUB_TOOLS,
+    BUILTIN_BROWSER_TOOLS,
     executeBuiltinTool,
     readAppsConfig,
     writeAppsConfig
@@ -32,6 +33,15 @@ test('Apps integration handles Google Workspace and GitHub tools correctly', asy
   assert.ok(Array.isArray(BUILTIN_GITHUB_TOOLS))
   assert.ok(BUILTIN_GITHUB_TOOLS.some(t => t.name === 'github_list_issues'))
   assert.ok(BUILTIN_GITHUB_TOOLS.some(t => t.name === 'github_list_prs'))
+
+  assert.ok(Array.isArray(BUILTIN_BROWSER_TOOLS))
+  assert.ok(BUILTIN_BROWSER_TOOLS.some(t => t.name === 'browser_open'))
+  assert.ok(BUILTIN_BROWSER_TOOLS.some(t => t.name === 'browser_navigate'))
+  assert.ok(BUILTIN_BROWSER_TOOLS.some(t => t.name === 'browser_click'))
+  assert.ok(BUILTIN_BROWSER_TOOLS.some(t => t.name === 'browser_type'))
+  assert.ok(BUILTIN_BROWSER_TOOLS.some(t => t.name === 'browser_read_content'))
+  assert.ok(BUILTIN_BROWSER_TOOLS.some(t => t.name === 'browser_screenshot'))
+  assert.ok(BUILTIN_BROWSER_TOOLS.some(t => t.name === 'browser_scroll'))
 
   // 2. Read and Write Config
   const initialConfig = await readAppsConfig()
@@ -94,4 +104,35 @@ test('Apps integration handles Google Workspace and GitHub tools correctly', asy
   const ghPrs = await executeBuiltinTool('github', 'github_list_prs', {})
   assert.ok(ghPrs)
   assert.ok(Array.isArray(ghPrs.prs))
+
+  // 8. Test Browser Tool Execution
+  const bOpen = await executeBuiltinTool('browser', 'browser_open', { url: 'https://example.com' })
+  assert.ok(bOpen)
+
+  const bNav = await executeBuiltinTool('browser', 'browser_navigate', { url: 'https://example.com/docs' })
+  assert.ok(bNav)
+  assert.equal(bNav.success, true)
+
+  const bClick = await executeBuiltinTool('browser', 'browser_click', { selector: 'button.login' })
+  assert.ok(bClick)
+  assert.equal(bClick.success, true)
+
+  const bType = await executeBuiltinTool('browser', 'browser_type', { selector: 'input[name=q]', text: 'contalk' })
+  assert.ok(bType)
+  assert.equal(bType.success, true)
+  assert.equal(bType.value, 'contalk')
+
+  const bContent = await executeBuiltinTool('browser', 'browser_read_content', {})
+  assert.ok(bContent)
+  assert.ok(bContent.title)
+  assert.ok(bContent.content)
+  assert.ok(Array.isArray(bContent.links))
+
+  const bSnap = await executeBuiltinTool('browser', 'browser_screenshot', {})
+  assert.ok(bSnap)
+  assert.ok(bSnap.src)
+
+  const bScroll = await executeBuiltinTool('browser', 'browser_scroll', { direction: 'down', amount: 300 })
+  assert.ok(bScroll)
+  assert.equal(bScroll.success, true)
 })

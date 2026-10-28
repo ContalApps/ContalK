@@ -308,6 +308,17 @@ export function AgentActionCard({ action }: { action: AgentAction }) {
     } else if (s === 'github') {
       toolIcon = 'git'
       toolTitle = `GitHub: ${action.toolName}`
+    } else if (s === 'browser') {
+      toolIcon = 'globe'
+      if (tn === 'browser_open') toolTitle = `Navegador: Abrir ${action.args?.url || ''}`
+      else if (tn === 'browser_navigate') toolTitle = `Navegador: Navegar para ${action.args?.url || ''}`
+      else if (tn === 'browser_click') toolTitle = `Navegador: Clicar em "${action.args?.selector || ''}"`
+      else if (tn === 'browser_type') toolTitle = `Navegador: Digitar "${action.args?.text || ''}" em "${action.args?.selector || ''}"`
+      else if (tn === 'browser_read_content') toolTitle = 'Navegador: Ler conteúdo da página'
+      else if (tn === 'browser_screenshot') toolTitle = 'Navegador: Capturar tela'
+      else if (tn === 'browser_scroll') toolTitle = `Navegador: Rolar página (${action.args?.direction || 'baixo'})`
+      else if (tn === 'browser_evaluate') toolTitle = 'Navegador: Executar Script'
+      else toolTitle = `Navegador: ${action.toolName}`
     } else {
       toolIcon = 'ai'
       toolTitle = `Ferramenta MCP: ${action.server} / ${action.toolName}`
@@ -545,6 +556,67 @@ export function AgentActionCard({ action }: { action: AgentAction }) {
                 </div>
               </div>
             )}
+
+            {action.server === 'browser' && (
+              <div className="ct-mcp-browser-container">
+                <div className="ct-mcp-account-header">
+                  <ControlIcon name="globe" size={14} />
+                  <span>Navegador Interno {mcpResult.url && `· ${mcpResult.url}`}</span>
+                  {desktop?.browserShow && (
+                    <button
+                      type="button"
+                      className="ct-browser-launch-btn"
+                      onClick={() => void desktop.browserShow?.()}
+                      title="Exibir navegador interno em janela visual"
+                    >
+                      <ControlIcon name="expand" size={11} />
+                      <span>Ver Navegador</span>
+                    </button>
+                  )}
+                </div>
+
+                {mcpResult.src && (
+                  <div className="ct-mcp-browser-screenshot">
+                    <img src={mcpResult.src} alt={mcpResult.title || 'Screenshot'} className="ct-browser-preview-img" />
+                    <small className="ct-browser-preview-caption">{mcpResult.title} ({mcpResult.url})</small>
+                  </div>
+                )}
+
+                {mcpResult.message && (
+                  <div className="ct-mcp-browser-status">
+                    <ControlIcon name="check" size={13} />
+                    <span>{mcpResult.message}</span>
+                    {mcpResult.tag && <span className="ct-mcp-pill">&lt;{mcpResult.tag}&gt;</span>}
+                  </div>
+                )}
+
+                {mcpResult.content && (
+                  <div className="ct-mcp-browser-content-view">
+                    <div className="ct-browser-content-header">
+                      <strong>{mcpResult.title}</strong>
+                      <span className="ct-mcp-pill">{mcpResult.links?.length || 0} links</span>
+                    </div>
+                    <p className="ct-browser-content-text">{mcpResult.content}</p>
+                    <div className="ct-mcp-quick-summary-bar">
+                      <button
+                        type="button"
+                        className="ct-mcp-summary-btn"
+                        onClick={() => {
+                          window.dispatchEvent(new CustomEvent('contalk-ai-prompt', {
+                            detail: {
+                              prompt: `Por favor, faça um resumo dos pontos mais importantes do conteúdo lido nesta página web:\n\nTítulo: ${mcpResult.title}\nURL: ${mcpResult.url}\n\nConteúdo:\n${mcpResult.content}`
+                            }
+                          }))
+                        }}
+                      >
+                        <ControlIcon name="ai" size={13} />
+                        <span>Resumir conteúdo da página com IA</span>
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
           </div>
         )}
       </div>
@@ -606,14 +678,29 @@ export function AgentActionCard({ action }: { action: AgentAction }) {
           )}
 
           {action.tool === 'mcp_call' && (
-            <button
-              type="button"
-              className="ct-btn-primary ct-agent-btn"
-              onClick={() => void handleRunMcp()}
-            >
-              <ControlIcon name="check" size={13} />
-              <span>Aprovar e Invocar Tool</span>
-            </button>
+            <>
+              <button
+                type="button"
+                className="ct-btn-primary ct-agent-btn"
+                onClick={() => void handleRunMcp()}
+              >
+                <ControlIcon name="check" size={13} />
+                <span>
+                  {action.server === 'browser' ? 'Aprovar e Executar no Navegador' : 'Aprovar e Invocar Tool'}
+                </span>
+              </button>
+              {action.server === 'browser' && desktop?.browserShow && (
+                <button
+                  type="button"
+                  className="ct-btn-secondary ct-agent-btn"
+                  onClick={() => void desktop.browserShow?.()}
+                  title="Abrir navegador interno em janela dedicada"
+                >
+                  <ControlIcon name="globe" size={13} />
+                  <span>Ver Navegador</span>
+                </button>
+              )}
+            </>
           )}
 
           {action.tool === 'generate_image' && (

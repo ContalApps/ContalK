@@ -17,6 +17,7 @@ import { setupTerminal } from './terminal'
 import { setupAppMenu } from './app-menu'
 import { setupMcp } from './mcp'
 import { setupLinkPreview } from './link-preview'
+import { setupInternalBrowser } from './browser'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 
@@ -258,6 +259,7 @@ function createWindow() {
   setupAppMenu(win, terminals.killAll)
   setupMcp(win)
   setupLinkPreview(win)
+  setupInternalBrowser(win)
 
   // Test active push message to Renderer_process.
   win.webContents.on('did-finish-load', () => {

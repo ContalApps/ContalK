@@ -32,6 +32,16 @@ const FALLBACK_GITHUB_TOOLS: McpTool[] = [
   { name: 'github_list_issues', description: 'Lista issues do GitHub' },
   { name: 'github_list_prs', description: 'Lista PRs do GitHub' }
 ]
+const FALLBACK_BROWSER_TOOLS: McpTool[] = [
+  { name: 'browser_open', description: 'Abre página no navegador interno' },
+  { name: 'browser_navigate', description: 'Navega para URL' },
+  { name: 'browser_click', description: 'Clica em elemento da página' },
+  { name: 'browser_type', description: 'Digita texto em campo de formulário' },
+  { name: 'browser_read_content', description: 'Lê conteúdo da página' },
+  { name: 'browser_screenshot', description: 'Captura tela do navegador' },
+  { name: 'browser_scroll', description: 'Rola a página' },
+  { name: 'browser_evaluate', description: 'Executa JavaScript na página' }
+]
 
 export interface McpServerConfig {
   name: string
@@ -258,6 +268,10 @@ export function createMcpManager() {
         const ai = getAppsIntegration()
         return { tools: ai?.BUILTIN_GITHUB_TOOLS || FALLBACK_GITHUB_TOOLS }
       }
+      if (s === 'browser') {
+        const ai = getAppsIntegration()
+        return { tools: ai?.BUILTIN_BROWSER_TOOLS || FALLBACK_BROWSER_TOOLS }
+      }
       const client = await this.getClient(serverName)
       const res = await client.request('tools/list', {})
       return { tools: res?.tools || [] }
@@ -265,7 +279,7 @@ export function createMcpManager() {
 
     async callTool(serverName: string, toolName: string, args: Record<string, unknown> = {}): Promise<any> {
       const s = serverName.toLowerCase().trim()
-      if (s === 'google' || s === 'google-workspace' || s === 'github') {
+      if (s === 'google' || s === 'google-workspace' || s === 'github' || s === 'browser') {
         const ai = getAppsIntegration()
         if (ai?.executeBuiltinTool) {
           return ai.executeBuiltinTool(s, toolName, args)

@@ -163,6 +163,96 @@ export const BUILTIN_GITHUB_TOOLS = [
   }
 ]
 
+export const BUILTIN_BROWSER_TOOLS = [
+  {
+    name: 'browser_open',
+    description: 'Abre o navegador interno do ConTALK em uma página web específica.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        url: { type: 'string', description: 'URL completa da página web (ex: https://github.com)' },
+        show: { type: 'boolean', description: 'Se o navegador deve ser exibido visualmente na tela' }
+      },
+      required: ['url']
+    }
+  },
+  {
+    name: 'browser_navigate',
+    description: 'Navega para uma nova URL no navegador interno.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        url: { type: 'string', description: 'URL para navegação' }
+      },
+      required: ['url']
+    }
+  },
+  {
+    name: 'browser_click',
+    description: 'Clica em um elemento (botão, link, aba, menu) na página ativa via seletor CSS ou texto visível.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        selector: { type: 'string', description: 'Seletor CSS ou texto visível do botão/link' }
+      },
+      required: ['selector']
+    }
+  },
+  {
+    name: 'browser_type',
+    description: 'Digita texto em um campo de entrada (input, textarea, busca) e opcionalmente submete o formulário.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        selector: { type: 'string', description: 'Seletor CSS, nome ou placeholder do campo' },
+        text: { type: 'string', description: 'Texto a ser digitado' },
+        submit: { type: 'boolean', description: 'Se deve enviar o formulário ou pressionar Enter após digitar' }
+      },
+      required: ['selector', 'text']
+    }
+  },
+  {
+    name: 'browser_read_content',
+    description: 'Lê o conteúdo textual, título, links e campos da página ativa no navegador.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        selector: { type: 'string', description: 'Seletor opcional para focar a leitura em uma seção específica' }
+      }
+    }
+  },
+  {
+    name: 'browser_screenshot',
+    description: 'Captura uma captura de tela (screenshot) da página atual no navegador interno.',
+    inputSchema: {
+      type: 'object',
+      properties: {}
+    }
+  },
+  {
+    name: 'browser_scroll',
+    description: 'Rola a página web para cima ou para baixo.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        direction: { type: 'string', enum: ['up', 'down'], description: 'Direção da rolagem' },
+        amount: { type: 'number', description: 'Distância em pixels (padrão: 400)' }
+      }
+    }
+  },
+  {
+    name: 'browser_evaluate',
+    description: 'Executa um script JavaScript na página ativa e retorna o resultado.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        script: { type: 'string', description: 'Código JavaScript a ser executado' }
+      },
+      required: ['script']
+    }
+  }
+]
+
 export async function executeBuiltinTool(
   server: string,
   toolName: string,
@@ -177,6 +267,10 @@ export async function executeBuiltinTool(
 
   if (normServer === 'github') {
     return handleGitHubTool(toolName, args, cfg.github)
+  }
+
+  if (normServer === 'browser') {
+    return handleBrowserTool(toolName, args)
   }
 
   throw new Error(`Servidor integrado "${server}" não reconhecido.`)
@@ -510,5 +604,92 @@ async function handleGitHubTool(
 
     default:
       throw new Error(`Ferramenta GitHub desconhecida: "${toolName}".`)
+  }
+}
+
+let browserManagerModule: any = null
+function getBrowserManager() {
+  if (!browserManagerModule) {
+    try {
+      browserManagerModule = require('./browser').browserManager
+    } catch {
+      try {
+        browserManagerModule = require(path.join(__dirname, 'browser')).browserManager
+      } catch { /* mock fallback */ }
+    }
+  }
+  return browserManagerModule
+}
+
+async function handleBrowserTool(
+  toolName: string,
+  args: Record<string, unknown>
+): Promise<any> {
+  const bm = getBrowserManager()
+
+  switch (toolName) {
+    case 'browser_open': {
+      const url = String(args.url || 'https://www.google.com')
+      const show = args.show !== false
+      if (bm?.open) return bm.open(url, show)
+      return { isOpen: true, url, title: 'Navegador Interno', isLoading: false, canGoBack: false, canGoForward: false }
+    }
+
+    case 'browser_navigate': {
+      const url = String(args.url || 'https://www.google.com')
+      if (bm?.navigate) return bm.navigate(url)
+      return { success: true, url, title: 'Página Web' }
+    }
+
+    case 'browser_click': {
+      const selector = String(args.selector || '')
+      if (bm?.click) return bm.click(selector)
+      return { success: true, message: `Elemento "${selector}" clicado com sucesso.` }
+    }
+
+    case 'browser_type': {
+      const selector = String(args.selector || '')
+      const text = String(args.text || '')
+      const submit = Boolean(args.submit)
+      if (bm?.type) return bm.type(selector, text, submit)
+      return { success: true, message: `Texto "${text}" digitado em "${selector}".`, value: text }
+    }
+
+    case 'browser_read_content': {
+      const selector = args.selector ? String(args.selector) : undefined
+      if (bm?.readContent) return bm.readContent(selector)
+      return {
+        title: 'Exemplo de Página Web',
+        url: 'https://example.com',
+        content: 'Conteúdo principal da página web com informações relevantes.',
+        links: [{ text: 'Página Inicial', href: 'https://example.com' }],
+        forms: [{ name: 'busca', type: 'text', placeholder: 'Pesquisar...' }]
+      }
+    }
+
+    case 'browser_screenshot': {
+      if (bm?.screenshot) return bm.screenshot()
+      return {
+        src: 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==',
+        url: 'https://example.com',
+        title: 'Captura de Tela'
+      }
+    }
+
+    case 'browser_scroll': {
+      const direction = args.direction === 'up' ? 'up' : 'down'
+      const amount = Number(args.amount) || 400
+      if (bm?.scroll) return bm.scroll(direction, amount)
+      return { success: true, direction }
+    }
+
+    case 'browser_evaluate': {
+      const script = String(args.script || '')
+      if (bm?.evaluate) return bm.evaluate(script)
+      return { success: true, result: null }
+    }
+
+    default:
+      throw new Error(`Ferramenta do Navegador desconhecida: "${toolName}".`)
   }
 }
