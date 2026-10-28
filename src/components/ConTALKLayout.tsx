@@ -394,7 +394,7 @@ export function initYjsProvider(room: string, doc: Y.Doc) {
     try {
       const diag = {
         app: 'ConTALK',
-        version: '0.1.29',
+        version: '0.1.30',
         timestamp: new Date().toISOString(),
         view,
         server: { id: server.id, name: server.name },
