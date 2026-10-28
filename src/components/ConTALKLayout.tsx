@@ -35,6 +35,7 @@ import { BrandMark } from './BrandMark'
 import { ControlIcon, type ControlIconName } from './ControlIcon'
 import { TerminalPanel } from './TerminalPanel'
 import { DevCodeEditor, type DevEditorTab } from './DevCodeEditor'
+import { McpManagerModal } from './McpManagerModal'
 import { RightPanel } from './RightPanel'
 import type { MenuGroup } from './TitleMenus'
 import { UserDock } from './UserDock'
@@ -298,6 +299,22 @@ export function initYjsProvider(room: string, doc: Y.Doc) {
       setLoadingWorkspaceFiles(false)
     }
   }, [preferences.workspaceFolder, desktop])
+  useEffect(() => {
+    const handleFileWritten = (event: Event) => {
+      const detail = (event as CustomEvent<{ path: string; content: string }>).detail
+      if (!detail?.path) return
+      setEditorTabs(tabs => {
+        const found = tabs.find(t => t.path === detail.path || t.name === detail.path.split(/[/\\]/).pop())
+        if (found) {
+          setTabCodes(codes => ({ ...codes, [found.id]: detail.content }))
+        }
+        return tabs
+      })
+    }
+    window.addEventListener('contalk-file-written', handleFileWritten)
+    return () => window.removeEventListener('contalk-file-written', handleFileWritten)
+  }, [])
+
   const toggleRepoExplorer = async () => {
     if (!preferences.workspaceFolder) {
       await openFolder()
@@ -367,6 +384,7 @@ export function initYjsProvider(room: string, doc: Y.Doc) {
       {label:'Painel direito',shortcut:'Ctrl+Alt+B',checked:!preferences.membersCollapsed,onSelect:()=>togglePanel('membersCollapsed')},
       {label:'Barra de servidores',checked:!preferences.railHidden,onSelect:()=>togglePanel('railHidden')},
       {label:'Mensagens fixadas do canal',disabled:!(view==='server'&&channel.type==='text'&&!!channel.id),onSelect:()=>setPinnedChannel(channel.id)},
+      {label:'Servidores MCP (IA)...',onSelect:()=>setActiveDevModal('mcp')},
       'separator',
       {label:'Aumentar zoom',disabled:preferences.interfaceScale>=120,onSelect:()=>zoom(10)},
       {label:'Diminuir zoom',disabled:preferences.interfaceScale<=80,onSelect:()=>zoom(-10)},
@@ -442,6 +460,7 @@ export function initYjsProvider(room: string, doc: Y.Doc) {
   <button className="ct-side-dev-item" onClick={()=>setActiveDevModal('prs')} title="Pull requests abertos"><div><ControlIcon name="git-pr" size={14}/><span>Pull requests</span></div><span className="ct-side-dev-badge">2</span></button>
   <button className="ct-side-dev-item" onClick={()=>setActiveDevModal('issues')} title="Issues abertas"><div><ControlIcon name="git-issue" size={14}/><span>Issues</span></div><span className="ct-side-dev-badge">4</span></button>
   <button className="ct-side-dev-item" onClick={()=>setActiveDevModal('actions')} title="Actions"><div><ControlIcon name="rocket" size={14}/><span>Actions</span></div></button>
+  <button className="ct-side-dev-item" onClick={()=>setActiveDevModal('mcp')} title="Servidores MCP configurados"><div><ControlIcon name="ai" size={14}/><span>Servidores MCP</span></div></button>
   <button className="ct-side-dev-item" onClick={()=>setActiveDevModal('wiki')} title="Wiki do projeto"><div><ControlIcon name="git-wiki" size={14}/><span>Wiki</span></div></button>
 </div>}
 
@@ -503,7 +522,8 @@ export function initYjsProvider(room: string, doc: Y.Doc) {
     {audioSettings&&<AudioSettings initialMode={audioSettings} onClose={()=>setAudioSettings(null)}/>}
     {editProfile&&<EditProfile onClose={()=>setEditProfile(false)}/>}
     {createType&&<CreateChannel type={createType} serverId={server.id} onClose={()=>setCreateType(null)}/>}
-    {activeDevModal&&(
+    {activeDevModal==='mcp'&&<McpManagerModal onClose={()=>setActiveDevModal(null)}/>}
+    {activeDevModal&&activeDevModal!=='mcp'&&(
   <div className="ct-modal-backdrop" onClick={()=>setActiveDevModal(null)}>
     <section className="ct-edit-dialog" role="dialog" aria-modal="true" onClick={e=>e.stopPropagation()}>
       {activeDevModal==='prs'&&(

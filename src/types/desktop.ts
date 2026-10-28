@@ -60,6 +60,12 @@ export interface DesktopBridge {
   workspaceListFiles:(dirPath:string)=>Promise<WorkspaceFileEntry[]>
   workspaceReadFile:(filePath:string)=>Promise<string>
   workspaceWriteFile:(filePath:string,content:string)=>Promise<boolean>
+  workspaceExecCommand:(command:string,cwd?:string)=>Promise<{stdout:string;stderr:string;exitCode:number}>
+  mcpListServers:()=>Promise<Array<{name:string;command:string;args:string[];env?:Record<string,string>;disabled?:boolean}>>
+  mcpSaveServer:(server:{name:string;command:string;args:string[];env?:Record<string,string>;disabled?:boolean})=>Promise<boolean>
+  mcpRemoveServer:(name:string)=>Promise<boolean>
+  mcpListTools:(serverName:string)=>Promise<{tools:Array<{name:string;description?:string;inputSchema?:Record<string,unknown>}>}>
+  mcpCallTool:(serverName:string,toolName:string,args?:Record<string,unknown>)=>Promise<any>
   terminalCreate:(cwd:string|null,cols:number,rows:number)=>Promise<{id:string;shell:string;cwd:string}>
   terminalInput:(id:string,data:string)=>void
   terminalResize:(id:string,cols:number,rows:number)=>void

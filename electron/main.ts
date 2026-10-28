@@ -15,6 +15,7 @@ import { readCommunityConfig, setupCommunity, signInCommunity, signOutCommunity,
 import { setupCaptureAudio } from './capture-audio'
 import { setupTerminal } from './terminal'
 import { setupAppMenu } from './app-menu'
+import { setupMcp } from './mcp'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 
@@ -142,6 +143,7 @@ function createWindow() {
   setupSpeech(win)
   const terminals = setupTerminal(win)
   setupAppMenu(win, terminals.killAll)
+  setupMcp(win)
 
   // Test active push message to Renderer_process.
   win.webContents.on('did-finish-load', () => {
