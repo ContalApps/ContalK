@@ -438,6 +438,15 @@ export function initYjsProvider(room: string, doc: Y.Doc) {
       {label:'Tamanho original',disabled:preferences.interfaceScale===100,onSelect:()=>zoom(0)},
       {label:'Tela cheia',shortcut:'F11',onSelect:()=>void desktop?.toggleFullScreen?.(),disabled:!desktop?.toggleFullScreen},
     ]},
+    {label:'Ajuda',items:[
+      {label:'Atalhos do teclado',shortcut:'F1',onSelect:()=>{
+        document.dispatchEvent(new KeyboardEvent('keydown', { key: 'F1', bubbles: true }))
+      }},
+      {label:'Copiar diagnóstico do sistema',onSelect:()=>void handleCopyDiagnostics()},
+      'separator',
+      {label:'Documentação do ConTALK',onSelect:()=>setActiveDevModal('docs')},
+      {label:'Sobre o ConTALK',onSelect:()=>setActiveDevModal('overview')},
+    ]},
   ]
   useEffect(()=>{
     const keys=(event:KeyboardEvent)=>{

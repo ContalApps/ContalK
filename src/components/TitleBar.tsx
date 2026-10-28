@@ -76,11 +76,51 @@ export function TitleBar({title = 'ConTALK', authenticated = false, disabled = f
       <small>A busca filtra o conteúdo da área aberta. <kbd>Esc</kbd> fecha este painel.</small>
     </section>}
     {panel==='help' && <section className="ct-titlebar-popover ct-titlebar-help" role="dialog" aria-label="Ajuda do ConTALK">
-      <div><strong>Atalhos e ajuda</strong><button aria-label="Fechar ajuda" title="Fechar ajuda" onClick={closePanel}><TitleIcon name="close"/></button></div>
-      <p><kbd>Ctrl+K</kbd> Buscar na área aberta</p><p><kbd>Alt+← / Alt+→</kbd> Voltar e avançar</p><p><kbd>F1</kbd> Abrir esta ajuda</p>
-      <p>Microfone, áudio, câmera e compartilhamento ficam no seu card, no canto inferior esquerdo.</p>
-      <p>Use a engrenagem de um canal para renomear ou excluir com confirmação. O sino reúne as atualizações.</p>
-      <small>Personalize os atalhos da barra em Configurações → Aparência.</small>
+      <div className="ct-titlebar-help-header">
+        <strong>Atalhos do teclado e ajuda</strong>
+        <button aria-label="Fechar ajuda" title="Fechar ajuda" onClick={closePanel}><TitleIcon name="close"/></button>
+      </div>
+
+      <div className="ct-help-section">
+        <h4>Navegação e Layout</h4>
+        <div className="ct-shortcut-row"><kbd>Ctrl+K</kbd><span>Buscar na tela ou canal</span></div>
+        <div className="ct-shortcut-row"><kbd>Alt+← / Alt+→</kbd><span>Voltar e avançar no histórico</span></div>
+        <div className="ct-shortcut-row"><kbd>Ctrl+B</kbd><span>Alternar barra lateral</span></div>
+        <div className="ct-shortcut-row"><kbd>Ctrl+Alt+B</kbd><span>Alternar painel direito (membros)</span></div>
+        <div className="ct-shortcut-row"><kbd>Ctrl+Alt+E</kbd><span>Alternar editor de código (Split)</span></div>
+        <div className="ct-shortcut-row"><kbd>Ctrl+J</kbd> ou <kbd>Ctrl+`</kbd><span>Alternar terminal inferior</span></div>
+        <div className="ct-shortcut-row"><kbd>F11</kbd><span>Alternar tela cheia</span></div>
+        <div className="ct-shortcut-row"><kbd>Ctrl+,</kbd><span>Abrir Configurações</span></div>
+        <div className="ct-shortcut-row"><kbd>F1</kbd><span>Abrir esta ajuda</span></div>
+        <div className="ct-shortcut-row"><kbd>Esc</kbd><span>Fechar modal, painel ou perfil</span></div>
+      </div>
+
+      <div className="ct-help-section">
+        <h4>Conversas e Mensagens</h4>
+        <div className="ct-shortcut-row"><kbd>Ctrl+Shift+N</kbd><span>Nova conversa direta</span></div>
+        <div className="ct-shortcut-row"><kbd>Enter</kbd><span>Enviar mensagem</span></div>
+        <div className="ct-shortcut-row"><kbd>Shift+Enter</kbd><span>Nova linha na mensagem</span></div>
+      </div>
+
+      <div className="ct-help-section">
+        <h4>Código e Workspace</h4>
+        <div className="ct-shortcut-row"><kbd>Ctrl+O</kbd><span>Abrir pasta do repositório…</span></div>
+        <div className="ct-shortcut-row"><kbd>Ctrl+S</kbd><span>Salvar arquivo no editor</span></div>
+        <div className="ct-shortcut-row"><kbd>Tab / Shift+Tab</kbd><span>Indentar / desindentar código</span></div>
+      </div>
+
+      <div className="ct-help-section">
+        <h4>Edição Geral</h4>
+        <div className="ct-shortcut-row"><kbd>Ctrl+Z / Ctrl+Y</kbd><span>Desfazer / Refazer</span></div>
+        <div className="ct-shortcut-row"><kbd>Ctrl+X / C / V</kbd><span>Recortar / Copiar / Colar</span></div>
+        <div className="ct-shortcut-row"><kbd>Ctrl+A</kbd><span>Selecionar tudo</span></div>
+      </div>
+
+      <div className="ct-help-footer">
+        <p>Microfone, áudio, câmera e compartilhamento ficam no seu card no canto inferior esquerdo.</p>
+        <p>Use a engrenagem de um canal para renomear ou excluir com confirmação.</p>
+        <small>Personalize itens da barra de título em Configurações → Aparência.</small>
+      </div>
     </section>}
   </header>
 }
