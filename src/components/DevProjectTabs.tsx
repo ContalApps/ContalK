@@ -1,7 +1,7 @@
 import { ControlIcon } from './ControlIcon'
 import { useDevStore } from '../store/useDevStore'
 
-export type DevProjectTabId = 'overview' | 'tasks' | 'docs' | 'roadmap'
+export type DevProjectTabId = 'overview' | 'tasks' | 'docs' | 'roadmap' | 'github'
 
 export function DevProjectTabs({
   activeTab,
@@ -10,7 +10,7 @@ export function DevProjectTabs({
   activeTab: DevProjectTabId
   onSwitchTab?: (tab: DevProjectTabId) => void
 }) {
-  const { kanbanCards, todoTasks, devDocs } = useDevStore()
+  const { kanbanCards, todoTasks, devDocs, githubAccounts } = useDevStore()
   const pendingTasks = todoTasks.filter(t => !t.completed).length
 
   if (!onSwitchTab) return null
@@ -58,6 +58,17 @@ export function DevProjectTabs({
       >
         <ControlIcon name="roadmap" size={13} />
         <span>Roadmap</span>
+      </button>
+
+      <button
+        type="button"
+        className={`ct-project-tab-btn ${activeTab === 'github' ? 'is-active' : ''}`}
+        onClick={() => onSwitchTab('github')}
+        title="Vincular contas do GitHub e sincronizar repositórios para conexão com chats e IA"
+      >
+        <ControlIcon name="git" size={13} />
+        <span>GitHub & Repositórios</span>
+        <span className="ct-project-tab-badge">{githubAccounts.length}</span>
       </button>
     </nav>
   )

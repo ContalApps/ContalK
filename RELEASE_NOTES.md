@@ -1,3 +1,16 @@
+# ConTALK 0.1.32
+
+Rede em Tempo Real para Navegador Compartilhado, Portão de Ruído Inteligente (Noise Gate) contra Vazamento de Som, Interação Colaborativa Completa e Automação Web por IA no Palco.
+
+- **Sincronização em Tempo Real do Navegador Compartilhado:** Transmissão via canal de dados WebSocket/LiveKit para todos os computadores na sala com solicitação automática de sincronização (`REQUEST_SYNC`) ao entrar no canal. Otimização de quadros em JPEG (máx. 1280px, ~40-70 KB) para máxima fluidez sem saturação da rede.
+- **Portão de Ruído Inteligente (Noise Gate / VAD) contra Vazamento de Áudio:** Filtro RMS contínuo no microfone que corta e silencia automaticamente áudio de fundo quando o usuário não está falando, impedindo vazamento de som de vídeos da web, músicas ou jogos para os outros integrantes da chamada. Suporte a sensibilidade automática inteligente e controle manual de limiar.
+- **Interação Colaborativa Completa (Cliques, Foco e Digitação):** Disparo nativo de eventos Chromium (`sendInputEvent`) e desativação de background throttling, garantindo que os cliques de integrantes funcionem com foco real e navegação fluida em links e botões. Adicionada barra de digitação colaborativa (`sendType` e teclas) com proporção 1:1 exata sem desvios de tela.
+- **Painel de Automação com IA Embutido no Palco:** Drawer de IA direto no navegador compartilhado com resumo instantâneo da página, extração de texto estruturado e links, campo de comando com prompt livre e registro de execuções.
+- **Controles Unificados de Chamada (Design Codex):** Remoção de controles redundantes no rodapé e padronização do card superior do painel direito com controles dedicados de câmera, tela, navegador web, desconexão e atalhos rápidos de microfone e áudio.
+- **Vínculo de Repositórios GitHub por Canal:** Aba de repositórios integrada às configurações de canais de texto e hub de projetos, conectando o contexto do repositório selecionado diretamente às automações e respostas da IA.
+
+Validação: tipos verificados sem erros (`npm run typecheck`), 325 testes unitários e de integração aprovados (`npm test`) e build de produção Vite e Electron concluídos com sucesso.
+
 # ConTALK 0.1.31
 
 Navegador Web Compartilhado no Palco de Chamadas, Blindagem Zero-Leak Contra Vazamento de Senhas, Integrações com Google Workspace e Navegador Interno com Automação por IA.

@@ -10,7 +10,7 @@ export function DevRoadmapModal({
 }) {
   const milestones = [
     {
-      version: 'v0.1.31 (Atual)',
+      version: 'v0.1.32 (Atual)',
       status: 'released',
       statusText: 'Versão Ativa',
       title: 'Navegador Compartilhado, Blindagem de Senhas e Hub de Apps',

@@ -28,11 +28,13 @@ interface SharedBrowserState {
   activeSession: SharedBrowserSession | null
   isHost: boolean
   isSharing: boolean
+  isDetached: boolean
   collaborators: Record<string, CollaboratorCursor>
   lastCursorBroadcast: number
 
   startSharing: (roomId: string, initialUrl?: string) => Promise<void>
   stopSharing: () => Promise<void>
+  toggleDetach: () => Promise<void>
   setAllowCollaboration: (allow: boolean) => void
   navigate: (url: string) => Promise<void>
   sendClick: (xPercent: number, yPercent: number) => Promise<void>
@@ -41,6 +43,10 @@ interface SharedBrowserState {
   goForward: () => Promise<void>
   reload: () => Promise<void>
   cleanupStaleCollaborators: () => void
+  sendType: (text: string) => Promise<void>
+  sendKey: (key: string) => Promise<void>
+  handleRemoteMessage: (data: unknown, senderIdentity?: string) => Promise<void> | void
+  requestSync: () => void
 }
 
 let sharedChannel: BroadcastChannel | null = null
@@ -52,14 +58,48 @@ try {
   // BroadcastChannel unavailable
 }
 
+async function broadcastBrowserMessage(msg: unknown) {
+  try {
+    sharedChannel?.postMessage(msg)
+  } catch {
+    // Local broadcast error ignored
+  }
+  try {
+    const { useCommunityStore } = await import('./useCommunityStore')
+    await useCommunityStore.getState().broadcastSharedBrowser(msg)
+  } catch {
+    // Remote network broadcast error ignored
+  }
+}
+
 let syncIntervalTimer: ReturnType<typeof setInterval> | null = null
 
 export const useSharedBrowserStore = create<SharedBrowserState>((set, get) => {
-  // Listen for broadcast messages from other peers/windows
+  // Listen for broadcast messages from local BroadcastChannel
   if (sharedChannel) {
     sharedChannel.onmessage = async (event) => {
-      const data = event.data
-      if (!data || typeof data !== 'object') return
+      await get().handleRemoteMessage(event.data)
+    }
+  }
+
+  // Periodic cleanup of stale collaborators (>10s)
+  if (typeof window !== 'undefined') {
+    setInterval(() => {
+      get().cleanupStaleCollaborators()
+    }, 4000)
+  }
+
+  return {
+    activeSession: null,
+    isHost: false,
+    isSharing: false,
+    isDetached: false,
+    collaborators: {},
+    lastCursorBroadcast: 0,
+
+    handleRemoteMessage: async (rawData: unknown, senderIdentity?: string) => {
+      if (!rawData || typeof rawData !== 'object') return
+      const data = rawData as Record<string, any>
       const currentUser = useAuthStore.getState().user
       const currentUsername = currentUser?.username
 
@@ -101,19 +141,20 @@ export const useSharedBrowserStore = create<SharedBrowserState>((set, get) => {
         }
 
         case 'COLLAB_CURSOR': {
-          if (data.fromId === currentUsername) return
-          const userColor = getCollaboratorColor(data.fromId)
+          const collabId = data.fromId || senderIdentity || 'user'
+          if (collabId === currentUsername) return
+          const userColor = getCollaboratorColor(collabId)
           set((state) => ({
             collaborators: {
               ...state.collaborators,
-              [data.fromId]: {
-                id: data.fromId,
-                name: data.fromName || data.fromId,
+              [collabId]: {
+                id: collabId,
+                name: data.fromName || collabId,
                 color: data.color || userColor,
                 xPercent: data.xPercent,
                 yPercent: data.yPercent,
                 lastSeen: Date.now(),
-                lastClick: state.collaborators[data.fromId]?.lastClick
+                lastClick: state.collaborators[collabId]?.lastClick
               }
             }
           }))
@@ -121,14 +162,15 @@ export const useSharedBrowserStore = create<SharedBrowserState>((set, get) => {
         }
 
         case 'COLLAB_CLICK': {
-          const userColor = getCollaboratorColor(data.fromId)
+          const collabId = data.fromId || senderIdentity || 'user'
+          const userColor = getCollaboratorColor(collabId)
           // Registra clique visual em todos os clientes
           set((state) => ({
             collaborators: {
               ...state.collaborators,
-              [data.fromId]: {
-                id: data.fromId,
-                name: data.fromName || data.fromId,
+              [collabId]: {
+                id: collabId,
+                name: data.fromName || collabId,
                 color: data.color || userColor,
                 xPercent: data.xPercent,
                 yPercent: data.yPercent,
@@ -162,10 +204,66 @@ export const useSharedBrowserStore = create<SharedBrowserState>((set, get) => {
                       lastUpdated: Date.now()
                     }
                     set({ activeSession: updated })
-                    sharedChannel?.postMessage({ type: 'SESSION_SYNC', session: updated })
+                    void broadcastBrowserMessage({ type: 'SESSION_SYNC', session: updated })
                   }
                 }
               }, 250)
+            }
+          }
+          break
+        }
+
+        case 'COLLAB_TYPE': {
+          if (get().isHost && get().activeSession?.allowCollaboration) {
+            const desktop = window.contalkDesktop
+            if (desktop?.browserInsertText) {
+              await desktop.browserInsertText(data.text)
+              setTimeout(async () => {
+                if (get().isHost && desktop.browserSanitizedScreenshot) {
+                  const res = await desktop.browserSanitizedScreenshot()
+                  const cur = get().activeSession
+                  if (cur) {
+                    const updated = {
+                      ...cur,
+                      url: res.url,
+                      title: res.title,
+                      screenshot: res.src,
+                      hasPasswordField: res.hasPasswordField,
+                      lastUpdated: Date.now()
+                    }
+                    set({ activeSession: updated })
+                    void broadcastBrowserMessage({ type: 'SESSION_SYNC', session: updated })
+                  }
+                }
+              }, 200)
+            }
+          }
+          break
+        }
+
+        case 'COLLAB_KEY': {
+          if (get().isHost && get().activeSession?.allowCollaboration) {
+            const desktop = window.contalkDesktop
+            if (desktop?.browserSendKey) {
+              await desktop.browserSendKey(data.key)
+              setTimeout(async () => {
+                if (get().isHost && desktop.browserSanitizedScreenshot) {
+                  const res = await desktop.browserSanitizedScreenshot()
+                  const cur = get().activeSession
+                  if (cur) {
+                    const updated = {
+                      ...cur,
+                      url: res.url,
+                      title: res.title,
+                      screenshot: res.src,
+                      hasPasswordField: res.hasPasswordField,
+                      lastUpdated: Date.now()
+                    }
+                    set({ activeSession: updated })
+                    void broadcastBrowserMessage({ type: 'SESSION_SYNC', session: updated })
+                  }
+                }
+              }, 200)
             }
           }
           break
@@ -176,6 +274,22 @@ export const useSharedBrowserStore = create<SharedBrowserState>((set, get) => {
             const desktop = window.contalkDesktop
             if (desktop?.browserNavigate) {
               await desktop.browserNavigate(data.url)
+              if (desktop.browserSanitizedScreenshot) {
+                const res = await desktop.browserSanitizedScreenshot()
+                const cur = get().activeSession
+                if (cur) {
+                  const updated = {
+                    ...cur,
+                    url: res.url,
+                    title: res.title,
+                    screenshot: res.src,
+                    hasPasswordField: res.hasPasswordField,
+                    lastUpdated: Date.now()
+                  }
+                  set({ activeSession: updated })
+                  void broadcastBrowserMessage({ type: 'SESSION_SYNC', session: updated })
+                }
+              }
             }
           }
           break
@@ -183,7 +297,7 @@ export const useSharedBrowserStore = create<SharedBrowserState>((set, get) => {
 
         case 'REQUEST_SYNC': {
           if (get().isHost && get().activeSession) {
-            sharedChannel?.postMessage({
+            void broadcastBrowserMessage({
               type: 'SESSION_SYNC',
               session: get().activeSession
             })
@@ -191,22 +305,13 @@ export const useSharedBrowserStore = create<SharedBrowserState>((set, get) => {
           break
         }
       }
-    }
-  }
+    },
 
-  // Periodic cleanup of stale collaborators (>10s)
-  if (typeof window !== 'undefined') {
-    setInterval(() => {
-      get().cleanupStaleCollaborators()
-    }, 4000)
-  }
-
-  return {
-    activeSession: null,
-    isHost: false,
-    isSharing: false,
-    collaborators: {},
-    lastCursorBroadcast: 0,
+    requestSync: () => {
+      if (!get().isHost) {
+        void broadcastBrowserMessage({ type: 'REQUEST_SYNC' })
+      }
+    },
 
     startSharing: async (roomId: string, initialUrl = 'https://www.google.com') => {
       const desktop = window.contalkDesktop
@@ -214,9 +319,9 @@ export const useSharedBrowserStore = create<SharedBrowserState>((set, get) => {
       const hostId = user?.username || 'user'
       const hostName = user?.display_name || user?.username || 'Anfitrião'
 
-      // Abre janela interna do navegador
+      // Abre janela interna do navegador (embutida por padrão, sem destacar no SO)
       if (desktop?.browserOpen) {
-        await desktop.browserOpen(initialUrl, true)
+        await desktop.browserOpen(initialUrl, false)
       }
 
       // Captura inicial protegida
@@ -245,20 +350,16 @@ export const useSharedBrowserStore = create<SharedBrowserState>((set, get) => {
         activeSession: session,
         isHost: true,
         isSharing: true,
+        isDetached: false,
         collaborators: {}
       })
 
-      // Anuncia sessão para os integrantes da sala
-      sharedChannel?.postMessage({ type: 'SESSION_SYNC', session })
+      void broadcastBrowserMessage({ type: 'SESSION_SYNC', session })
 
-      // Inicia loop de sincronização periódico (quadros sanitizados sem senhas)
+      // Inicia loop de streaming / sincronização periódica a ~1.3fps (750ms)
       if (syncIntervalTimer) clearInterval(syncIntervalTimer)
       syncIntervalTimer = setInterval(async () => {
-        if (!get().isHost || !get().isSharing) {
-          if (syncIntervalTimer) clearInterval(syncIntervalTimer)
-          return
-        }
-
+        if (!get().isHost || !get().isSharing) return
         if (desktop?.browserSanitizedScreenshot) {
           try {
             const shot = await desktop.browserSanitizedScreenshot()
@@ -273,7 +374,7 @@ export const useSharedBrowserStore = create<SharedBrowserState>((set, get) => {
                 lastUpdated: Date.now()
               }
               set({ activeSession: updated })
-              sharedChannel?.postMessage({ type: 'SESSION_SYNC', session: updated })
+              void broadcastBrowserMessage({ type: 'SESSION_SYNC', session: updated })
             }
           } catch {
             // ignore
@@ -290,7 +391,7 @@ export const useSharedBrowserStore = create<SharedBrowserState>((set, get) => {
       }
 
       if (cur) {
-        sharedChannel?.postMessage({ type: 'SESSION_STOP', roomId: cur.roomId })
+        void broadcastBrowserMessage({ type: 'SESSION_STOP', roomId: cur.roomId })
       }
 
       set({
@@ -299,6 +400,18 @@ export const useSharedBrowserStore = create<SharedBrowserState>((set, get) => {
         isSharing: false,
         collaborators: {}
       })
+    },
+
+    toggleDetach: async () => {
+      const desktop = window.contalkDesktop
+      if (!desktop) return
+      if (get().isDetached) {
+        await desktop.browserHide?.()
+        set({ isDetached: false })
+      } else {
+        await desktop.browserShow?.()
+        set({ isDetached: true })
+      }
     },
 
     setAllowCollaboration: (allow: boolean) => {
@@ -311,7 +424,7 @@ export const useSharedBrowserStore = create<SharedBrowserState>((set, get) => {
         lastUpdated: Date.now()
       }
       set({ activeSession: updated })
-      sharedChannel?.postMessage({
+      void broadcastBrowserMessage({
         type: 'SESSION_CONFIG',
         roomId: cur.roomId,
         allowCollaboration: allow
@@ -337,12 +450,12 @@ export const useSharedBrowserStore = create<SharedBrowserState>((set, get) => {
               lastUpdated: Date.now()
             }
             set({ activeSession: updated })
-            sharedChannel?.postMessage({ type: 'SESSION_SYNC', session: updated })
+            void broadcastBrowserMessage({ type: 'SESSION_SYNC', session: updated })
           }
         }
       } else if (cur.allowCollaboration) {
         // Envia solicitação de navegação ao host
-        sharedChannel?.postMessage({
+        void broadcastBrowserMessage({
           type: 'COLLAB_NAVIGATE',
           roomId: cur.roomId,
           url
@@ -366,7 +479,7 @@ export const useSharedBrowserStore = create<SharedBrowserState>((set, get) => {
           await desktop.browserClickAt(xPercent, yPercent)
         }
         // Broadcast visual do clique para os participantes
-        sharedChannel?.postMessage({
+        void broadcastBrowserMessage({
           type: 'COLLAB_CLICK',
           roomId: cur.roomId,
           fromId: currentUsername,
@@ -377,7 +490,7 @@ export const useSharedBrowserStore = create<SharedBrowserState>((set, get) => {
         })
       } else if (cur.allowCollaboration) {
         // Participante com permissão de interagir
-        sharedChannel?.postMessage({
+        void broadcastBrowserMessage({
           type: 'COLLAB_CLICK',
           roomId: cur.roomId,
           fromId: currentUsername,
@@ -402,7 +515,7 @@ export const useSharedBrowserStore = create<SharedBrowserState>((set, get) => {
       const currentName = user?.display_name || user?.username || 'Você'
       const color = getCollaboratorColor(currentUsername)
 
-      sharedChannel?.postMessage({
+      void broadcastBrowserMessage({
         type: 'COLLAB_CURSOR',
         roomId: cur.roomId,
         fromId: currentUsername,
@@ -443,6 +556,68 @@ export const useSharedBrowserStore = create<SharedBrowserState>((set, get) => {
         if (desktop?.browserReload) {
           await desktop.browserReload()
         }
+      }
+    },
+
+    sendType: async (text: string) => {
+      const cur = get().activeSession
+      if (!cur) return
+
+      if (get().isHost) {
+        const desktop = window.contalkDesktop
+        if (desktop?.browserInsertText) {
+          await desktop.browserInsertText(text)
+          if (desktop.browserSanitizedScreenshot) {
+            const shot = await desktop.browserSanitizedScreenshot()
+            const updated = {
+              ...cur,
+              url: shot.url,
+              title: shot.title,
+              screenshot: shot.src,
+              hasPasswordField: shot.hasPasswordField,
+              lastUpdated: Date.now()
+            }
+            set({ activeSession: updated })
+            void broadcastBrowserMessage({ type: 'SESSION_SYNC', session: updated })
+          }
+        }
+      } else if (cur.allowCollaboration) {
+        void broadcastBrowserMessage({
+          type: 'COLLAB_TYPE',
+          roomId: cur.roomId,
+          text
+        })
+      }
+    },
+
+    sendKey: async (key: string) => {
+      const cur = get().activeSession
+      if (!cur) return
+
+      if (get().isHost) {
+        const desktop = window.contalkDesktop
+        if (desktop?.browserSendKey) {
+          await desktop.browserSendKey(key)
+          if (desktop.browserSanitizedScreenshot) {
+            const shot = await desktop.browserSanitizedScreenshot()
+            const updated = {
+              ...cur,
+              url: shot.url,
+              title: shot.title,
+              screenshot: shot.src,
+              hasPasswordField: shot.hasPasswordField,
+              lastUpdated: Date.now()
+            }
+            set({ activeSession: updated })
+            void broadcastBrowserMessage({ type: 'SESSION_SYNC', session: updated })
+          }
+        }
+      } else if (cur.allowCollaboration) {
+        void broadcastBrowserMessage({
+          type: 'COLLAB_KEY',
+          roomId: cur.roomId,
+          key
+        })
       }
     },
 

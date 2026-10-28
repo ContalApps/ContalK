@@ -79,6 +79,9 @@ interface DevState {
   githubError: string | null
   lastReposSync: number | null
   selectedRepoId: string | number | null
+  channelRepoBindings: Record<string, string | number>
+  bindChannelRepo: (channelId: string, repoId: string | number | null) => void
+  getChannelRepo: (channelId: string) => GitHubRepo | null
 
   // Atlassian
   atlassian: AtlassianAccount | null
@@ -271,6 +274,7 @@ function persistState(state: DevState) {
       activeAccountId: state.activeAccountId,
       repositories: state.repositories,
       lastReposSync: state.lastReposSync,
+      channelRepoBindings: state.channelRepoBindings,
       atlassian: state.atlassian,
       kanbanCards: state.kanbanCards,
       todoTasks: state.todoTasks,
@@ -335,8 +339,26 @@ export const useDevStore = create<DevState>((set, get) => {
     githubError: null,
     lastReposSync: (saved as any).lastReposSync || null,
     selectedRepoId: null,
+    channelRepoBindings: (saved as any).channelRepoBindings || {},
 
     setSelectedRepoId: (id: string | number | null) => set({ selectedRepoId: id }),
+
+    bindChannelRepo: (channelId: string, repoId: string | number | null) => {
+      const next = { ...get().channelRepoBindings };
+      if (repoId === null || repoId === '') {
+        delete next[channelId];
+      } else {
+        next[channelId] = repoId;
+      }
+      set({ channelRepoBindings: next });
+      persistState(get());
+    },
+
+    getChannelRepo: (channelId: string) => {
+      const repoId = get().channelRepoBindings[channelId];
+      if (!repoId) return null;
+      return get().repositories.find(r => String(r.id) === String(repoId)) || null;
+    },
 
     atlassian: saved.atlassian || null,
     atlassianSyncing: false,

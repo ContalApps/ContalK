@@ -87,6 +87,10 @@ export interface DesktopBridge {
   browserScreenshot?:()=>Promise<{src:string;url:string;title:string}>
   browserSanitizedScreenshot?:()=>Promise<{src:string;url:string;title:string;hasPasswordField:boolean}>
   browserClickAt?:(xPercent:number,yPercent:number)=>Promise<{success:boolean;tag?:string;text?:string;message?:string}>
+  browserInsertText?:(text:string)=>Promise<{success:boolean;message?:string}>
+  browserSendKey?:(key:string)=>Promise<{success:boolean}>
+  browserSetAudioMuted?:(muted:boolean)=>Promise<boolean>
+  browserIsAudioMuted?:()=>Promise<boolean>
   browserGoBack?:()=>Promise<boolean>
   browserGoForward?:()=>Promise<boolean>
   browserReload?:()=>Promise<boolean>
