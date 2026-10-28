@@ -1,3 +1,18 @@
+# ConTALK 0.1.33
+
+Correção Crítica de Transmissão de Áudio (Microfones e Voice Gate), Compartilhamento Global de Tela e Sincronização em Rede do Co-browsing.
+
+- **Correção Crítica no Áudio de Chamadas (Noise Gate não Mudo):** O analisador de áudio Web Audio do Noise Gate agora utiliza um clone dedicado do MediaStreamTrack, garantindo que o sinal de decibéis nunca seja cortado para o detector de voz durante momentos de silêncio e eliminando o travamento do microfone em mudo contínuo.
+- **Proteção e Preservação de Dispositivos de Áudio:** O encerramento do gate agora interrompe estritamente o track clone de análise, preservando permanentemente o track físico de captura do microfone.
+- **Calibração de Fones e Headsets:** Ajuste cirúrgico no filtro de loopback para não rejeitar headsets e fones Bluetooth identificados como "Auriculares" ou "Headphones" pelo Windows em português.
+- **Compartilhamento de Tela Global e Unificado:** Modal de transmissão de tela (`ScreenShareModal`) integrado na raiz do layout da aplicação, acessível de qualquer botão, palco ou visualização do app através do `useVoiceStore`.
+- **Botão de Transmissão no Palco de Voz:** Adicionado controle direto de transmissão de tela no cabeçalho do palco de voz (`VoiceStage`), com alternância instantânea entre transmitir e parar.
+- **Carregamento Instantâneo de Vídeo de Tela:** Adicionados gatilhos de reprodução `onCanPlay`, `onPlaying` e verificação de `readyState` no reprodutor de transmissões, eliminando bloqueios na mensagem de espera.
+- **Compatibilidade com Monitores em Captura Nativa:** Fallback robusto para o monitor primário no módulo de áudio isolado e captura de tela quando IDs de display sofrem divergência de formato.
+- **Resiliência na Rede do Navegador Compartilhado:** Registro dinâmico de remetentes no despachante de dados WebSocket/LiveKit e fallback automático para IDs contidos nas mensagens, garantindo sincronização e colaboração ininterruptas entre computadores diferentes.
+
+Validação: tipos verificados sem erros (`npm run typecheck`), 325 testes unitários e de integração aprovados (`npm test`) e build de produção Vite e Electron concluídos com sucesso.
+
 # ConTALK 0.1.32
 
 Rede em Tempo Real para Navegador Compartilhado, Portão de Ruído Inteligente (Noise Gate) contra Vazamento de Som, Interação Colaborativa Completa e Automação Web por IA no Palco.

@@ -39,6 +39,7 @@ import { useDevCollaborationStore } from '../store/useDevCollaborationStore'
 import { CommandMenuModal } from './CommandMenuModal'
 import { ReviewPanel } from './ReviewPanel'
 import { ActiveCallCard } from './ActiveCallCard'
+import { ScreenShareModal } from './ScreenShareModal'
 import { McpManagerModal } from './McpManagerModal'
 import { InternalBrowserModal } from './InternalBrowserModal'
 import { RightPanel } from './RightPanel'
@@ -154,7 +155,7 @@ export function ConTALKLayout() {
 `,
     package: `{
   "name": "contalk",
-  "version": "0.1.32",
+  "version": "0.1.33",
   "description": "ConTALK - Plataforma de Comunicação e Desenvolvimento Colaborativo com IA e WebRTC",
   "main": "dist-electron/main.js",
   "scripts": {
@@ -468,7 +469,7 @@ export function ConTALKLayout() {
     try {
       const diag = {
         app: 'ConTALK',
-        version: '0.1.32',
+        version: '0.1.33',
         timestamp: new Date().toISOString(),
         view,
         server: { id: server.id, name: server.name },
@@ -909,6 +910,11 @@ ${text}`
         branch={gitBranch || 'dev/caliari'}
       />
     )}
+    <ScreenShareModal
+      isOpen={voice.screenShareModalOpen && voice.connectionStatus === 'connected'}
+      onClose={() => voice.setScreenShareModalOpen(false)}
+      onStartShare={(source, options) => voice.startScreenShareWithOptions(source, options)}
+    />
     {toastMessage && (
       <div className="ct-toast-notification" role="status">
         <ControlIcon name="check" size={14} />

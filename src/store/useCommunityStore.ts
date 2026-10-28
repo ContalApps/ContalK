@@ -47,11 +47,13 @@ export const useCommunityStore = create<{ members: Member[]; status: string; pro
       if(centralEnabled()&&['community-channels','community-channel-deletions-v1'].includes(topic||''))return
       if(topic === 'contalk-shared-browser-v1') {
         const participant = _participant as { identity?: string; name?: string }
-        if (!participant?.identity || payload.byteLength > 1450000) return
+        if (payload.byteLength > 1450000) return
         try {
           const data = JSON.parse(new TextDecoder().decode(payload))
+          const identity = participant?.identity || data?.session?.hostIdentity || data?.fromId || ''
+          if (!identity) return
           void import('./useSharedBrowserStore').then(({ useSharedBrowserStore }) => {
-            void useSharedBrowserStore.getState().handleRemoteMessage(data, participant.identity!)
+            void useSharedBrowserStore.getState().handleRemoteMessage(data, identity)
           })
         } catch { /* Invalid shared browser packet */ }
         return

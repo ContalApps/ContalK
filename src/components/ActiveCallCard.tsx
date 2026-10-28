@@ -2,7 +2,6 @@ import { useEffect, useState } from 'react'
 import { useVoiceStore, type VoiceParticipant } from '../store/useVoiceStore'
 import { Avatar } from './Avatar'
 import { ControlIcon } from './ControlIcon'
-import { ScreenShareModal } from './ScreenShareModal'
 import { useCallClock } from './RightPanel'
 import { useSharedBrowserStore } from '../store/useSharedBrowserStore'
 import { StageControls } from './StageControls'
@@ -23,7 +22,6 @@ export function ActiveCallCard({
   const voice = useVoiceStore()
   const sharedBrowser = useSharedBrowserStore()
   const clock = useCallClock()
-  const [shareOpen, setShareOpen] = useState(false)
   const [error, setError] = useState('')
   const connected = voice.connectionStatus === 'connected'
   const micBlocked = voice.isServerMuted || voice.isServerDeafened || voice.currentRoom?.localParticipant.canPublishMicrophone === false
@@ -76,7 +74,7 @@ export function ActiveCallCard({
             title={voice.isScreenSharing ? 'Parar compartilhamento' : 'Compartilhar tela'}
             aria-pressed={voice.isScreenSharing}
             disabled={!connected || voice.currentRoom?.localParticipant.canStream === false}
-            onClick={() => voice.isScreenSharing ? void run(voice.toggleScreenShare) : setShareOpen(true)}
+            onClick={() => void run(voice.toggleScreenShare)}
           >
             <ControlIcon name="screen"/>
           </button>
@@ -178,12 +176,6 @@ export function ActiveCallCard({
         {voice.currentRoom?.stage && <StageControls/>}
         {error && <p className="ct-dock-error" role="alert">{error}</p>}
       </div>
-
-      <ScreenShareModal
-        isOpen={shareOpen && connected}
-        onClose={() => setShareOpen(false)}
-        onStartShare={(source, options) => voice.startScreenShareWithOptions(source, options)}
-      />
     </div>
   )
 }
