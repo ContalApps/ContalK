@@ -32,7 +32,7 @@ export function setupCaptureAudio(window: BrowserWindow) {
         if (!/^\d+$/.test(handle)) throw new Error('Janela inválida.')
         args = ['--window', handle, '--exclude', String(process.pid)]
       } else {
-        const display = screen.getAllDisplays().find(d => String(d.id) === source.display_id)
+        const display = screen.getAllDisplays().find(d => String(d.id) === source.display_id) || screen.getPrimaryDisplay()
         if (!display) throw new Error('Não foi possível identificar o monitor selecionado.')
         const bounds = screen.dipToScreenRect(null, display.bounds)
         args = ['--monitor', String(bounds.x), String(bounds.y), String(bounds.x + bounds.width), String(bounds.y + bounds.height), '--exclude', String(process.pid)]

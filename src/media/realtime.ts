@@ -196,7 +196,7 @@ export class Room extends Events {
     if (event === 'joined' && data.identity !== this.localParticipant.identity) this.addPeer(data)
     if (event === 'left') { const peer = this.remoteParticipants.get(data.identity); if (peer) for (const pub of peer.trackPublications.values()) { pub.track.stop(); this.emit(RoomEvent.TrackUnsubscribed,pub.track) }; this.remoteParticipants.delete(data.identity); this.emit(RoomEvent.ParticipantDisconnected,peer) }
     if (event === 'profile') { const peer = data.identity === this.localParticipant.identity ? this.localParticipant : this.remoteParticipants.get(data.identity); if (peer) Object.assign(peer,data); this.emit(RoomEvent.ParticipantMetadataChanged); this.emit(RoomEvent.ParticipantNameChanged) }
-    if (event === 'data') this.emit(RoomEvent.DataReceived,new TextEncoder().encode(data.payload),this.remoteParticipants.get(data.participant.identity),undefined,data.topic)
+    if (event === 'data') { const peer = this.remoteParticipants.get(data.participant?.identity) || (data.participant ? this.addPeer(data.participant) : undefined); this.emit(RoomEvent.DataReceived,new TextEncoder().encode(data.payload),peer,undefined,data.topic) }
     if (event === 'producer' && data.identity !== this.localParticipant.identity && this.recvTransport) await this.consume(data)
     if (event === 'producerClosed') {
       const local = this.localParticipant.trackPublications.get(data.producerId)

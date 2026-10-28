@@ -27,6 +27,7 @@ export function VideoTrackView({
     const el = videoRef.current
     if (track && el) {
       track.attach(el)
+      if (el.readyState >= 2) onReady?.()
       return () => {
         track.detach(el)
       }
@@ -38,6 +39,8 @@ export function VideoTrackView({
       ref={videoRef}
       autoPlay
       onLoadedData={onReady}
+      onCanPlay={onReady}
+      onPlaying={onReady}
       playsInline
       muted
       className={className}
@@ -243,6 +246,7 @@ export function VoiceStage({
   onParticipantMenu:(participant:VoiceParticipant,event:React.MouseEvent)=>void
 }) {
   const { user } = useAuthStore()
+  const voice = useVoiceStore()
   const {
     activeChannelId,
     activeChannelName,
@@ -252,7 +256,7 @@ export function VoiceStage({
     screenShareError,
     joinChannel,
     userVolumes,
-  } = useVoiceStore()
+  } = voice
 
   // Telas compartilhadas ativas
   const screenShares = participants.filter((p) => p.isScreenShareEnabled && p.screenTrack)
@@ -386,6 +390,20 @@ export function VoiceStage({
               </button>
             </div>
           )}
+
+          <button
+            onClick={() => void voice.toggleScreenShare()}
+            disabled={connectionStatus !== 'connected' || voice.currentRoom?.localParticipant.canStream === false}
+            className={`p-1.5 rounded-xl border transition text-xs flex items-center gap-1.5 font-bold ${
+              voice.isScreenSharing
+                ? 'bg-red-600 border-red-500 text-white'
+                : 'bg-[#161616] border-neutral-900/40 text-neutral-300 hover:text-white hover:border-neutral-500/40'
+            }`}
+            title={voice.isScreenSharing ? 'Parar transmissão de tela' : 'Compartilhar tela nesta chamada'}
+          >
+            <ControlIcon name="screen" size={14}/>
+            <span className="hidden md:inline">{voice.isScreenSharing ? 'Parar Tela' : 'Transmitir'}</span>
+          </button>
 
           <span className="text-xs text-neutral-300/80 font-medium hidden sm:inline">
             {participants.length} {participants.length === 1 ? 'participante' : 'participantes'}

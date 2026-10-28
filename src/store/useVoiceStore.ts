@@ -58,6 +58,8 @@ interface VoiceState {
   isDeafened: boolean
   isCameraOn: boolean
   isScreenSharing: boolean
+  screenShareModalOpen: boolean
+  setScreenShareModalOpen: (open: boolean) => void
   participants: VoiceParticipant[]
   activeSpeakers: string[]
   error: string | null
@@ -154,6 +156,7 @@ export const useVoiceStore = create<VoiceState>((set, get) => ({
   isDeafened: false,
   isCameraOn: false,
   isScreenSharing: false,
+  screenShareModalOpen: false,
   participants: [],
   activeSpeakers: [],
   error: null,
@@ -586,12 +589,18 @@ export const useVoiceStore = create<VoiceState>((set, get) => ({
   },
 
   toggleScreenShare: async () => {
-    const { currentRoom } = get()
+    const { currentRoom, isScreenSharing } = get()
     if (!currentRoom) return
-    await stopScreenShare(currentRoom)
-    set({ isScreenSharing: false, screenShareError: null })
-    get().refreshParticipants()
+    if (isScreenSharing) {
+      await stopScreenShare(currentRoom)
+      set({ isScreenSharing: false, screenShareError: null })
+      get().refreshParticipants()
+    } else {
+      set({ screenShareModalOpen: true })
+    }
   },
+
+  setScreenShareModalOpen: (open: boolean) => set({ screenShareModalOpen: open }),
 
   startScreenShareWithOptions: async (source, options) => {
     const { currentRoom } = get()

@@ -2,7 +2,7 @@ import { AudioPresets, createLocalAudioTrack, Room, Track, type AudioCaptureOpti
 
 // These are loopback/mixer outputs, not physical microphone inputs.
 export function isLoopbackInput(label: string): boolean {
-  return /stereo\s*mix|mixagem\s*est[eé]reo|what\s*u\s*hear|what\s*you\s*hear|wave\s*out|loopback|monitor\s+of|cable[- ](?:output|out)|voicemeeter.*(?:output|out\s*[ab])|sonar\s*[-:]?\s*stream|stream\s*mix|alto-falantes|speakers(?!\s*mic)|auriculares|headphones(?!\s*mic)|output\s*monitor/i.test(label)
+  return /stereo\s*mix|mixagem\s*est[eé]reo|what\s*u\s*hear|what\s*you\s*hear|wave\s*out|loopback|monitor\s+of|cable[- ](?:output|out)|voicemeeter.*(?:output|out\s*[ab])|sonar\s*[-:]?\s*stream|stream\s*mix/i.test(label)
 }
 
 export function microphoneOptions(deviceId?: string): AudioCaptureOptions {
@@ -23,7 +23,7 @@ export function microphoneOptions(deviceId?: string): AudioCaptureOptions {
 let activeGate: {
   ctx?: AudioContext
   timer?: ReturnType<typeof setInterval>
-  stream?: MediaStream
+  analysisTrack?: MediaStreamTrack
   stop: () => void
 } | null = null
 
@@ -41,14 +41,21 @@ export function setupVoiceActivityGate(room: Room, track: Track) {
   try {
     const AudioCtx = window.AudioContext || (window as any).webkitAudioContext
     const ctx = new AudioCtx()
-    const stream = new MediaStream([track.mediaStreamTrack])
+    // Utiliza um clone do track para análise contínua de áudio.
+    // Assim, ao fechar a transmissão em silêncio no track principal, a análise nunca recebe zeros mudos.
+    const analysisTrack = typeof track.mediaStreamTrack.clone === 'function'
+      ? track.mediaStreamTrack.clone()
+      : track.mediaStreamTrack
+    analysisTrack.enabled = true
+
+    const stream = new MediaStream([analysisTrack])
     const source = ctx.createMediaStreamSource(stream)
     const analyser = ctx.createAnalyser()
     analyser.fftSize = 256
     source.connect(analyser)
 
     const samples = new Uint8Array(analyser.fftSize)
-    let holdUntil = 0
+    let holdUntil = Date.now() + 3000
     let autoFloor = 8
 
     const interval = setInterval(() => {
@@ -101,7 +108,7 @@ export function setupVoiceActivityGate(room: Room, track: Track) {
           room.localParticipant.emit('IsSpeakingChanged', true)
         }
       } else if (now > holdUntil) {
-        // Abaixo do limiar: SILÊNCIO. Corta vazamento de vídeos, música e som ambiente do PC
+        // Silêncio: corta ruído de fundo sem desativar a faixa de análise
         if (track.mediaStreamTrack.enabled && !track.isMuted) {
           track.mediaStreamTrack.enabled = false
         }
@@ -114,11 +121,16 @@ export function setupVoiceActivityGate(room: Room, track: Track) {
 
     const stop = () => {
       clearInterval(interval)
-      stream.getTracks().forEach(t => t.stop())
+      if (analysisTrack !== track.mediaStreamTrack) {
+        analysisTrack.stop()
+      }
+      if (!track.isMuted && track.mediaStreamTrack.readyState === 'live') {
+        track.mediaStreamTrack.enabled = true
+      }
       void ctx.close().catch(() => {})
     }
 
-    activeGate = { ctx, timer: interval, stream, stop }
+    activeGate = { ctx, timer: interval, analysisTrack, stop }
   } catch {
     // Falha do Web Audio não interrompe o áudio WebRTC padrão
   }
