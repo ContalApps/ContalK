@@ -45,11 +45,32 @@ export function MessageContent({content,attachment,preview=true,roleMentions=[],
   const links=[...new Set(parts.filter(p=>/^https?:\/\//.test(p)))].slice(0,4)
   return <div className="ct-message-content"><p>{parts.map((p,i)=>/^https?:\/\//.test(p)?<a key={i} href={p} target="_blank" rel="noopener noreferrer">{p}</a>:renderText(p))}</p>{preview&&links.map(link=>{try{const url=new URL(link);return <a className="ct-link-preview" key={link} href={url.href} target="_blank" rel="noopener noreferrer">{/\.(png|jpe?g|gif|webp)$/i.test(url.pathname)&&<ImagePreview src={url.href} name="Imagem compartilhada"/>}<strong>{url.hostname}</strong><small>{url.pathname==='/'?'Abrir site':decodeURI(url.pathname)}</small></a>}catch{return null}})}{attachment&&<AttachmentPreview attachment={attachment} preview={preview}/>}</div>
 }
+function AiCodeBlock({language,code}:{language:string;code:string}){
+  const [copied,setCopied]=useState(false)
+  const copy=async()=>{
+    try{
+      await navigator.clipboard.writeText(code)
+      setCopied(true)
+      setTimeout(()=>setCopied(false),2000)
+    }catch{/* ignore */}
+  }
+  return <div className="ct-ai-code">
+    <div className="ct-ai-code-header">
+      <small>{language||"código"}</small>
+      <button type="button" className="ct-ai-code-copy" aria-label="Copiar código" title="Copiar código" onClick={()=>void copy()}>
+        <ControlIcon name={copied?"check":"copy"} size={12}/>
+        <span>{copied?"Copiado":"Copiar"}</span>
+      </button>
+    </div>
+    <pre><code>{code}</code></pre>
+  </div>
+}
 function AiText({content}:{content:string}){
   return <>{content.split(/(```[\s\S]*?```)/g).map((part,index)=>{
-    if(!part.startsWith('```')||!part.endsWith('```'))return <MessageContent key={index} content={part} preview={false}/>
-    const text=part.slice(3,-3),breakAt=text.indexOf('\n'),language=breakAt>=0?text.slice(0,breakAt).trim():''
-    return <div className="ct-ai-code" key={index}>{language&&<small>{language}</small>}<pre><code>{breakAt>=0?text.slice(breakAt+1):text}</code></pre></div>
+    if(!part.startsWith("```")||!part.endsWith("```"))return <MessageContent key={index} content={part} preview={false}/>
+    const text=part.slice(3,-3),breakAt=text.indexOf("\n"),language=breakAt>=0?text.slice(0,breakAt).trim():""
+    const code=breakAt>=0?text.slice(breakAt+1):text
+    return <AiCodeBlock key={index} language={language} code={code}/>
   })}</>
 }
 export function ChatComposer({onSend,placeholder,disabled=false,channelId,ai}:{onSend:(text:string,attachment?:Attachment,options?:MessageOptions)=>Promise<void>;placeholder:string;disabled?:boolean;channelId?:string;ai?:{onPrompt:(text:string,fileIds:string[],limits:{contextTokens:number;maxOutputTokens:number},provider:AiProviderId,model:string)=>Promise<void>;active:boolean;endpoints:NonNullable<import('../store/useAppStore').Channel['aiEndpoints']>}}) {

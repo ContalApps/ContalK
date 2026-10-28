@@ -1,4 +1,4 @@
-import { SquareTerminal, FolderOpen, ArrowDown, Palette, User, Info, ArrowLeft, ArrowRight, ArrowUp, ArrowUpRight, AudioLines, Bell, Calendar, ChartNoAxesColumn, Check, ChevronDown, ChevronRight, CircleHelp, Ellipsis, Hash, HeadphoneOff, Headphones, House, Image, Maximize2, MessageCircle, MessagesSquare, Mic, MicOff, Minimize2, Monitor, MonitorUp, Paperclip, PanelLeft, Pencil, PhoneOff, Pin, Plus, RefreshCw, Rocket, Search, Settings, Signal, Sparkles, SmilePlus, SquarePen, Trash2, TriangleAlert, Users, Video, VideoOff, Volume2, VolumeX, X, Megaphone, Download, type LucideIcon } from 'lucide-react'
+import { Copy, SquareTerminal, FolderOpen, ArrowDown, Palette, User, Info, ArrowLeft, ArrowRight, ArrowUp, ArrowUpRight, AudioLines, Bell, Calendar, ChartNoAxesColumn, Check, ChevronDown, ChevronRight, CircleHelp, Ellipsis, Hash, HeadphoneOff, Headphones, House, Image, Maximize2, MessageCircle, MessagesSquare, Mic, MicOff, Minimize2, Monitor, MonitorUp, Paperclip, PanelLeft, Pencil, PhoneOff, Pin, Plus, RefreshCw, Rocket, Search, Settings, Signal, Sparkles, SmilePlus, SquarePen, Trash2, TriangleAlert, Users, Video, VideoOff, Volume2, VolumeX, X, Megaphone, Download, type LucideIcon } from 'lucide-react'
 
 // Mesma família de ícones (Lucide, traço arredondado) usada no app Codex.
 const icons = {
@@ -8,7 +8,7 @@ const icons = {
   home: [House], chat: [MessageCircle], friends: [Users], search: [Search], voice: [AudioLines], arrow: [ArrowUpRight], close: [X],
   send: [ArrowUp], hash: [Hash], plus: [Plus], back: [ArrowLeft], forward: [ArrowRight], help: [CircleHelp], bell: [Bell], check: [Check],
   ai: [Sparkles], compose: [SquarePen], sidebar: [PanelLeft], expand: [Maximize2], shrink: [Minimize2], refresh: [RefreshCw], warning: [TriangleAlert],
-  terminal: [SquareTerminal], folder: [FolderOpen], rocket: [Rocket], up: [ArrowUp], down: [ArrowDown], palette: [Palette], user: [User], info: [Info], ear: [AudioLines], more: [Ellipsis], attach: [Paperclip], image: [Image], edit: [Pencil], download: [Download],
+  terminal: [SquareTerminal], folder: [FolderOpen], rocket: [Rocket], up: [ArrowUp], down: [ArrowDown], palette: [Palette], user: [User], info: [Info], ear: [AudioLines], more: [Ellipsis], attach: [Paperclip], image: [Image], edit: [Pencil], download: [Download], copy: [Copy],
 } satisfies Record<string, LucideIcon[]>
 
 export type ControlIconName = keyof typeof icons
