@@ -85,6 +85,11 @@ export interface DesktopBridge {
   browserType?:(selector:string,text:string,submit?:boolean)=>Promise<{success:boolean;message:string;value?:string}>
   browserReadContent?:(selector?:string)=>Promise<{title:string;url:string;content:string;links:Array<{text:string;href:string}>;forms:Array<{name:string;type:string;placeholder:string}>}>
   browserScreenshot?:()=>Promise<{src:string;url:string;title:string}>
+  browserSanitizedScreenshot?:()=>Promise<{src:string;url:string;title:string;hasPasswordField:boolean}>
+  browserClickAt?:(xPercent:number,yPercent:number)=>Promise<{success:boolean;tag?:string;text?:string;message?:string}>
+  browserGoBack?:()=>Promise<boolean>
+  browserGoForward?:()=>Promise<boolean>
+  browserReload?:()=>Promise<boolean>
   browserScroll?:(direction?:'up'|'down',amount?:number)=>Promise<{success:boolean;direction:string}>
   browserEvaluate?:(script:string)=>Promise<any>
   browserGetStatus?:()=>Promise<any>

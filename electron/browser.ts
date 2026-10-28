@@ -366,6 +366,187 @@ export const browserManager = {
     }
   },
 
+  async sanitizedScreenshot(): Promise<{
+    src: string
+    url: string
+    title: string
+    hasPasswordField: boolean
+  }> {
+    if (!browserWindow || browserWindow.isDestroyed()) {
+      return {
+        src: '',
+        url: 'about:blank',
+        title: '',
+        hasPasswordField: false
+      }
+    }
+    const win = browserWindow
+
+    let hasPasswordField = false
+    try {
+      hasPasswordField = await win.webContents.executeJavaScript(`
+        (() => {
+          try {
+            const pwdInputs = Array.from(document.querySelectorAll(
+              'input[type="password"], input[autocomplete*="password"], input[name*="password" i], input[id*="password" i]'
+            ));
+            if (pwdInputs.length === 0) return false;
+
+            // Insere estilo de proteção visual contra vazamento
+            let styleEl = document.getElementById('contalk-pwd-shield-style');
+            if (!styleEl) {
+              styleEl = document.createElement('style');
+              styleEl.id = 'contalk-pwd-shield-style';
+              styleEl.textContent = \`
+                .ct-pwd-shielded {
+                  filter: blur(14px) !important;
+                  background-color: #020617 !important;
+                  color: transparent !important;
+                  caret-color: transparent !important;
+                  text-shadow: 0 0 16px rgba(0,0,0,0.9) !important;
+                  user-select: none !important;
+                }
+              \`;
+              document.head.appendChild(styleEl);
+            }
+
+            pwdInputs.forEach(el => el.classList.add('ct-pwd-shielded'));
+            return true;
+          } catch {
+            return false;
+          }
+        })()
+      `)
+    } catch {
+      // Ignora erro de script se a página não permitir
+    }
+
+    let src = ''
+    try {
+      const image = await win.webContents.capturePage()
+      src = image.toDataURL()
+    } catch {
+      src = ''
+    }
+
+    // Remove imediatamente a classe de proteção no host para que ele continue usando normalmente se desejar
+    try {
+      if (hasPasswordField && !win.isDestroyed()) {
+        await win.webContents.executeJavaScript(`
+          (() => {
+            try {
+              document.querySelectorAll('.ct-pwd-shielded').forEach(el => el.classList.remove('ct-pwd-shielded'));
+            } catch {}
+          })()
+        `)
+      }
+    } catch {
+      // ignore
+    }
+
+    return {
+      src,
+      url: win.webContents.getURL(),
+      title: win.webContents.getTitle(),
+      hasPasswordField: Boolean(hasPasswordField)
+    }
+  },
+
+  async clickAt(xPercent: number, yPercent: number): Promise<{ success: boolean; tag?: string; text?: string; message?: string }> {
+    if (!browserWindow || browserWindow.isDestroyed()) {
+      return { success: false, message: 'Navegador não está aberto.' }
+    }
+    const win = browserWindow
+
+    const jsCode = `
+      (() => {
+        try {
+          const x = Math.round((window.innerWidth * ${Math.max(0, Math.min(100, xPercent))}) / 100);
+          const y = Math.round((window.innerHeight * ${Math.max(0, Math.min(100, yPercent))}) / 100);
+          const el = document.elementFromPoint(x, y);
+
+          // Wave visual indicator
+          const wave = document.createElement('div');
+          wave.style.position = 'fixed';
+          wave.style.left = (x - 14) + 'px';
+          wave.style.top = (y - 14) + 'px';
+          wave.style.width = '28px';
+          wave.style.height = '28px';
+          wave.style.borderRadius = '50%';
+          wave.style.border = '2px solid #38bdf8';
+          wave.style.backgroundColor = 'rgba(56, 189, 248, 0.35)';
+          wave.style.boxShadow = '0 0 15px rgba(56, 189, 248, 0.6)';
+          wave.style.pointerEvents = 'none';
+          wave.style.zIndex = '2147483647';
+          wave.style.transition = 'all 0.45s cubic-bezier(0.1, 0.9, 0.2, 1)';
+          document.body.appendChild(wave);
+          requestAnimationFrame(() => {
+            wave.style.transform = 'scale(2.2)';
+            wave.style.opacity = '0';
+          });
+          setTimeout(() => wave.remove(), 500);
+
+          if (!el) {
+            return { success: false, message: 'Nenhum elemento no ponto' };
+          }
+
+          // Se for campo de senha, não permite que participantes cliquem para focar/interagir
+          if (el.tagName === 'INPUT' && (el as HTMLInputElement).type === 'password') {
+            return { success: false, message: 'Campo de senha protegido contra interação' };
+          }
+
+          // Disparar mousedown, mouseup, click
+          try {
+            el.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true, clientX: x, clientY: y, view: window }));
+            el.dispatchEvent(new MouseEvent('mouseup', { bubbles: true, cancelable: true, clientX: x, clientY: y, view: window }));
+          } catch {}
+          el.click();
+          if (typeof el.focus === 'function') {
+            el.focus();
+          }
+
+          return {
+            success: true,
+            tag: el.tagName,
+            text: (el.innerText || el.textContent || (el as HTMLInputElement).value || '').slice(0, 50).trim()
+          };
+        } catch (err) {
+          return { success: false, message: String(err) };
+        }
+      })()
+    `
+    const res = await win.webContents.executeJavaScript(jsCode)
+    notifyStatus(`Clique colaborativo em (${xPercent.toFixed(1)}%, ${yPercent.toFixed(1)}%)`)
+    return res
+  },
+
+  goBack(): boolean {
+    if (browserWindow && !browserWindow.isDestroyed() && browserWindow.webContents.canGoBack()) {
+      browserWindow.webContents.goBack()
+      notifyStatus('Voltou página')
+      return true
+    }
+    return false
+  },
+
+  goForward(): boolean {
+    if (browserWindow && !browserWindow.isDestroyed() && browserWindow.webContents.canGoForward()) {
+      browserWindow.webContents.goForward()
+      notifyStatus('Avançou página')
+      return true
+    }
+    return false
+  },
+
+  reload(): boolean {
+    if (browserWindow && !browserWindow.isDestroyed()) {
+      browserWindow.webContents.reload()
+      notifyStatus('Recarregou página')
+      return true
+    }
+    return false
+  },
+
   async scroll(direction: 'up' | 'down' = 'down', amount = 400): Promise<{ success: boolean; direction: string }> {
     if (!browserWindow || browserWindow.isDestroyed()) {
       return { success: false, direction }
@@ -449,6 +630,31 @@ export function setupInternalBrowser(mainWindow: BrowserWindow) {
     return browserManager.screenshot()
   })
 
+  ipcMain.handle('browser-sanitized-screenshot', async (event) => {
+    trusted(event)
+    return browserManager.sanitizedScreenshot()
+  })
+
+  ipcMain.handle('browser-click-at', async (event, xPercent: unknown, yPercent: unknown) => {
+    trusted(event)
+    return browserManager.clickAt(Number(xPercent), Number(yPercent))
+  })
+
+  ipcMain.handle('browser-go-back', async (event) => {
+    trusted(event)
+    return browserManager.goBack()
+  })
+
+  ipcMain.handle('browser-go-forward', async (event) => {
+    trusted(event)
+    return browserManager.goForward()
+  })
+
+  ipcMain.handle('browser-reload', async (event) => {
+    trusted(event)
+    return browserManager.reload()
+  })
+
   ipcMain.handle('browser-scroll', async (event, direction?: unknown, amount?: unknown) => {
     trusted(event)
     return browserManager.scroll(direction === 'up' ? 'up' : 'down', Number(amount) || 400)
@@ -491,6 +697,11 @@ export function setupInternalBrowser(mainWindow: BrowserWindow) {
       'browser-type',
       'browser-read-content',
       'browser-screenshot',
+      'browser-sanitized-screenshot',
+      'browser-click-at',
+      'browser-go-back',
+      'browser-go-forward',
+      'browser-reload',
       'browser-scroll',
       'browser-evaluate',
       'browser-get-status',
