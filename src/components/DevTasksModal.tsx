@@ -1,15 +1,39 @@
 import { useState, useId } from 'react'
 import { useDevStore, type PriorityLevel } from '../store/useDevStore'
 import { ControlIcon } from './ControlIcon'
+import { DevProjectTabs, type DevProjectTabId } from './DevProjectTabs'
 
-export function DevTasksModal({ onClose, onOpenAtlassian }: { onClose: () => void; onOpenAtlassian?: () => void }) {
-  const { todoTasks, addTodoTask, toggleTodoTask, deleteTodoTask, atlassian, syncAtlassianData, atlassianSyncing } = useDevStore()
+export function DevTasksModal({
+  onClose,
+  onOpenAtlassian,
+  onSwitchTab
+}: {
+  onClose: () => void
+  onOpenAtlassian?: () => void
+  onSwitchTab?: (tab: DevProjectTabId) => void
+}) {
+  const {
+    todoTasks,
+    addTodoTask,
+    toggleTodoTask,
+    deleteTodoTask,
+    reorderTodoTasks,
+    atlassian,
+    syncAtlassianData,
+    atlassianSyncing
+  } = useDevStore()
+
   const [filter, setFilter] = useState<'all' | 'pending' | 'completed'>('all')
   const [search, setSearch] = useState('')
   const [newTitle, setNewTitle] = useState('')
   const [newPriority, setNewPriority] = useState<PriorityLevel>('medium')
   const [newAssignee, setNewAssignee] = useState('')
   const taskInputId = useId()
+
+  // Drag and Drop state
+  const [draggingTaskId, setDraggingTaskId] = useState<string | null>(null)
+  const [dragOverTaskId, setDragOverTaskId] = useState<string | null>(null)
+  const [dropPosition, setDropPosition] = useState<'before' | 'after'>('before')
 
   const totalCount = todoTasks.length
   const completedCount = todoTasks.filter(t => t.completed).length
@@ -49,8 +73,8 @@ export function DevTasksModal({ onClose, onOpenAtlassian }: { onClose: () => voi
       <section className="ct-dev-modal-panel ct-tasks-dialog" role="dialog" aria-modal="true" onClick={e => e.stopPropagation()}>
         <header className="ct-dev-modal-header">
           <div>
-            <h2><ControlIcon name="tasks" size={16}/> Tarefas — Listas de Acompanhamento</h2>
-            <p>Monitore pendências, itens de sprint e tarefas do Jira em formato checklist ágil.</p>
+            <h2><ControlIcon name="tasks" size={16}/> Projetos — Tarefas & Checklist Ágil</h2>
+            <p>Monitore pendências, itens de sprint e arraste as tarefas para reordenar prioridades.</p>
           </div>
           <div className="ct-dev-header-actions">
             {atlassian?.connected ? (
@@ -79,6 +103,9 @@ export function DevTasksModal({ onClose, onOpenAtlassian }: { onClose: () => voi
             </button>
           </div>
         </header>
+
+        {/* Tab navigation for Projects Hub */}
+        <DevProjectTabs activeTab="tasks" onSwitchTab={onSwitchTab} />
 
         {/* Progress bar */}
         <div className="ct-tasks-progress-banner">
@@ -164,7 +191,7 @@ export function DevTasksModal({ onClose, onOpenAtlassian }: { onClose: () => voi
           </button>
         </form>
 
-        {/* Task List items */}
+        {/* Task List items with Drag and Drop */}
         <div className="ct-tasks-scroll-container">
           {filteredTasks.length === 0 ? (
             <div className="ct-empty-state">
@@ -174,8 +201,53 @@ export function DevTasksModal({ onClose, onOpenAtlassian }: { onClose: () => voi
             <ul className="ct-tasks-list">
               {filteredTasks.map(task => {
                 const p = priorityMeta[task.priority] || priorityMeta.medium
+                const isDragging = draggingTaskId === task.id
+                const isTargetBefore = dragOverTaskId === task.id && dropPosition === 'before'
+                const isTargetAfter = dragOverTaskId === task.id && dropPosition === 'after'
+
                 return (
-                  <li key={task.id} className={`ct-task-item ${task.completed ? 'is-completed' : ''}`}>
+                  <li
+                    key={task.id}
+                    className={`ct-task-item ${task.completed ? 'is-completed' : ''} ${isDragging ? 'is-dragging' : ''} ${isTargetBefore ? 'is-drop-target-before' : ''} ${isTargetAfter ? 'is-drop-target-after' : ''}`}
+                    draggable
+                    onDragStart={e => {
+                      e.dataTransfer.setData('text/plain', task.id)
+                      e.dataTransfer.effectAllowed = 'move'
+                      setDraggingTaskId(task.id)
+                    }}
+                    onDragEnd={() => {
+                      setDraggingTaskId(null)
+                      setDragOverTaskId(null)
+                    }}
+                    onDragOver={e => {
+                      e.preventDefault()
+                      e.dataTransfer.dropEffect = 'move'
+                      const rect = e.currentTarget.getBoundingClientRect()
+                      const isBottom = e.clientY > rect.top + rect.height / 2
+                      const nextPos = isBottom ? 'after' : 'before'
+                      if (dragOverTaskId !== task.id || dropPosition !== nextPos) {
+                        setDragOverTaskId(task.id)
+                        setDropPosition(nextPos)
+                      }
+                    }}
+                    onDragLeave={e => {
+                      if (e.currentTarget.contains(e.relatedTarget as Node)) return
+                      if (dragOverTaskId === task.id) setDragOverTaskId(null)
+                    }}
+                    onDrop={e => {
+                      e.preventDefault()
+                      const sourceId = e.dataTransfer.getData('text/plain') || draggingTaskId
+                      if (sourceId && sourceId !== task.id) {
+                        reorderTodoTasks(sourceId, task.id, dropPosition)
+                      }
+                      setDraggingTaskId(null)
+                      setDragOverTaskId(null)
+                    }}
+                  >
+                    <span className="ct-task-drag-handle" title="Arraste para reordenar prioridade">
+                      <ControlIcon name="grip" size={13}/>
+                    </span>
+
                     <label className="ct-task-checkbox-label">
                       <input
                         type="checkbox"

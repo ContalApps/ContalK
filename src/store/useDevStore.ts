@@ -113,7 +113,8 @@ interface DevState {
   syncAtlassianData: () => Promise<void>
 
   addKanbanCard: (card: Omit<KanbanCard, 'id' | 'createdAt'>) => void
-  moveKanbanCard: (id: string, newColumn: KanbanColumn) => void
+  moveKanbanCard: (id: string, newColumn: KanbanColumn, targetIndex?: number) => void
+  reorderKanbanCard: (sourceId: string, targetId: string, position?: 'before' | 'after') => void
   updateKanbanCard: (id: string, patch: Partial<KanbanCard>) => void
   deleteKanbanCard: (id: string) => void
 
@@ -121,11 +122,13 @@ interface DevState {
   toggleTodoTask: (id: string) => void
   deleteTodoTask: (id: string) => void
   updateTodoTask: (id: string, patch: Partial<TodoTask>) => void
+  reorderTodoTasks: (sourceId: string, targetId: string, position?: 'before' | 'after') => void
 
   createDevDoc: (title: string, category?: string) => string
   updateDevDoc: (id: string, patch: Partial<DevDoc>) => void
   deleteDevDoc: (id: string) => void
   setActiveDocId: (id: string | null) => void
+  reorderDevDocs: (sourceId: string, targetId: string, position?: 'before' | 'after') => void
 }
 
 const STORAGE_KEY = 'contalk-dev-hub-v2'
@@ -773,10 +776,56 @@ Este documento foi importado e está conectado à sua conta Atlassian. Você pod
       persistState(get())
     },
 
-    moveKanbanCard: (id, newColumn) => {
-      set({
-        kanbanCards: get().kanbanCards.map(c => c.id === id ? { ...c, column: newColumn } : c)
-      })
+    moveKanbanCard: (id, newColumn, targetIndex) => {
+      const cards = [...get().kanbanCards]
+      const cardIdx = cards.findIndex(c => c.id === id)
+      if (cardIdx === -1) return
+      const [card] = cards.splice(cardIdx, 1)
+      card.column = newColumn
+
+      if (typeof targetIndex === 'number' && targetIndex >= 0) {
+        let count = 0
+        let insertPos = cards.length
+        for (let i = 0; i < cards.length; i++) {
+          if (cards[i].column === newColumn) {
+            if (count === targetIndex) {
+              insertPos = i
+              break
+            }
+            count++
+          }
+        }
+        cards.splice(insertPos, 0, card)
+      } else {
+        let lastColIdx = -1
+        for (let i = cards.length - 1; i >= 0; i--) {
+          if (cards[i].column === newColumn) {
+            lastColIdx = i
+            break
+          }
+        }
+        if (lastColIdx !== -1) {
+          cards.splice(lastColIdx + 1, 0, card)
+        } else {
+          cards.push(card)
+        }
+      }
+      set({ kanbanCards: cards })
+      persistState(get())
+    },
+
+    reorderKanbanCard: (sourceId, targetId, position = 'before') => {
+      if (sourceId === targetId) return
+      const cards = [...get().kanbanCards]
+      const sourceIndex = cards.findIndex(c => c.id === sourceId)
+      const targetCard = cards.find(c => c.id === targetId)
+      if (sourceIndex === -1 || !targetCard) return
+      const [sourceCard] = cards.splice(sourceIndex, 1)
+      sourceCard.column = targetCard.column
+      const newTargetIndex = cards.findIndex(c => c.id === targetId)
+      const insertIndex = position === 'after' ? newTargetIndex + 1 : newTargetIndex
+      cards.splice(insertIndex, 0, sourceCard)
+      set({ kanbanCards: cards })
       persistState(get())
     },
 
@@ -824,6 +873,20 @@ Este documento foi importado e está conectado à sua conta Atlassian. Você pod
       persistState(get())
     },
 
+    reorderTodoTasks: (sourceId, targetId, position = 'before') => {
+      if (sourceId === targetId) return
+      const tasks = [...get().todoTasks]
+      const sourceIndex = tasks.findIndex(t => t.id === sourceId)
+      const targetIndex = tasks.findIndex(t => t.id === targetId)
+      if (sourceIndex === -1 || targetIndex === -1) return
+      const [moved] = tasks.splice(sourceIndex, 1)
+      const newTargetIndex = tasks.findIndex(t => t.id === targetId)
+      const insertIndex = position === 'after' ? newTargetIndex + 1 : newTargetIndex
+      tasks.splice(insertIndex, 0, moved)
+      set({ todoTasks: tasks })
+      persistState(get())
+    },
+
     createDevDoc: (title, category = 'Geral') => {
       const newDoc: DevDoc = {
         id: `doc-${Date.now()}`,
@@ -858,6 +921,20 @@ Este documento foi importado e está conectado à sua conta Atlassian. Você pod
 
     setActiveDocId: id => {
       set({ activeDocId: id })
+      persistState(get())
+    },
+
+    reorderDevDocs: (sourceId, targetId, position = 'before') => {
+      if (sourceId === targetId) return
+      const docs = [...get().devDocs]
+      const sourceIndex = docs.findIndex(d => d.id === sourceId)
+      const targetIndex = docs.findIndex(d => d.id === targetId)
+      if (sourceIndex === -1 || targetIndex === -1) return
+      const [moved] = docs.splice(sourceIndex, 1)
+      const newTargetIndex = docs.findIndex(d => d.id === targetId)
+      const insertIndex = position === 'after' ? newTargetIndex + 1 : newTargetIndex
+      docs.splice(insertIndex, 0, moved)
+      set({ devDocs: docs })
       persistState(get())
     }
   }

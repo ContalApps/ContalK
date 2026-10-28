@@ -1,8 +1,17 @@
 import { useState, useEffect } from 'react'
 import { useDevStore } from '../store/useDevStore'
 import { ControlIcon } from './ControlIcon'
+import { DevProjectTabs, type DevProjectTabId } from './DevProjectTabs'
 
-export function DevDocsModal({ onClose, onOpenAtlassian }: { onClose: () => void; onOpenAtlassian?: () => void }) {
+export function DevDocsModal({
+  onClose,
+  onOpenAtlassian,
+  onSwitchTab
+}: {
+  onClose: () => void
+  onOpenAtlassian?: () => void
+  onSwitchTab?: (tab: DevProjectTabId) => void
+}) {
   const {
     devDocs,
     activeDocId,
@@ -10,6 +19,7 @@ export function DevDocsModal({ onClose, onOpenAtlassian }: { onClose: () => void
     createDevDoc,
     updateDevDoc,
     deleteDevDoc,
+    reorderDevDocs,
     atlassian,
     syncAtlassianData,
     atlassianSyncing
@@ -18,6 +28,11 @@ export function DevDocsModal({ onClose, onOpenAtlassian }: { onClose: () => void
   const [search, setSearch] = useState('')
   const [viewMode, setViewMode] = useState<'edit' | 'preview' | 'split'>('edit')
   const [copied, setCopied] = useState(false)
+
+  // Drag and drop state
+  const [draggingDocId, setDraggingDocId] = useState<string | null>(null)
+  const [dragOverDocId, setDragOverDocId] = useState<string | null>(null)
+  const [dropPosition, setDropPosition] = useState<'before' | 'after'>('before')
 
   useEffect(() => {
     const handleKey = (e: KeyboardEvent) => {
@@ -185,6 +200,9 @@ export function DevDocsModal({ onClose, onOpenAtlassian }: { onClose: () => void
           </div>
         </header>
 
+        {/* Tab navigation for Projects Hub */}
+        <DevProjectTabs activeTab="docs" onSwitchTab={onSwitchTab} />
+
         {/* Two-column Container */}
         <div className="ct-docs-body-layout">
           {/* Left Column: Doc List & Search */}
@@ -214,12 +232,53 @@ export function DevDocsModal({ onClose, onOpenAtlassian }: { onClose: () => void
               ) : (
                 filteredDocs.map(doc => {
                   const isActive = activeDoc?.id === doc.id
+                  const isDragging = draggingDocId === doc.id
+                  const isTargetBefore = dragOverDocId === doc.id && dropPosition === 'before'
+                  const isTargetAfter = dragOverDocId === doc.id && dropPosition === 'after'
+
                   return (
                     <div
                       key={doc.id}
-                      className={`ct-docs-nav-item ${isActive ? 'is-active' : ''}`}
+                      className={`ct-docs-nav-item ${isActive ? 'is-active' : ''} ${isDragging ? 'is-dragging' : ''} ${isTargetBefore ? 'is-drop-target-before' : ''} ${isTargetAfter ? 'is-drop-target-after' : ''}`}
                       onClick={() => setActiveDocId(doc.id)}
+                      draggable
+                      onDragStart={e => {
+                        e.dataTransfer.setData('text/plain', doc.id)
+                        e.dataTransfer.effectAllowed = 'move'
+                        setDraggingDocId(doc.id)
+                      }}
+                      onDragEnd={() => {
+                        setDraggingDocId(null)
+                        setDragOverDocId(null)
+                      }}
+                      onDragOver={e => {
+                        e.preventDefault()
+                        e.dataTransfer.dropEffect = 'move'
+                        const rect = e.currentTarget.getBoundingClientRect()
+                        const isBottom = e.clientY > rect.top + rect.height / 2
+                        const nextPos = isBottom ? 'after' : 'before'
+                        if (dragOverDocId !== doc.id || dropPosition !== nextPos) {
+                          setDragOverDocId(doc.id)
+                          setDropPosition(nextPos)
+                        }
+                      }}
+                      onDragLeave={e => {
+                        if (e.currentTarget.contains(e.relatedTarget as Node)) return
+                        if (dragOverDocId === doc.id) setDragOverDocId(null)
+                      }}
+                      onDrop={e => {
+                        e.preventDefault()
+                        const sourceId = e.dataTransfer.getData('text/plain') || draggingDocId
+                        if (sourceId && sourceId !== doc.id) {
+                          reorderDevDocs(sourceId, doc.id, dropPosition)
+                        }
+                        setDraggingDocId(null)
+                        setDragOverDocId(null)
+                      }}
                     >
+                      <span className="ct-doc-drag-handle" title="Arraste para reorganizar documentos">
+                        <ControlIcon name="grip" size={12}/>
+                      </span>
                       <div className="ct-docs-nav-text">
                         <div className="ct-docs-nav-title">{doc.title || 'Sem Título'}</div>
                         <div className="ct-docs-nav-meta">

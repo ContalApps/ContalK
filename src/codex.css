@@ -714,6 +714,13 @@ body { background:#000; color:#ededed; font-family:'Segoe UI',system-ui,sans-ser
   .ct-atlassian-connect-btn { background:var(--cx-hover); color:var(--cx-fg-2); border:1px solid var(--cx-border-light); }
   .ct-atlassian-connect-btn:hover { background:var(--cx-active); color:var(--cx-fg); }
 
+  /* Hub de Projetos: Abas de Navegação Compartilhada */
+  .ct-project-tabs-nav { display:flex; gap:6px; padding:8px 20px; background:var(--cx-bg); border-bottom:1px solid var(--cx-border-light); flex-shrink:0; overflow-x:auto; }
+  .ct-project-tab-btn { display:inline-flex; align-items:center; gap:7px; padding:6px 14px; border-radius:6px; border:1px solid transparent; background:transparent; color:var(--cx-fg-3); font-size:12px; font-weight:500; cursor:pointer; transition:all 0.15s ease; white-space:nowrap; }
+  .ct-project-tab-btn:hover { background:var(--cx-hover); color:var(--cx-fg); }
+  .ct-project-tab-btn.is-active { background:var(--cx-elevated); color:var(--cx-fg); border-color:var(--cx-border-light); box-shadow:0 1px 3px rgba(0,0,0,0.2); }
+  .ct-project-tab-badge { display:inline-block; padding:1px 6px; border-radius:10px; background:rgba(255, 255, 255, 0.08); font-size:10px; font-weight:600; }
+
   /* Quadro Kanban */
   .ct-kanban-dialog { max-width:1200px; }
   .ct-kanban-toolbar { display:flex; align-items:center; justify-content:space-between; padding:10px 20px; background:var(--cx-bg); border-bottom:1px solid var(--cx-border-light); flex-shrink:0; }
@@ -729,8 +736,15 @@ body { background:#000; color:#ededed; font-family:'Segoe UI',system-ui,sans-ser
   .ct-kanban-col-header>div { display:flex; align-items:center; gap:6px; }
   .ct-kanban-col-count { display:inline-block; padding:1px 6px; border-radius:10px; background:#ffffff14; font-size:11px; }
   .ct-kanban-col-body { flex:1; min-height:0; overflow-y:auto; padding:10px; display:flex; flex-direction:column; gap:8px; }
-  .ct-kanban-card { padding:10px; border-radius:8px; background:var(--cx-elevated); border:1px solid var(--cx-border-light); display:flex; flex-direction:column; gap:6px; box-shadow:0 2px 4px rgba(0,0,0,0.2); transition:transform 0.1s ease, border-color 0.1s ease; }
+  .ct-kanban-card { padding:10px; border-radius:8px; background:var(--cx-elevated); border:1px solid var(--cx-border-light); display:flex; flex-direction:column; gap:6px; box-shadow:0 2px 4px rgba(0,0,0,0.2); transition:transform 0.1s ease, border-color 0.1s ease; cursor:grab; user-select:none; }
   .ct-kanban-card:hover { border-color:var(--cx-border); transform:translateY(-1px); }
+  .ct-kanban-card.is-dragging { opacity:0.4; transform:scale(0.98); border:1px dashed var(--cx-accent); cursor:grabbing; }
+  .ct-kanban-column.is-drag-over { border-color:#58a6ff; background:rgba(88,166,255,0.05); box-shadow:0 0 14px rgba(88,166,255,0.15) inset; }
+  .ct-kanban-card.is-drop-target-before { border-top:2px solid #58a6ff; }
+  .ct-kanban-card.is-drop-target-after { border-bottom:2px solid #58a6ff; }
+  .ct-kanban-card-left-header { display:flex; align-items:center; gap:6px; }
+  .ct-card-drag-handle { display:grid; place-items:center; color:var(--cx-fg-3); cursor:grab; opacity:0.5; transition:opacity 0.15s ease; padding:1px; }
+  .ct-kanban-card:hover .ct-card-drag-handle { opacity:1; color:var(--cx-fg-2); }
   .ct-kanban-card-top { display:flex; align-items:center; justify-content:space-between; }
   .ct-kanban-priority-badge { font-size:10px; padding:1px 6px; border-radius:4px; font-weight:600; text-transform:uppercase; }
   .ct-kanban-card-del { background:none; border:0; color:var(--cx-fg-3); cursor:pointer; padding:2px; border-radius:3px; display:grid; place-items:center; }
@@ -765,8 +779,13 @@ body { background:#000; color:#ededed; font-family:'Segoe UI',system-ui,sans-ser
   .ct-assignee-input { width:140px; }
   .ct-tasks-scroll-container { flex:1; min-height:0; overflow-y:auto; padding:12px 20px; background:var(--cx-bg); }
   .ct-tasks-list { list-style:none; margin:0; padding:0; display:flex; flex-direction:column; gap:6px; }
-  .ct-task-item { display:flex; align-items:center; gap:12px; padding:10px 14px; border-radius:8px; background:var(--cx-surface); border:1px solid var(--cx-border-light); transition:background 0.1s ease; }
+  .ct-task-item { display:flex; align-items:center; gap:10px; padding:10px 14px; border-radius:8px; background:var(--cx-surface); border:1px solid var(--cx-border-light); transition:background 0.1s ease, border-color 0.1s ease; cursor:grab; user-select:none; }
   .ct-task-item:hover { background:var(--cx-elevated); }
+  .ct-task-drag-handle { display:grid; place-items:center; color:var(--cx-fg-3); cursor:grab; opacity:0.4; transition:opacity 0.15s ease; flex-shrink:0; }
+  .ct-task-item:hover .ct-task-drag-handle { opacity:1; color:var(--cx-fg-2); }
+  .ct-task-item.is-dragging { opacity:0.35; transform:scale(0.99); border:1px dashed var(--cx-accent); cursor:grabbing; }
+  .ct-task-item.is-drop-target-before { border-top:2px solid #58a6ff; }
+  .ct-task-item.is-drop-target-after { border-bottom:2px solid #58a6ff; }
   .ct-task-item.is-completed .ct-task-title { text-decoration:line-through; color:var(--cx-fg-3); }
   .ct-task-checkbox-label { display:grid; place-items:center; cursor:pointer; }
   .ct-task-checkbox-label input { cursor:pointer; width:16px; height:16px; accent-color:#3fb950; }
@@ -788,9 +807,14 @@ body { background:#000; color:#ededed; font-family:'Segoe UI',system-ui,sans-ser
   .ct-docs-search-wrap { padding:0 14px 10px; }
   .ct-docs-search-wrap input { width:100%; height:28px; padding:0 8px; border-radius:6px; background:var(--cx-elevated); border:1px solid var(--cx-border-light); color:var(--cx-fg); font-size:12px; }
   .ct-docs-nav-list { flex:1; min-height:0; overflow-y:auto; padding:0 8px 12px; display:flex; flex-direction:column; gap:2px; }
-  .ct-docs-nav-item { display:flex; align-items:center; justify-content:space-between; padding:8px 10px; border-radius:6px; cursor:pointer; border:1px solid transparent; }
+  .ct-docs-nav-item { display:flex; align-items:center; justify-content:space-between; padding:8px 10px; border-radius:6px; cursor:pointer; border:1px solid transparent; user-select:none; }
   .ct-docs-nav-item:hover { background:var(--cx-hover); }
   .ct-docs-nav-item.is-active { background:var(--cx-elevated); border-color:var(--cx-border-light); }
+  .ct-doc-drag-handle { display:grid; place-items:center; color:var(--cx-fg-3); cursor:grab; opacity:0.4; transition:opacity 0.15s ease; margin-right:4px; flex-shrink:0; }
+  .ct-docs-nav-item:hover .ct-doc-drag-handle { opacity:1; color:var(--cx-fg-2); }
+  .ct-docs-nav-item.is-dragging { opacity:0.35; border:1px dashed var(--cx-accent); cursor:grabbing; }
+  .ct-docs-nav-item.is-drop-target-before { border-top:2px solid #58a6ff; }
+  .ct-docs-nav-item.is-drop-target-after { border-bottom:2px solid #58a6ff; }
   .ct-docs-nav-title { font-size:12px; font-weight:500; color:var(--cx-fg); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
   .ct-docs-nav-meta { display:flex; align-items:center; gap:4px; margin-top:2px; }
   .ct-docs-category-pill { font-size:10px; color:var(--cx-fg-3); }
@@ -832,6 +856,27 @@ body { background:#000; color:#ededed; font-family:'Segoe UI',system-ui,sans-ser
   .ct-doc-divider { height:1px; background:var(--cx-border-light); border:0; margin:16px 0; }
   .ct-doc-quote { border-left:3px solid var(--cx-accent); padding-left:12px; margin:8px 0; color:var(--cx-fg-3); font-style:italic; }
   .ct-doc-empty-line { height:8px; }
+
+  /* Roadmap de Projetos */
+  .ct-roadmap-dialog { max-width:920px; }
+  .ct-roadmap-body { flex:1; min-height:0; overflow-y:auto; padding:24px 28px; background:var(--cx-bg); }
+  .ct-roadmap-timeline { display:flex; flex-direction:column; }
+  .ct-roadmap-item { display:flex; gap:16px; position:relative; }
+  .ct-roadmap-marker { display:flex; flex-direction:column; align-items:center; width:20px; flex-shrink:0; }
+  .ct-roadmap-dot { width:14px; height:14px; border-radius:50%; border:2px solid var(--cx-border); background:var(--cx-surface); z-index:1; margin-top:3px; }
+  .ct-roadmap-item.ct-status-released .ct-roadmap-dot { background:#3fb950; border-color:#3fb950; box-shadow:0 0 10px rgba(63,185,80,0.5); }
+  .ct-roadmap-item.ct-status-in-progress .ct-roadmap-dot { background:#58a6ff; border-color:#58a6ff; box-shadow:0 0 10px rgba(88,166,255,0.5); }
+  .ct-roadmap-item.ct-status-planned .ct-roadmap-dot { background:transparent; border-color:#8b949e; }
+  .ct-roadmap-line { width:2px; flex:1; background:var(--cx-border-light); margin:4px 0; min-height:36px; }
+  .ct-roadmap-content { flex:1; padding:0 0 24px; }
+  .ct-roadmap-header { display:flex; align-items:center; gap:8px; margin-bottom:6px; }
+  .ct-roadmap-version { font-size:14px; font-weight:700; color:var(--cx-fg); font-family:monospace; }
+  .ct-roadmap-badge { font-size:10px; padding:2px 8px; border-radius:12px; font-weight:600; text-transform:uppercase; }
+  .ct-badge-released { background:rgba(63,185,80,0.15); color:#3fb950; border:1px solid rgba(63,185,80,0.3); }
+  .ct-badge-in-progress { background:rgba(88,166,255,0.15); color:#58a6ff; border:1px solid rgba(88,166,255,0.3); }
+  .ct-badge-planned { background:rgba(139,148,158,0.15); color:#8b949e; border:1px solid rgba(139,148,158,0.3); }
+  .ct-roadmap-content h3 { font-size:14px; font-weight:600; margin:0 0 8px; color:var(--cx-fg); }
+  .ct-roadmap-list { margin:0; padding-left:18px; display:flex; flex-direction:column; gap:4px; font-size:12px; color:var(--cx-fg-2); }
 
   /* Gerenciador Multi-Conta GitHub */
   .ct-gh-accounts-dialog { max-width:760px; }
