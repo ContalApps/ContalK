@@ -1,5 +1,17 @@
 # Retomada do ConTALK
 
+## Entrega 0.1.27: Codex Studio Colaborativo e Integração de Desenvolvimento
+
+Em `dev/caliari`, foram implementadas e concluídas todas as funcionalidades da central de desenvolvimento inspirada no Codex e integrada à comunicação em equipe:
+- DevCodeEditor interativo com suporte multi-abas, botão para novos arquivos (`+`), indentação com Tab, atalho `Ctrl+S` para salvamento no disco via IPC, indicador de modificado (`•`) e status "Salvo ✓".
+- Cursores remotos colaborativos com cores e tags identificadoras (Mariana, Rafael, Lucas) com sincronização de gutter e minimap.
+- Integração completa de arquivos reais do workspace via IPC (`workspaceListFiles`, `workspaceReadFile`, `workspaceWriteFile`).
+- Navegação interativa no painel lateral com árvore de arquivos sob "Código", e diálogos informativos para Pull Requests, Issues, Actions, Wiki, Visão Geral, Tarefas e Roadmap.
+- Terminal inferior com abas de categoria: Terminal (PTY nativo com xterm.js), Problemas (0 erros), Saída e Console de depuração.
+- Card do GitHub no painel direito com repositório `ContalApps/ContalK`, branch ativa e commit mais recente.
+- Validação: tipos, 306 testes e build de produção aprovados com 0 erros.
+- Preparação de release 0.1.27: package.json, package-lock.json e RELEASE_NOTES.md atualizados.
+
 ## Canais com IA sem modelo fixo
 
 Em dev/caliari, a criação de canais de texto permite ativar IA e cadastrar várias chaves pessoais, consultando os modelos. O canal guarda apenas a ativação e os endpoints compatíveis autorizados; cada solicitação escolhe seu provedor e modelo no compositor. Projetos privados funcionam sem modelo padrão e a configuração anterior continua legível. Não há execução de ferramentas ou comandos locais nesta entrega. A revisão precisa de PR, release e deploy da VPS para alcançar os usuários.

@@ -1,13 +1,13 @@
-# ConTALK 0.1.26
+# ConTALK 0.1.27
 
-Primeira fase da estrutura no estilo do Codex.
+Central de desenvolvimento colaborativa inspirada no Codex com integração completa ao Discord.
 
-- Nova barra de título com voltar e avançar, botão da barra lateral e os menus Arquivo, Editar e Exibir. No centro fica a busca (Ctrl+K); à direita, o sino, o painel direito e o seu perfil.
-- Arquivo: nova conversa, abrir pasta, sair da conta (apenas desconecta) e encerrar o ConTALK (fecha o aplicativo e todos os seus processos). Nova janela, conversa temporária e novo projeto aparecem como "em breve".
-- Editar: desfazer, refazer, recortar, copiar, colar, excluir, selecionar tudo e configurações.
-- Exibir: barra lateral (Ctrl+B), terminal (Ctrl+J), painel direito (Ctrl+Alt+B), barra de servidores, mensagens fixadas do canal, zoom e tela cheia (F11).
-- Terminal integrado no painel inferior: PowerShell no seu computador, aberto na pasta escolhida em "Abrir pasta", com várias abas e altura ajustável. Nada do terminal é enviado ao servidor.
-- Painel direito com a chamada de voz ativa (microfone, áudio, câmera, tela e sair), quem está falando, miniaturas ao vivo das telas compartilhadas e os participantes.
-- Na barra lateral, as seções Canais e Chamadas podem ser recolhidas, e o card da chamada mostra quantas pessoas estão nela e o tempo de chamada.
+- **DevCodeEditor Interativo:** Editor de código multi-abas com botão para criação de novos arquivos (`+`), suporte à tecla `Tab` para indentação (2 espaços), atalho `Ctrl+S` / `Cmd+S` para salvamento no disco via IPC, indicador de arquivo não salvo (`•`) e status "Salvo ✓".
+- **Presença em Tempo Real:** Cursores remotos colaborativos com tags coloridas (*Mariana*, *Rafael*, *Lucas*) e numeração de linhas sincronizada com rolagem e destaque da linha ativa.
+- **Sistema de Arquivos Real do Workspace:** Leitura e gravação direta de arquivos no computador através de IPC seguro no Electron (`workspaceListFiles`, `workspaceReadFile`, `workspaceWriteFile`).
+- **Navegação de Projetos e Repositórios:** Árvore de arquivos locais sob demanda no item "Código" da barra lateral, e modais interativos para Pull Requests, Issues, Actions, Wiki, Visão Geral, Tarefas e Roadmap.
+- **Terminal com Abas de Categoria:** Sessões PTY reais no Windows conectadas via `node-pty` + `xterm.js`, com categorias interativas: Terminal, Problemas (0 erros e avisos), Saída (logs de build e workspace) e Console de depuração.
+- **Painel Direito e GitHub:** Card do repositório `ContalApps/ContalK` com branch ativa (`dev/caliari`), hash e mensagem do commit mais recente, acompanhado das chamadas de voz ativas e miniaturas com badge `LIVE`.
+- **Inteligência Artificial:** Criação de canais com opção de IA e seleção dinâmica de modelos no compositor de mensagens, com blocos de código formatados e botão de cópia.
 
-Validação: tipos, testes e build; terminal, menus, tela cheia e encerramento testados no aplicativo desktop, inclusive no pacote gerado do instalador. A janela de "Abrir pasta" e o uso com uma conta conectada à comunidade não foram testados por automação.
+Validação: tipos (`tsc --noEmit && tsc -p tsconfig.electron.json`), 306 testes automatizados aprovados e build de produção do Vite e Electron gerado com sucesso.
