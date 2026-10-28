@@ -31,6 +31,7 @@ interface DevEditorProps {
   onSave?: () => Promise<void> | void
   cursors?: RemoteCursor[]
   isSaving?: boolean
+  onCloseEditor?: () => void
 }
 
 function detectLanguage(filePath: string): string {
@@ -70,7 +71,8 @@ export function DevCodeEditor({
   onChangeCode,
   onSave,
   cursors = [],
-  isSaving = false
+  isSaving = false,
+  onCloseEditor
 }: DevEditorProps) {
   const [copied, setCopied] = useState(false)
   const [saveToast, setSaveToast] = useState(false)
@@ -215,6 +217,17 @@ export function DevCodeEditor({
           >
             <ControlIcon name={copied ? 'check' : 'copy'} size={13} />
           </button>
+          {onCloseEditor && (
+            <button
+              type="button"
+              className="ct-dev-editor-sync"
+              title="Fechar editor (Ctrl+Alt+E)"
+              aria-label="Fechar editor"
+              onClick={onCloseEditor}
+            >
+              <ControlIcon name="close" size={13} />
+            </button>
+          )}
         </div>
       </div>
 
