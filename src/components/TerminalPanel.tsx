@@ -65,9 +65,24 @@ export function TerminalPanel({ onClose, request = 0 }: { onClose: () => void; r
   return <section className="ct-bottom-panel" aria-label="Terminal" style={{ ['--ct-panel-height' as string]: preferences.bottomPanelHeight + 'px' }}>
     <div className="ct-bottom-panel-resize" role="separator" aria-orientation="horizontal" aria-label="Redimensionar painel" onPointerDown={startResize}/>
     <header className="ct-bottom-panel-tabs">
-      <span className="ct-bottom-panel-title"><ControlIcon name="terminal" size={14}/>Terminal</span>
-      <div role="tablist" aria-label="Terminais abertos">{sessions.map((s, i) => <button key={s.id} role="tab" aria-selected={s.id === current} onClick={() => setCurrent(s.id)} title={s.cwd}>
-        <span>{s.shell}{sessions.length > 1 ? ' ' + (i + 1) : ''}{s.exited !== undefined ? ' · encerrado' : ''}</span>
+      <nav className="ct-bottom-category-tabs" role="tablist">
+        <button type="button" className="ct-bottom-cat-tab active" role="tab" aria-selected="true">
+          <ControlIcon name="terminal" size={13}/>
+          <span>Terminal</span>
+        </button>
+        <button type="button" className="ct-bottom-cat-tab" role="tab" aria-selected="false">
+          <span>Problemas</span>
+          <span className="ct-bottom-tab-badge">0</span>
+        </button>
+        <button type="button" className="ct-bottom-cat-tab" role="tab" aria-selected="false">
+          <span>Saída</span>
+        </button>
+        <button type="button" className="ct-bottom-cat-tab" role="tab" aria-selected="false">
+          <span>Console de depuração</span>
+        </button>
+      </nav>
+      <div role="tablist" className="ct-bottom-session-tabs" aria-label="Terminais abertos">{sessions.map((s, i) => <button key={s.id} role="tab" aria-selected={s.id === current} onClick={() => setCurrent(s.id)} title={s.cwd}>
+        <span>{s.shell}{sessions.length > 1 ? " " + (i + 1) : ""}{s.exited !== undefined ? " · encerrado" : ""}</span>
         <span className="ct-bottom-tab-close" role="button" aria-label={`Encerrar ${s.shell}`} onClick={event => { event.stopPropagation(); kill(s.id) }}><ControlIcon name="close" size={12}/></span>
       </button>)}</div>
       <div className="ct-bottom-panel-actions">
