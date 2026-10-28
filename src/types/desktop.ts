@@ -22,7 +22,16 @@ export interface WorkspaceFileEntry {
   isDirectory: boolean
   size?: number
 }
+export interface LinkPreviewData {
+  url: string
+  title?: string
+  description?: string
+  image?: string
+  siteName?: string
+  favicon?: string
+}
 export interface DesktopBridge {
+  fetchLinkPreview?:(url:string)=>Promise<LinkPreviewData|null>
   communityAiStatus:()=>Promise<{configured:boolean;providers:import('../roles/ai').AiProviderId[];contextTokens:number;maxOutputTokens:number}>
   communityAiConfigure:(value:{provider?:import('../roles/ai').AiProviderId;key?:string;contextTokens:number;maxOutputTokens:number})=>Promise<{configured:boolean;providers:import('../roles/ai').AiProviderId[];contextTokens:number;maxOutputTokens:number}>
   communityAiRemove:(provider?:import('../roles/ai').AiProviderId)=>Promise<void>

@@ -9,6 +9,7 @@ import { ControlIcon } from './ControlIcon'
 import { parseAgentActions, AgentActionCard } from './AgentActionCard'
 import { AiModelSelector } from './AiModelSelector'
 import { AiGeneratedImage } from './AiGeneratedImage'
+import { LinkPreview } from './LinkPreview'
 import { aiModelId,validAiModel,type AiProviderId,TOKEN_ECONOMY_CONFIG,getEconomyMode,type TokenEconomyMode } from '../roles/ai'
 import { MessageTools } from './MessageTools'
 import { useEffect, useState } from 'react'
@@ -77,7 +78,7 @@ export function MessageContent({content,attachment,preview=true,roleMentions=[],
         {parts.length > 0 && parts.some(p => p.trim()) && (
           <p>{parts.map((p,i)=>/^https?:\/\//.test(p)?<a key={i} href={p} target="_blank" rel="noopener noreferrer">{p}</a>:renderText(p))}</p>
         )}
-        {preview&&links.map(link=>{try{const url=new URL(link);return <a className="ct-link-preview" key={link} href={url.href} target="_blank" rel="noopener noreferrer">{/\.(png|jpe?g|gif|webp)$/i.test(url.pathname)&&<ImagePreview src={url.href} name="Imagem compartilhada"/>}<strong>{url.hostname}</strong><small>{url.pathname==='/'?'Abrir site':decodeURI(url.pathname)}</small></a>}catch{return null}})}
+        {preview && links.map(link => <LinkPreview key={link} url={link} />)}
       </span>
     )
   }

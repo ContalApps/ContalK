@@ -98,5 +98,6 @@ const desktop: DesktopBridge = {
   stopCaptureAudio: (sessionId: string) => ipcRenderer.invoke('capture-audio-stop', sessionId),
   onCaptureAudioData: listener => subscribe('capture-audio-data', listener),
   onCaptureAudioError: listener => subscribe('capture-audio-error', listener),
+  fetchLinkPreview: url => ipcRenderer.invoke('link-preview', url),
 }
 try { contextBridge.exposeInMainWorld('contalkDesktop', desktop) } catch { (window as unknown as { contalkDesktop?: DesktopBridge }).contalkDesktop = desktop }
