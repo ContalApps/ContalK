@@ -11,9 +11,9 @@ function TitleIcon({name}: {name: 'back' | 'forward' | 'search' | 'help' | 'clos
   return <ControlIcon name={name}/>
 }
 
-export function TitleBar({title = 'ConTALK', authenticated = false, disabled = false, canBack = false, canForward = false, onBack, onForward, search = '', onSearch,onOpenNotification,menus,scope,onToggleSidebar,sidebarOpen=true,onToggleRightPanel,rightPanelOpen=false,onProfile,onOpenCommandMenu}: {
+export function TitleBar({title = 'ConTALK', authenticated = false, disabled = false, canBack = false, canForward = false, onBack, onForward, search = '', onSearch,onOpenNotification,menus,scope,onToggleSidebar,sidebarOpen=true,onProfile,onOpenCommandMenu}: {
   title?: string; authenticated?: boolean; disabled?: boolean; canBack?: boolean; canForward?: boolean; onBack?: () => void; onForward?: () => void; search?: string; onSearch?: (value: string) => void;onOpenNotification?:(id:string)=>void
-  menus?: MenuGroup[]; scope?: string; onToggleSidebar?: () => void; sidebarOpen?: boolean; onToggleRightPanel?: () => void; rightPanelOpen?: boolean; onProfile?: () => void; onOpenCommandMenu?: () => void
+  menus?: MenuGroup[]; scope?: string; onToggleSidebar?: () => void; sidebarOpen?: boolean; onProfile?: () => void; onOpenCommandMenu?: () => void
 }) {
   const user = useAuthStore(s => s.user)
   const preferences = usePreferencesStore()
@@ -69,7 +69,6 @@ export function TitleBar({title = 'ConTALK', authenticated = false, disabled = f
       <div className="ct-titlebar-context" title={title}>{authenticated && preferences.titleBarSearch ? <button className="ct-titlebar-search-trigger" ref={searchButton} aria-label="Buscar no ConTALK" aria-expanded={panel==='search'} onClick={()=>onOpenCommandMenu ? onOpenCommandMenu() : setPanel(panel==='search'?null:'search')} data-active={!!search}><TitleIcon name="search"/><span>{search || `Pesquisar em ${scope || title}…`}</span><kbd>Ctrl K</kbd></button> : authenticated ? <><BrandMark/><span>{title}</span></> : null}</div>
       <div className="ct-titlebar-actions">{authenticated && <>
         <UpdateNotification onOpenNotification={onOpenNotification}/>
-        {onToggleRightPanel && <button aria-label={rightPanelOpen ? 'Ocultar painel direito' : 'Mostrar painel direito'} title="Painel direito (Ctrl+Alt+B)" aria-pressed={rightPanelOpen} onClick={onToggleRightPanel}><ControlIcon name="friends"/></button>}
         {preferences.titleBarHelp && <button ref={helpButton} aria-label="Ajuda do ConTALK" title="Ajuda (F1)" aria-expanded={panel==='help'} onClick={()=>setPanel(panel==='help'?null:'help')}><TitleIcon name="help"/></button>}
         {onProfile && user && <button className="ct-top-profile" aria-label="Seu perfil" title={user.display_name} onClick={onProfile}><Avatar name={user.display_name} identity={user.username}/></button>}
       </>}</div>
