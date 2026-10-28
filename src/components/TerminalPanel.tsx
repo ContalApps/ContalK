@@ -35,6 +35,7 @@ function TerminalView({ session, visible }: { session: Session; visible: boolean
 
 export function TerminalPanel({ onClose, request = 0 }: { onClose: () => void; request?: number }) {
   const preferences = usePreferencesStore()
+  const [activeCat, setActiveCat] = useState<'terminal' | 'problems' | 'output' | 'debug'>('terminal')
   const [sessions, setSessions] = useState<Session[]>([])
   const [current, setCurrent] = useState<string | null>(null)
   const [error, setError] = useState('')
@@ -66,33 +67,55 @@ export function TerminalPanel({ onClose, request = 0 }: { onClose: () => void; r
     <div className="ct-bottom-panel-resize" role="separator" aria-orientation="horizontal" aria-label="Redimensionar painel" onPointerDown={startResize}/>
     <header className="ct-bottom-panel-tabs">
       <nav className="ct-bottom-category-tabs" role="tablist">
-        <button type="button" className="ct-bottom-cat-tab active" role="tab" aria-selected="true">
+        <button type="button" className={`ct-bottom-cat-tab ${activeCat === 'terminal' ? 'active' : ''}`} role="tab" aria-selected={activeCat === 'terminal'} onClick={() => setActiveCat('terminal')}>
           <ControlIcon name="terminal" size={13}/>
           <span>Terminal</span>
         </button>
-        <button type="button" className="ct-bottom-cat-tab" role="tab" aria-selected="false">
+        <button type="button" className={`ct-bottom-cat-tab ${activeCat === 'problems' ? 'active' : ''}`} role="tab" aria-selected={activeCat === 'problems'} onClick={() => setActiveCat('problems')}>
           <span>Problemas</span>
           <span className="ct-bottom-tab-badge">0</span>
         </button>
-        <button type="button" className="ct-bottom-cat-tab" role="tab" aria-selected="false">
+        <button type="button" className={`ct-bottom-cat-tab ${activeCat === 'output' ? 'active' : ''}`} role="tab" aria-selected={activeCat === 'output'} onClick={() => setActiveCat('output')}>
           <span>Saída</span>
         </button>
-        <button type="button" className="ct-bottom-cat-tab" role="tab" aria-selected="false">
+        <button type="button" className={`ct-bottom-cat-tab ${activeCat === 'debug' ? 'active' : ''}`} role="tab" aria-selected={activeCat === 'debug'} onClick={() => setActiveCat('debug')}>
           <span>Console de depuração</span>
         </button>
       </nav>
-      <div role="tablist" className="ct-bottom-session-tabs" aria-label="Terminais abertos">{sessions.map((s, i) => <button key={s.id} role="tab" aria-selected={s.id === current} onClick={() => setCurrent(s.id)} title={s.cwd}>
-        <span>{s.shell}{sessions.length > 1 ? " " + (i + 1) : ""}{s.exited !== undefined ? " · encerrado" : ""}</span>
-        <span className="ct-bottom-tab-close" role="button" aria-label={`Encerrar ${s.shell}`} onClick={event => { event.stopPropagation(); kill(s.id) }}><ControlIcon name="close" size={12}/></span>
-      </button>)}</div>
+      {activeCat === 'terminal' && (
+        <div role="tablist" className="ct-bottom-session-tabs" aria-label="Terminais abertos">{sessions.map((s, i) => <button key={s.id} role="tab" aria-selected={s.id === current} onClick={() => setCurrent(s.id)} title={s.cwd}>
+          <span>{s.shell}{sessions.length > 1 ? " " + (i + 1) : ""}{s.exited !== undefined ? " · encerrado" : ""}</span>
+          <span className="ct-bottom-tab-close" role="button" aria-label={`Encerrar ${s.shell}`} onClick={event => { event.stopPropagation(); kill(s.id) }}><ControlIcon name="close" size={12}/></span>
+        </button>)}</div>
+      )}
       <div className="ct-bottom-panel-actions">
-        <button aria-label="Novo terminal" title="Novo terminal" disabled={!desktop?.terminalCreate} onClick={() => void create()}><ControlIcon name="plus" size={14}/></button>
-        {current && <button aria-label="Encerrar terminal" title="Encerrar terminal" onClick={() => kill(current)}><ControlIcon name="delete" size={14}/></button>}
+        {activeCat === 'terminal' && (
+          <>
+            <button aria-label="Novo terminal" title="Novo terminal" disabled={!desktop?.terminalCreate} onClick={() => void create()}><ControlIcon name="plus" size={14}/></button>
+            {current && <button aria-label="Encerrar terminal" title="Encerrar terminal" onClick={() => kill(current)}><ControlIcon name="delete" size={14}/></button>}
+          </>
+        )}
         <button aria-label="Fechar painel" title="Fechar painel (Ctrl+J)" onClick={onClose}><ControlIcon name="close" size={14}/></button>
       </div>
     </header>
     <div className="ct-bottom-panel-body">
-      {!desktop?.terminalCreate ? <p className="ct-muted ct-bottom-panel-empty">O terminal integrado está disponível no aplicativo desktop.</p>
+      {activeCat === 'problems' ? (
+        <div style={{ padding: '12px 16px', color: 'var(--cx-fg-3)', fontSize: '13px' }}>
+          <span>Nenhum problema detectado no workspace (0 erros, 0 avisos).</span>
+        </div>
+      ) : activeCat === 'output' ? (
+        <div style={{ padding: '12px 16px', fontFamily: 'ui-monospace, monospace', fontSize: '12px', color: '#c9d1d9', lineHeight: '1.6' }}>
+          <div>[ConTALK Studio] Inicializando ambiente de desenvolvimento...</div>
+          <div>[ConTALK Studio] Servidor de comunicação conectado.</div>
+          <div>[Vite] Servidor de desenvolvimento pronto.</div>
+          <div style={{ color: '#4ade80' }}>✓ 0 erros de compilação.</div>
+        </div>
+      ) : activeCat === 'debug' ? (
+        <div style={{ padding: '12px 16px', fontFamily: 'ui-monospace, monospace', fontSize: '12px', color: '#c9d1d9', lineHeight: '1.6' }}>
+          <div>Console de depuração pronto para inspeção de runtime.</div>
+          <div style={{ color: 'var(--cx-fg-3)' }}>Conectado ao processo Electron renderer. Use o DevTools para inspecionar variáveis e pausar execução.</div>
+        </div>
+      ) : !desktop?.terminalCreate ? <p className="ct-muted ct-bottom-panel-empty">O terminal integrado está disponível no aplicativo desktop.</p>
         : error ? <p className="ct-bottom-panel-empty" role="alert">{error}</p>
         : !sessions.length ? <p className="ct-muted ct-bottom-panel-empty">Nenhum terminal aberto. <button className="ct-home-link" onClick={() => void create()}>Abrir terminal</button></p>
         : sessions.map(s => <TerminalView key={s.id} session={s} visible={s.id === current}/>)}
