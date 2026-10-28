@@ -66,7 +66,65 @@
 .ct-ai-input-toggle-btn { position:absolute; right:6px; width:22px; height:22px; display:grid; place-items:center; background:none; border:0; color:var(--cx-fg-3,#888); cursor:pointer; border-radius:4px; }
 .ct-ai-input-toggle-btn:hover { color:var(--cx-fg,#ededed); background:var(--cx-hover,#262626); }
 
-/* Grid de limites de tokens */
+/* Economia de Tokens */
+.ct-ai-economy-section { display:flex; flex-direction:column; gap:6px; }
+.ct-ai-economy-options { display:grid; grid-template-columns:repeat(3, 1fr); gap:8px; }
+@media (max-width: 600px) {
+  .ct-ai-economy-options { grid-template-columns:1fr; }
+}
+.ct-ai-economy-card {
+  position:relative;
+  display:flex;
+  flex-direction:column;
+  gap:3px;
+  padding:8px 10px;
+  background:var(--cx-elevated, #1c1c1c);
+  border:1px solid var(--cx-border-light, #2e2e2e);
+  border-radius:6px;
+  cursor:pointer;
+  transition:all 0.15s ease;
+}
+.ct-ai-economy-card:hover {
+  background:var(--cx-hover, #242424);
+  border-color:rgba(255,255,255,0.2);
+}
+.ct-ai-economy-card.is-selected {
+  border-color:#58a6ff;
+  background:rgba(88,166,255,0.08);
+  box-shadow:0 0 0 1px #58a6ff;
+}
+.ct-ai-economy-card input {
+  position:absolute;
+  opacity:0;
+  width:1px;
+  height:1px;
+}
+.ct-ai-economy-card-header {
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+}
+.ct-ai-economy-card-header strong {
+  font-size:11px;
+  font-weight:600;
+  color:var(--cx-fg, #ededed);
+}
+.ct-ai-economy-card p {
+  font-size:10px;
+  color:var(--cx-fg-3, #888);
+  margin:0;
+  line-height:1.3;
+}
+.ct-ai-economy-picker {
+  display:flex;
+  align-items:center;
+  gap:6px;
+  font-size:11px;
+  color:var(--cx-fg-3, #888);
+}
+.ct-ai-economy-picker label {
+  white-space:nowrap;
+}
 .ct-ai-limits-grid { display:grid; grid-template-columns:1fr 1fr; gap:8px; }
 .ct-ai-limit-box { display:flex; flex-direction:column; gap:3px; }
 .ct-ai-limit-box label { font-size:10px; color:var(--cx-fg-2,#ccc); }

@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { aiProviders, aiProviderName, validAiEndpoint, type AiProviderId } from '../roles/ai'
+import { aiProviders, aiProviderName, validAiEndpoint, type AiProviderId, TOKEN_ECONOMY_CONFIG, getEconomyMode } from '../roles/ai'
 import type { Channel } from '../store/useAppStore'
 import { ControlIcon } from './ControlIcon'
 
@@ -165,40 +165,44 @@ export function AiCredentialEditor({
           </div>
         </div>
 
-        {/* Token Limits Grid */}
-        <div className="ct-ai-limits-grid">
-          <div className="ct-ai-limit-box">
-            <label htmlFor="ai-context-tokens">Tokens de Contexto (Entrada):</label>
-            <div className="ct-ai-limit-input-wrap">
-              <input
-                id="ai-context-tokens"
-                className="ct-ai-input"
-                type="number"
-                min={1024}
-                max={32768}
-                step={1024}
-                value={limits.contextTokens}
-                onChange={e => setLimits({ ...limits, contextTokens: Number(e.target.value) })}
-              />
-              <span className="ct-ai-unit-label">tokens</span>
-            </div>
+        {/* Economia de Tokens */}
+        <div className="ct-ai-economy-section">
+          <div className="ct-ai-card-section-title">
+            <strong>Economia de Tokens</strong>
+            <span className="ct-ai-card-hint">Otimize o consumo de tokens sem perder qualidade</span>
           </div>
-
-          <div className="ct-ai-limit-box">
-            <label htmlFor="ai-output-tokens">Tokens Máximos de Resposta (Saída):</label>
-            <div className="ct-ai-limit-input-wrap">
-              <input
-                id="ai-output-tokens"
-                className="ct-ai-input"
-                type="number"
-                min={128}
-                max={8192}
-                step={128}
-                value={limits.maxOutputTokens}
-                onChange={e => setLimits({ ...limits, maxOutputTokens: Number(e.target.value) })}
-              />
-              <span className="ct-ai-unit-label">tokens</span>
-            </div>
+          <div className="ct-ai-economy-options" role="radiogroup" aria-label="Economia de Tokens">
+            {(['standard', 'moderate', 'aggressive'] as const).map(mode => {
+              const option = TOKEN_ECONOMY_CONFIG[mode]
+              const currentMode = getEconomyMode(limits.contextTokens, limits.maxOutputTokens)
+              const selected = currentMode === mode
+              return (
+                <label
+                  key={mode}
+                  className={`ct-ai-economy-card ${selected ? 'is-selected' : ''}`}
+                >
+                  <input
+                    type="radio"
+                    name="channel-token-economy"
+                    value={mode}
+                    checked={selected}
+                    onChange={() => {
+                      setLimits({
+                        contextTokens: option.contextTokens,
+                        maxOutputTokens: option.maxOutputTokens
+                      })
+                    }}
+                  />
+                  <div className="ct-ai-economy-card-header">
+                    <strong>{option.label}</strong>
+                    <span className="ct-radio-dot" aria-hidden="true">
+                      {selected && <ControlIcon name="check" size={10} />}
+                    </span>
+                  </div>
+                  <p>{option.description}</p>
+                </label>
+              )
+            })}
           </div>
         </div>
 
