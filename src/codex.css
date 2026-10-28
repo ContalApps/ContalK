@@ -1,6 +1,7 @@
 /* Layout no estilo do app Codex. Valores medidos no app.asar do Codex (REA):
    superfície preta, bordas white/8%, texto 14px, raio lg 10px, rail 52px, sidebar 275px, toolbar 46px. */
 .ct-app:not([data-theme=vice-city]) {
+  color-scheme: dark;
   --cx-bg:#000; --cx-surface:#0d0d0d; --cx-elevated:#181818; --cx-fg:#ededed;
   --cx-fg-2:#ffffffb3; --cx-fg-3:#ffffff80; --cx-border:#ffffff14; --cx-border-light:#ffffff0a;
   --cx-hover:#ffffff12; --cx-active:#ffffff1f; --cx-accent:#339cff; --cx-radius:10px;
@@ -111,8 +112,51 @@
   .ct-attach-button { width:30px; height:30px; display:grid; place-items:center; border:0; background:transparent; color:var(--cx-fg-2); border-radius:50%; font-size:20px; line-height:1; }
   .ct-attach-button:hover { background:var(--cx-hover); color:var(--cx-fg); }
   .ct-composer .ct-primary { padding:0 14px; height:32px; border-radius:16px; }
-  .ct-send-options { padding:4px 12px; color:var(--cx-fg-3); }
-  .ct-send-options select, .ct-send-options button { background:var(--cx-hover); border:0; border-radius:8px; color:var(--cx-fg-2); }
+  .ct-send-options { display:flex; align-items:center; gap:12px; padding:6px 14px; color:var(--cx-fg-3); font-size:12px; flex-wrap:wrap; }
+  .ct-send-options label { display:inline-flex; align-items:center; gap:6px; cursor:pointer; user-select:none; color:var(--cx-fg-3); transition:color 0.1s ease; }
+  .ct-send-options label:hover { color:var(--cx-fg); }
+  .ct-send-options label input[type=checkbox] { accent-color:var(--cx-accent,#339cff); cursor:pointer; width:14px; height:14px; }
+  .ct-send-options select, .ct-send-options .ct-mention-select {
+    color-scheme: dark !important;
+    background-color: #1c1c1c !important;
+    border: 1px solid var(--cx-border, rgba(255,255,255,0.15)) !important;
+    border-radius: 6px !important;
+    color: var(--cx-fg, #ededed) !important;
+    padding: 4px 10px !important;
+    font-size: 12px !important;
+    font-family: inherit !important;
+    cursor: pointer !important;
+    outline: none !important;
+    transition: border-color 0.15s ease, background-color 0.15s ease !important;
+  }
+  .ct-send-options select:hover, .ct-send-options .ct-mention-select:hover {
+    background-color: #252525 !important;
+    border-color: rgba(255,255,255,0.28) !important;
+    color: #ffffff !important;
+  }
+  .ct-send-options select:focus, .ct-send-options .ct-mention-select:focus {
+    border-color: var(--cx-accent, #339cff) !important;
+    box-shadow: 0 0 0 1px var(--cx-accent, #339cff) !important;
+  }
+  .ct-send-options select option, .ct-send-options select optgroup,
+  .ct-mention-select option, .ct-mention-select optgroup {
+    color-scheme: dark !important;
+    background-color: #1c1c1c !important;
+    color: #ededed !important;
+    padding: 6px 10px !important;
+  }
+  .ct-send-options select optgroup, .ct-mention-select optgroup {
+    background-color: #141414 !important;
+    color: #8b949e !important;
+    font-weight: 600 !important;
+    font-size: 11px !important;
+  }
+  .ct-send-options select option:hover, .ct-send-options select option:focus, .ct-send-options select option:checked,
+  .ct-mention-select option:hover, .ct-mention-select option:focus, .ct-mention-select option:checked {
+    background-color: #23374d !important;
+    color: #58a6ff !important;
+  }
+  .ct-send-options button { background:var(--cx-hover); border:0; border-radius:8px; color:var(--cx-fg-2); }
   .ct-composer-hint { color:var(--cx-fg-3); font-size:11px; padding:2px 0 10px; }
 
   /* botões */
@@ -218,7 +262,7 @@ body { background:#000; color:#ededed; font-family:'Segoe UI',system-ui,sans-ser
   .ct-edit-dialog input:not([type=file]):not([type=checkbox]):not([type=radio]):not([type=range]), .ct-edit-dialog textarea, .ct-edit-dialog select,
   .ct-role-dialog input:not([type=checkbox]):not([type=color]):not([type=range]), .ct-role-dialog select, .ct-role-dialog textarea,
   .ct-channel-dialog input:not([type=checkbox]):not([type=range]), .ct-channel-dialog select, .ct-channel-dialog textarea, .ct-friends>aside>input {
-    background:var(--cx-field); border:1px solid var(--cx-field-border); border-radius:var(--cx-radius); padding:9px 12px; color:var(--cx-fg); font:inherit; font-size:14px;
+    background:#161616; border:1px solid var(--cx-field-border); border-radius:var(--cx-radius); padding:9px 12px; color:var(--cx-fg); font:inherit; font-size:14px; color-scheme:dark;
   }
   .ct-edit-dialog input:focus, .ct-edit-dialog textarea:focus, .ct-edit-dialog select:focus, .ct-role-dialog input:focus, .ct-role-dialog select:focus, .ct-channel-dialog input:focus { outline:0; border-color:#ffffff40; }
   input[type=checkbox], input[type=radio], input[type=range] { accent-color:#ededed; }
@@ -328,7 +372,7 @@ body { background:#000; color:#ededed; font-family:'Segoe UI',system-ui,sans-ser
   &.ct-auth button[type=button]:hover { color:var(--cx-fg)!important; }
 
   .ct-avatar { background:#303030; color:var(--cx-fg); border:0; box-shadow:none; font-weight:500; }
-  .ct-ai-model-picker select, .ct-ai-model-picker input, .ct-ai-credentials input, .ct-ai-credentials select { background:var(--cx-field); border:1px solid var(--cx-field-border); border-radius:var(--cx-radius); color:var(--cx-fg); padding:6px 10px; }
+  .ct-ai-model-picker select, .ct-ai-model-picker input, .ct-ai-credentials input, .ct-ai-credentials select { background:#161616; border:1px solid var(--cx-field-border); border-radius:var(--cx-radius); color:var(--cx-fg); padding:6px 10px; color-scheme:dark; }
   .ct-ai-toggle, .ct-ai-limits, .ct-ai-model-picker { color:var(--cx-fg-3); }
   .ct-ai-run-bar { color:var(--cx-fg-3); padding-inline:max(16px,calc((100% - 760px) / 2)); }
 
@@ -796,4 +840,22 @@ body { background:#000; color:#ededed; font-family:'Segoe UI',system-ui,sans-ser
 
 }
 @media (max-width:1100px) { .ct-app:not([data-theme=vice-city]) .ct-right-panel { width:280px; }
+}
+
+/* Global Codex select, option and optgroup theme consistency */
+select, option, optgroup {
+  color-scheme: dark !important;
+}
+select option, select optgroup {
+  background-color: #1c1c1c !important;
+  color: #ededed !important;
+}
+select optgroup {
+  background-color: #141414 !important;
+  color: #8b949e !important;
+  font-weight: 600 !important;
+}
+select option:hover, select option:focus, select option:checked {
+  background-color: #23374d !important;
+  color: #58a6ff !important;
 }
