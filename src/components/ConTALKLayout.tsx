@@ -58,6 +58,7 @@ import { DevKanbanModal } from './DevKanbanModal'
 import { DevTasksModal } from './DevTasksModal'
 import { DevDocsModal } from './DevDocsModal'
 import { DevGitHubAccountsModal } from './DevGitHubAccountsModal'
+import { DevRepositoriesModal } from './DevRepositoriesModal'
 import { AtlassianConfigModal } from './AtlassianConfigModal'
 import '../themes.css'
 import '../ai.css'
@@ -281,6 +282,11 @@ export function initYjsProvider(room: string, doc: Y.Doc) {
     if(destination&&notice.channelId){setActiveServer(destination.id);openChannel(notice.channelId)}
   }
   useEffect(()=>window.contalkDesktop?.onNotificationOpen?.(openNotice),[servers,navigation])
+  useEffect(() => {
+    void devStore.checkLocalGitHubAuth().then(() => {
+      void devStore.syncAllRepositories()
+    })
+  }, [])
   const join=async(id:string,name:string)=>{openChannel(id);if(user)await voice.joinChannel(id,name,{username:user.username,display_name:user.display_name,avatar:user.avatar})}
   const [hiddenSections,setHiddenSections]=useState<Record<string,boolean>>({})
   const toggleSection=(id:string)=>setHiddenSections(current=>({...current,[id]:!current[id]}))
@@ -519,16 +525,62 @@ export function initYjsProvider(room: string, doc: Y.Doc) {
 </div>}
 
 <div className="ct-section-label"><button className="ct-section-toggle" aria-expanded={!hiddenSections.text} onClick={()=>toggleSection('text')}><ControlIcon name="chevron" size={12}/>Canais</button><button title="Criar canal de texto" aria-label="Criar canal de texto" onClick={()=>setCreateType('text')}>+</button></div>{!hiddenSections.text&&server.channels.filter(c=>c.type==='text'&&!c.parentId).map(c=><Fragment key={c.id}><ChannelRow unread={activity.unreadByChannel[c.id]||0} channel={c} active={channel.id===c.id} onOpen={()=>openChannel(c.id)} onSettings={()=>setChannelSettings(c)}/>{server.channels.filter(child=>child.parentId===c.id&&(child.id===channel.id||roles.snapshot?.policy.projects?.[child.id]||roles.snapshot?.policy.threads?.[child.id]&&!threadArchived(roles.snapshot.policy.threads[child.id],roles.snapshot.serverNow))).map(child=><div className="ct-thread-sidebar" key={child.id}><ChannelRow unread={activity.unreadByChannel[child.id]||0} channel={child} active={channel.id===child.id} onOpen={()=>openChannel(child.id)} onSettings={()=>setChannelSettings(child)}/></div>)}</Fragment>)}
-<div className="ct-section-label"><button className="ct-section-toggle" aria-expanded={!hiddenSections.repos} onClick={()=>toggleSection('repos')}><ControlIcon name="chevron" size={12}/>Repositórios</button><button title="Gerenciar contas GitHub" aria-label="Gerenciar contas GitHub" onClick={()=>setActiveDevModal('github-accounts')}><ControlIcon name="git" size={13}/></button></div>
+<div className="ct-section-label">
+  <button className="ct-section-toggle" aria-expanded={!hiddenSections.repos} onClick={()=>toggleSection('repos')}>
+    <ControlIcon name="chevron" size={12}/>
+    <span>Repositórios</span>
+    <span className="ct-section-count-badge">{devStore.repositories.length}</span>
+  </button>
+  <div className="ct-section-actions">
+    <button
+      type="button"
+      className={devStore.loadingRepos ? 'ct-spin' : ''}
+      title={devStore.loadingRepos ? 'Sincronizando repositórios…' : 'Sincronizar repositórios com GitHub'}
+      aria-label="Sincronizar repositórios"
+      onClick={() => void devStore.syncAllRepositories()}
+      disabled={devStore.loadingRepos}
+    >
+      <ControlIcon name="refresh" size={12}/>
+    </button>
+    <button
+      type="button"
+      title="Ver todos os repositórios"
+      aria-label="Ver todos os repositórios"
+      onClick={() => setActiveDevModal('repositories')}
+    >
+      <ControlIcon name="git-branch" size={12}/>
+    </button>
+    <button
+      type="button"
+      title="Gerenciar contas GitHub"
+      aria-label="Gerenciar contas GitHub"
+      onClick={() => setActiveDevModal('github-accounts')}
+    >
+      <ControlIcon name="git" size={12}/>
+    </button>
+  </div>
+</div>
 {!hiddenSections.repos&&<div className="ct-side-dev-group">
   {devStore.githubAccounts.length === 0 ? (
-    <button className="ct-side-dev-item ct-gh-link-prompt" onClick={()=>setActiveDevModal('github-accounts')} title="Vincular contas GitHub (multi-conta)">
-      <div><ControlIcon name="git" size={14}/><span>Vincular conta GitHub…</span></div>
-      <span className="ct-side-dev-badge">+</span>
-    </button>
+    <div className="ct-side-gh-empty-wrap">
+      {devStore.detectedLocalGitHub ? (
+        <button
+          className="ct-side-dev-item ct-gh-link-prompt"
+          onClick={() => void devStore.connectGitHubDirect()}
+          title={`Conectar sessão local @${devStore.detectedLocalGitHub.username} em 1 clique`}
+        >
+          <div><ControlIcon name="git" size={14}/><span>⚡ Conectar @{devStore.detectedLocalGitHub.username}</span></div>
+        </button>
+      ) : (
+        <button className="ct-side-dev-item ct-gh-link-prompt" onClick={()=>setActiveDevModal('github-accounts')} title="Vincular contas GitHub (multi-conta)">
+          <div><ControlIcon name="git" size={14}/><span>Vincular conta GitHub…</span></div>
+          <span className="ct-side-dev-badge">+</span>
+        </button>
+      )}
+    </div>
   ) : (
     <div className="ct-side-gh-account-bar">
-      <div className="ct-side-gh-acc-pill" onClick={()=>setActiveDevModal('github-accounts')} title="Alternar ou gerenciar contas GitHub">
+      <div className="ct-side-gh-acc-pill" onClick={()=>setActiveDevModal('repositories')} title="Ver repositórios desta conta">
         {devStore.githubAccounts.find(a=>a.id===devStore.activeAccountId)?.avatarUrl ? (
           <img src={devStore.githubAccounts.find(a=>a.id===devStore.activeAccountId)!.avatarUrl} alt="" className="ct-side-gh-avatar"/>
         ) : (
@@ -536,27 +588,44 @@ export function initYjsProvider(room: string, doc: Y.Doc) {
         )}
         <span>@{devStore.githubAccounts.find(a=>a.id===devStore.activeAccountId)?.username || 'GitHub'}</span>
       </div>
-      <button className="ct-side-gh-add-btn" onClick={()=>setActiveDevModal('github-accounts')} title="Adicionar outra conta GitHub">
+      <button className="ct-side-gh-add-btn" onClick={()=>setActiveDevModal('github-accounts')} title="Gerenciar contas GitHub">
         <ControlIcon name="plus" size={11}/>
       </button>
     </div>
   )}
-  {devStore.repositories.slice(0, 5).map(repo => (
-    <button
-      key={repo.id}
-      className="ct-side-dev-item"
-      onClick={()=>void openFolder()}
-      title={`${repo.fullName} (${repo.isPrivate ? 'Privado' : 'Público'})`}
-    >
-      <div>
-        <ControlIcon name={repo.isPrivate ? "lock" : "git-branch"} size={14}/>
-        <span className="ct-truncate">{repo.name}</span>
-      </div>
-    </button>
+  {devStore.repositories.slice(0, 6).map(repo => (
+    <div key={repo.id} className="ct-side-repo-row">
+      <button
+        className="ct-side-dev-item ct-side-repo-btn"
+        onClick={() => {
+          devStore.setSelectedRepoId(repo.id)
+          setActiveDevModal('repositories')
+        }}
+        title={`${repo.fullName} (${repo.isPrivate ? 'Privado' : 'Público'})${repo.description ? ' — ' + repo.description : ''}`}
+      >
+        <div className="ct-side-repo-title-wrap">
+          <ControlIcon name={repo.isPrivate ? "lock" : "git-branch"} size={13}/>
+          <span className="ct-truncate">{repo.name}</span>
+        </div>
+        {repo.language && <span className="ct-side-repo-lang">{repo.language}</span>}
+      </button>
+      <button
+        type="button"
+        className="ct-side-repo-ext-btn"
+        onClick={(e) => { e.stopPropagation(); window.open(repo.htmlUrl, '_blank') }}
+        title="Abrir no GitHub"
+      >
+        <ControlIcon name="arrow" size={10}/>
+      </button>
+    </div>
   ))}
-  {devStore.repositories.length > 5 && (
-    <button className="ct-side-dev-item ct-side-more-repos" onClick={()=>setActiveDevModal('github-accounts')} title="Ver todas as contas e repositórios">
-      <div><ControlIcon name="chevron" size={12}/><span>+{devStore.repositories.length - 5} outros repositórios…</span></div>
+  {devStore.repositories.length > 0 && (
+    <button
+      className="ct-side-dev-item ct-side-more-repos"
+      onClick={()=>setActiveDevModal('repositories')}
+      title="Ver todos os repositórios sincronizados"
+    >
+      <div><ControlIcon name="git-branch" size={12}/><span>Ver todos os repositórios ({devStore.repositories.length})…</span></div>
     </button>
   )}
   <button className={`ct-side-dev-item ${repoExplorerOpen?'active':''}`} onClick={()=>void toggleRepoExplorer()} title="Código do repositório"><div><ControlIcon name="git-code" size={14}/><span>Código</span></div><ControlIcon name="chevron" size={12}/></button>
@@ -669,8 +738,9 @@ export function initYjsProvider(room: string, doc: Y.Doc) {
     {activeDevModal==='tasks'&&<DevTasksModal onClose={()=>setActiveDevModal(null)} onOpenAtlassian={()=>setActiveDevModal('atlassian')}/>}
     {activeDevModal==='docs'&&<DevDocsModal onClose={()=>setActiveDevModal(null)} onOpenAtlassian={()=>setActiveDevModal('atlassian')}/>}
     {activeDevModal==='github-accounts'&&<DevGitHubAccountsModal onClose={()=>setActiveDevModal(null)}/>}
+    {(activeDevModal==='repositories'||activeDevModal==='repos')&&<DevRepositoriesModal onClose={()=>setActiveDevModal(null)} onOpenAccounts={()=>setActiveDevModal('github-accounts')}/>}
     {activeDevModal==='atlassian'&&<AtlassianConfigModal onClose={()=>setActiveDevModal(null)}/>}
-    {activeDevModal&&!['mcp','overview','tasks','docs','github-accounts','atlassian'].includes(activeDevModal)&&(
+    {activeDevModal&&!['mcp','overview','tasks','docs','github-accounts','repositories','repos','atlassian'].includes(activeDevModal)&&(
   <div className="ct-modal-backdrop" onClick={()=>setActiveDevModal(null)}>
     <section className="ct-edit-dialog" role="dialog" aria-modal="true" onClick={e=>e.stopPropagation()}>
       {activeDevModal==='prs'&&(

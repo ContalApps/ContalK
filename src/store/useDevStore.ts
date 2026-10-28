@@ -20,6 +20,11 @@ export interface GitHubRepo {
   defaultBranch: string
   updatedAt: string
   accountId: string
+  accountUsername?: string
+  language?: string
+  stars?: number
+  cloneUrl?: string
+  sshUrl?: string
 }
 
 export interface AtlassianAccount {
@@ -72,6 +77,8 @@ interface DevState {
   repositories: GitHubRepo[]
   loadingRepos: boolean
   githubError: string | null
+  lastReposSync: number | null
+  selectedRepoId: string | number | null
 
   // Atlassian
   atlassian: AtlassianAccount | null
@@ -96,7 +103,10 @@ interface DevState {
   addGitHubAccount: (tokenOrUser: string, tokenType?: 'token' | 'user') => Promise<void>
   removeGitHubAccount: (id: string) => void
   setActiveGitHubAccount: (id: string) => void
-  refreshRepositories: () => Promise<void>
+  setSelectedRepoId: (id: string | number | null) => void
+  refreshRepositories: (accountId?: string) => Promise<void>
+  syncAllRepositories: () => Promise<void>
+  cloneRepository: (repo: GitHubRepo, targetDirectory?: string) => Promise<{ success: boolean; path?: string; error?: string }>
 
   connectAtlassian: (siteUrl: string, email: string, apiToken: string) => Promise<boolean>
   disconnectAtlassian: () => void
@@ -257,6 +267,7 @@ function persistState(state: DevState) {
       githubAccounts: state.githubAccounts,
       activeAccountId: state.activeAccountId,
       repositories: state.repositories,
+      lastReposSync: state.lastReposSync,
       atlassian: state.atlassian,
       kanbanCards: state.kanbanCards,
       todoTasks: state.todoTasks,
@@ -294,7 +305,11 @@ export const useDevStore = create<DevState>((set, get) => {
         htmlUrl: 'https://github.com/ContalApps/ContalK',
         defaultBranch: 'main',
         updatedAt: new Date().toISOString(),
-        accountId: 'gh-contal'
+        accountId: 'gh-contal',
+        language: 'TypeScript',
+        stars: 12,
+        cloneUrl: 'https://github.com/ContalApps/ContalK.git',
+        sshUrl: 'git@github.com:ContalApps/ContalK.git'
       },
       {
         id: 'repo-docs',
@@ -306,11 +321,19 @@ export const useDevStore = create<DevState>((set, get) => {
         htmlUrl: 'https://github.com/ContalApps/contalk-docs',
         defaultBranch: 'main',
         updatedAt: new Date(Date.now() - 86400000).toISOString(),
-        accountId: 'gh-contal'
+        accountId: 'gh-contal',
+        language: 'Markdown',
+        stars: 3,
+        cloneUrl: 'https://github.com/ContalApps/contalk-docs.git',
+        sshUrl: 'git@github.com:ContalApps/contalk-docs.git'
       }
     ],
     loadingRepos: false,
     githubError: null,
+    lastReposSync: (saved as any).lastReposSync || null,
+    selectedRepoId: null,
+
+    setSelectedRepoId: (id: string | number | null) => set({ selectedRepoId: id }),
 
     atlassian: saved.atlassian || null,
     atlassianSyncing: false,
@@ -446,71 +469,188 @@ export const useDevStore = create<DevState>((set, get) => {
       void get().refreshRepositories()
     },
 
-    refreshRepositories: async () => {
-      const { activeAccountId, githubAccounts } = get()
-      const account = githubAccounts.find(a => a.id === activeAccountId)
-      if (!account) return
+    refreshRepositories: async (_accountId?: string) => {
+      await get().syncAllRepositories()
+    },
 
+    cloneRepository: async (repo: GitHubRepo, targetDirectory?: string) => {
+      const desktop = (window as any).contalkDesktop
+      if (!desktop?.workspaceExecCommand) {
+        return { success: false, error: 'O clone automatizado requer o aplicativo ConTALK Desktop.' }
+      }
+      try {
+        const dest = targetDirectory ? `"${targetDirectory}"` : `"${repo.name}"`
+        const cloneUrl = repo.cloneUrl || (repo.htmlUrl.endsWith('.git') ? repo.htmlUrl : `${repo.htmlUrl}.git`)
+        const res = await desktop.workspaceExecCommand(`git clone ${cloneUrl} ${dest}`)
+        if (res.exitCode === 0) {
+          return { success: true, path: targetDirectory || repo.name }
+        } else {
+          return { success: false, error: res.stderr || res.stdout || 'Erro ao clonar repositório.' }
+        }
+      } catch (err) {
+        return { success: false, error: (err as Error).message }
+      }
+    },
+
+    syncAllRepositories: async () => {
       set({ loadingRepos: true, githubError: null })
       try {
-        let repoList: GitHubRepo[] = []
+        let accounts = [...get().githubAccounts]
 
-        if (account.token) {
-          const res = await fetch('https://api.github.com/user/repos?per_page=100&sort=updated', {
-            headers: {
-              Authorization: `Bearer ${account.token}`,
-              Accept: 'application/vnd.github.v3+json'
-            }
-          })
-          if (res.ok) {
-            const data = await res.json()
-            if (Array.isArray(data)) {
-              repoList = data.map((item: any) => ({
-                id: item.id,
-                name: item.name,
-                fullName: item.full_name,
-                owner: item.owner?.login || account.username,
-                isPrivate: !!item.private,
-                description: item.description || '',
-                htmlUrl: item.html_url,
-                defaultBranch: item.default_branch || 'main',
-                updatedAt: item.updated_at || new Date().toISOString(),
-                accountId: account.id
-              }))
+        // Auto-detect local session if no accounts or only default placeholder
+        let local = get().detectedLocalGitHub
+        if (!local) {
+          local = await get().checkLocalGitHubAuth()
+        }
+
+        if (local && !accounts.some(a => a.username.toLowerCase() === local!.username.toLowerCase())) {
+          const newAccount: GitHubAccount = {
+            id: `gh-${Date.now()}`,
+            username: local.username,
+            name: local.name || local.username,
+            avatarUrl: local.avatarUrl || '',
+            token: local.token,
+            addedAt: Date.now()
+          }
+          const cleaned = accounts.filter(a => a.id !== 'gh-contal')
+          accounts = [newAccount, ...cleaned]
+          set({ githubAccounts: accounts, activeAccountId: newAccount.id })
+        }
+
+        const desktop = (window as any).contalkDesktop
+        let allRepos: GitHubRepo[] = []
+
+        for (const account of accounts) {
+          let accountRepos: GitHubRepo[] = []
+
+          // 1. Try desktop gh CLI if available
+          if (desktop?.workspaceExecCommand) {
+            try {
+              const cmdRes = await desktop.workspaceExecCommand(
+                `gh repo list ${account.username} --limit 100 --json id,name,nameWithOwner,isPrivate,description,url,defaultBranchRef,updatedAt,primaryLanguage,stargazerCount,sshUrl`
+              )
+              if (cmdRes.exitCode === 0 && cmdRes.stdout.trim().startsWith('[')) {
+                const parsed = JSON.parse(cmdRes.stdout)
+                if (Array.isArray(parsed) && parsed.length > 0) {
+                  accountRepos = parsed.map((item: any) => ({
+                    id: item.id || `gh-${account.username}-${item.name}`,
+                    name: item.name,
+                    fullName: item.nameWithOwner || `${account.username}/${item.name}`,
+                    owner: item.nameWithOwner ? item.nameWithOwner.split('/')[0] : account.username,
+                    isPrivate: !!item.isPrivate,
+                    description: item.description || '',
+                    htmlUrl: item.url || `https://github.com/${item.nameWithOwner || `${account.username}/${item.name}`}`,
+                    defaultBranch: item.defaultBranchRef?.name || 'main',
+                    updatedAt: item.updatedAt || new Date().toISOString(),
+                    accountId: account.id,
+                    accountUsername: account.username,
+                    language: item.primaryLanguage?.name || '',
+                    stars: item.stargazerCount || 0,
+                    cloneUrl: item.url ? `${item.url}.git` : `https://github.com/${account.username}/${item.name}.git`,
+                    sshUrl: item.sshUrl || `git@github.com:${account.username}/${item.name}.git`
+                  }))
+                }
+              }
+            } catch {
+              /* ignore and try next method */
             }
           }
-        } else {
-          const res = await fetch(`https://api.github.com/users/${account.username}/repos?per_page=100&sort=updated`)
-          if (res.ok) {
-            const data = await res.json()
-            if (Array.isArray(data)) {
-              repoList = data.map((item: any) => ({
-                id: item.id,
-                name: item.name,
-                fullName: item.full_name,
-                owner: item.owner?.login || account.username,
-                isPrivate: !!item.private,
-                description: item.description || '',
-                htmlUrl: item.html_url,
-                defaultBranch: item.default_branch || 'main',
-                updatedAt: item.updated_at || new Date().toISOString(),
-                accountId: account.id
-              }))
+
+          // 2. Try GitHub API with token
+          if (accountRepos.length === 0 && account.token) {
+            try {
+              const res = await fetch('https://api.github.com/user/repos?per_page=100&sort=updated&affiliation=owner,collaborator,organization_member', {
+                headers: {
+                  Authorization: `Bearer ${account.token}`,
+                  Accept: 'application/vnd.github.v3+json'
+                }
+              })
+              if (res.ok) {
+                const data = await res.json()
+                if (Array.isArray(data)) {
+                  accountRepos = data.map((item: any) => ({
+                    id: item.id,
+                    name: item.name,
+                    fullName: item.full_name,
+                    owner: item.owner?.login || account.username,
+                    isPrivate: !!item.private,
+                    description: item.description || '',
+                    htmlUrl: item.html_url,
+                    defaultBranch: item.default_branch || 'main',
+                    updatedAt: item.updated_at || new Date().toISOString(),
+                    accountId: account.id,
+                    accountUsername: account.username,
+                    language: item.language || '',
+                    stars: item.stargazers_count || 0,
+                    cloneUrl: item.clone_url || `${item.html_url}.git`,
+                    sshUrl: item.ssh_url || `git@github.com:${item.full_name}.git`
+                  }))
+                }
+              }
+            } catch {
+              /* ignore and try next method */
             }
+          }
+
+          // 3. Try GitHub API public endpoint
+          if (accountRepos.length === 0) {
+            try {
+              const res = await fetch(`https://api.github.com/users/${account.username}/repos?per_page=100&sort=updated`)
+              if (res.ok) {
+                const data = await res.json()
+                if (Array.isArray(data)) {
+                  accountRepos = data.map((item: any) => ({
+                    id: item.id,
+                    name: item.name,
+                    fullName: item.full_name,
+                    owner: item.owner?.login || account.username,
+                    isPrivate: !!item.private,
+                    description: item.description || '',
+                    htmlUrl: item.html_url,
+                    defaultBranch: item.default_branch || 'main',
+                    updatedAt: item.updated_at || new Date().toISOString(),
+                    accountId: account.id,
+                    accountUsername: account.username,
+                    language: item.language || '',
+                    stars: item.stargazers_count || 0,
+                    cloneUrl: item.clone_url || `${item.html_url}.git`,
+                    sshUrl: item.ssh_url || `git@github.com:${item.full_name}.git`
+                  }))
+                }
+              }
+            } catch {
+              /* ignore */
+            }
+          }
+
+          if (accountRepos.length > 0) {
+            allRepos.push(...accountRepos)
           }
         }
 
-        if (repoList.length > 0) {
-          const others = get().repositories.filter(r => r.accountId !== account.id)
-          set({ repositories: [...repoList, ...others], loadingRepos: false })
-          persistState(get())
-        } else {
-          set({ loadingRepos: false })
-        }
+        // Deduplicate repos by fullName
+        const seen = new Set<string>()
+        const uniqueRepos = allRepos.filter(r => {
+          const key = r.fullName.toLowerCase()
+          if (seen.has(key)) return false
+          seen.add(key)
+          return true
+        })
+
+        // Sort by updatedAt desc
+        uniqueRepos.sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime())
+
+        const finalRepos = uniqueRepos.length > 0 ? uniqueRepos : get().repositories
+        set({
+          repositories: finalRepos,
+          loadingRepos: false,
+          lastReposSync: Date.now()
+        })
+        persistState(get())
       } catch (err) {
         set({
           loadingRepos: false,
-          githubError: err instanceof Error ? err.message : 'Falha ao buscar repositórios.'
+          githubError: err instanceof Error ? err.message : 'Falha ao sincronizar repositórios.'
         })
       }
     },
