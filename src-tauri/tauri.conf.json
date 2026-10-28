@@ -1,6 +1,6 @@
 {
   "productName": "ConTALK",
-  "version": "0.1.26",
+  "version": "0.1.28",
   "identifier": "com.contalk.app",
   "build": {
     "frontendDist": "../dist",
