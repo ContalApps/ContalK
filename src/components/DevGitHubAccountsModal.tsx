@@ -1,4 +1,4 @@
-import { useState, useId } from 'react'
+import { useState, useEffect, useId } from 'react'
 import { useDevStore } from '../store/useDevStore'
 import { ControlIcon } from './ControlIcon'
 
@@ -12,8 +12,15 @@ export function DevGitHubAccountsModal({ onClose }: { onClose: () => void }) {
     repositories,
     refreshRepositories,
     loadingRepos,
-    githubError
+    githubError,
+    detectedLocalGitHub,
+    checkLocalGitHubAuth,
+    connectGitHubDirect
   } = useDevStore()
+
+  useEffect(() => {
+    void checkLocalGitHubAuth()
+  }, [])
 
   const [inputVal, setInputVal] = useState('')
   const [authMode, setAuthMode] = useState<'token' | 'user'>('token')
@@ -62,6 +69,54 @@ export function DevGitHubAccountsModal({ onClose }: { onClose: () => void }) {
         </header>
 
         <div className="ct-gh-accounts-body">
+          {/* Direct Login Card */}
+          <div className="ct-direct-login-card">
+            <div className="ct-direct-login-header">
+              <div className="ct-direct-login-badge">
+                <ControlIcon name="git" size={15}/>
+                <span>Login Direto com GitHub</span>
+              </div>
+              {detectedLocalGitHub && <span className="ct-direct-detect-pill">Sessão Local Detectada</span>}
+            </div>
+            <p className="ct-direct-login-desc">
+              {detectedLocalGitHub
+                ? `Identificamos sua conta GitHub ativa no computador (@${detectedLocalGitHub.username}). Conecte sem precisar gerar ou copiar tokens.`
+                : 'Conecte sua conta GitHub com 1 clique diretamente pelo navegador ou CLI sem digitar chaves.'}
+            </p>
+            <div className="ct-direct-login-actions">
+              {detectedLocalGitHub ? (
+                <button
+                  type="button"
+                  className="ct-primary ct-direct-login-btn"
+                  onClick={async () => {
+                    setIsSubmitting(true)
+                    setLocalError(null)
+                    try {
+                      await connectGitHubDirect()
+                    } catch (err) {
+                      setLocalError((err as Error).message || 'Erro no login direto.')
+                    } finally {
+                      setIsSubmitting(false)
+                    }
+                  }}
+                  disabled={isSubmitting}
+                >
+                  <ControlIcon name="git" size={14}/>
+                  <span>{isSubmitting ? 'Conectando…' : `Conectar @${detectedLocalGitHub.username} (1-Clique)`}</span>
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  className="ct-primary ct-direct-login-btn"
+                  onClick={() => void connectGitHubDirect()}
+                >
+                  <ControlIcon name="git" size={14}/>
+                  <span>Entrar Diretamente com GitHub</span>
+                </button>
+              )}
+            </div>
+          </div>
+
           {/* Add Account Section */}
           <div className="ct-gh-add-card">
             <h3>Vincular Nova Conta GitHub</h3>

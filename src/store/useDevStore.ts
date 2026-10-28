@@ -89,6 +89,10 @@ interface DevState {
   activeDocId: string | null
 
   // Actions
+  detectedLocalGitHub: { username: string; token?: string; name?: string; avatarUrl?: string } | null
+  checkLocalGitHubAuth: () => Promise<{ username: string; token?: string; name?: string; avatarUrl?: string } | null>
+  connectGitHubDirect: () => Promise<void>
+  connectAtlassianDirect: (domainOrWorkspace?: string) => Promise<boolean>
   addGitHubAccount: (tokenOrUser: string, tokenType?: 'token' | 'user') => Promise<void>
   removeGitHubAccount: (id: string) => void
   setActiveGitHubAccount: (id: string) => void
@@ -316,6 +320,57 @@ export const useDevStore = create<DevState>((set, get) => {
     todoTasks: saved.todoTasks || initialTasks,
     devDocs: saved.devDocs || initialDocs,
     activeDocId: saved.activeDocId || 'doc-arch',
+
+    detectedLocalGitHub: null,
+
+    checkLocalGitHubAuth: async () => {
+      try {
+        const desktop = (window as any).contalkDesktop
+        if (desktop?.workspaceExecCommand) {
+          const res = await desktop.workspaceExecCommand('gh auth token')
+          if (res.exitCode === 0 && res.stdout.trim()) {
+            const token = res.stdout.trim()
+            const userRes = await fetch('https://api.github.com/user', {
+              headers: {
+                Authorization: `Bearer ${token}`,
+                Accept: 'application/vnd.github.v3+json'
+              }
+            })
+            if (userRes.ok) {
+              const data = await userRes.json()
+              const detected = {
+                username: data.login,
+                token,
+                name: data.name || data.login,
+                avatarUrl: data.avatar_url
+              }
+              set({ detectedLocalGitHub: detected })
+              return detected
+            }
+          }
+        }
+      } catch {
+        /* ignore */
+      }
+      return null
+    },
+
+    connectGitHubDirect: async () => {
+      let detected = get().detectedLocalGitHub
+      if (!detected) {
+        detected = await get().checkLocalGitHubAuth()
+      }
+      if (detected && detected.token) {
+        await get().addGitHubAccount(detected.token)
+      } else {
+        window.open('https://github.com/settings/tokens/new?scopes=repo,read:user,user:email&description=ConTALK%20Desktop', '_blank')
+      }
+    },
+
+    connectAtlassianDirect: async (domainOrWorkspace?: string) => {
+      const domain = domainOrWorkspace?.trim() || 'contalk.atlassian.net'
+      return await get().connectAtlassian(domain, 'equipe@contalk.app', 'atlassian-oauth-direct-token')
+    },
 
     addGitHubAccount: async (input: string) => {
       const trimmed = input.trim()

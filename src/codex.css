@@ -1482,3 +1482,105 @@ select option:hover, select option:focus, select option:checked {
   opacity: 0.4;
   cursor: not-allowed;
 }
+
+/* Direct Login & External Services Integration Hub */
+.ct-direct-login-card {
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.05) 0%, rgba(255, 255, 255, 0.02) 100%);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 12px;
+  padding: 14px 16px;
+  margin-bottom: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.ct-direct-login-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.ct-direct-login-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 600;
+  font-size: 13px;
+  color: var(--cx-fg);
+}
+.ct-direct-detect-pill {
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  padding: 3px 8px;
+  border-radius: 999px;
+  background: rgba(16, 185, 129, 0.15);
+  border: 1px solid rgba(16, 185, 129, 0.3);
+  color: #6ee7b7;
+}
+.ct-direct-login-desc {
+  font-size: 12px;
+  color: var(--cx-fg-3);
+  margin: 0;
+  line-height: 1.5;
+}
+.ct-direct-login-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+.ct-direct-login-btn {
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  gap: 8px !important;
+  padding: 8px 16px !important;
+  border-radius: 999px !important;
+  font-weight: 500 !important;
+  font-size: 12px !important;
+  cursor: pointer !important;
+  transition: all 0.15s ease !important;
+}
+
+/* Integrations Grid in SettingsView */
+.ct-integrations-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 14px;
+  margin-top: 14px;
+}
+.ct-integration-card {
+  background: var(--cx-elevated, #1c1c1c);
+  border: 1px solid var(--cx-border-light, rgba(255, 255, 255, 0.08));
+  border-radius: 12px;
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.ct-integration-card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.ct-integration-title {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 14px;
+  color: var(--cx-fg);
+}
+.ct-integration-card-desc {
+  font-size: 12px;
+  color: var(--cx-fg-3);
+  line-height: 1.5;
+  margin: 0;
+  flex: 1;
+}
+.ct-integration-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 4px;
+}
