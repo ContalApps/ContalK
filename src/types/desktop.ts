@@ -77,6 +77,8 @@ export interface DesktopBridge {
   mcpRemoveServer:(name:string)=>Promise<boolean>
   mcpListTools:(serverName:string)=>Promise<{tools:Array<{name:string;description?:string;inputSchema?:Record<string,unknown>}>}>
   mcpCallTool:(serverName:string,toolName:string,args?:Record<string,unknown>)=>Promise<any>
+  appsGetConfig?:()=>Promise<any>
+  appsSaveConfig?:(config:any)=>Promise<boolean>
   terminalCreate:(cwd:string|null,cols:number,rows:number)=>Promise<{id:string;shell:string;cwd:string}>
   terminalInput:(id:string,data:string)=>void
   terminalResize:(id:string,cols:number,rows:number)=>void

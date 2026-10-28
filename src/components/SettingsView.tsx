@@ -10,11 +10,13 @@ import { DensityControl } from './DensityControl'
 import { AiSettings } from './AiSettings'
 import { CoastalScene } from './CoastalScene'
 import { SocialAccountsManager } from './SocialAccountsManager'
+import { useAppsStore } from '../store/useAppsStore'
 
 export function SettingsView({ onClose, onEditProfile, initialTab='appearance' }: { onClose: () => void; onEditProfile: () => void; initialTab?:'appearance'|'ai' }) {
   const preferences = usePreferencesStore()
   const user = useAuthStore(s => s.user)!
   const devStore = useDevStore()
+  const appsStore = useAppsStore()
   const [tab, setTab] = useState<'appearance' | 'audio' | 'account' | 'about' | 'notifications' | 'ai' | 'integrations'>(initialTab)
   const [error, setError] = useState('')
   const [updateMessage, setUpdateMessage] = useState('')
@@ -23,6 +25,7 @@ export function SettingsView({ onClose, onEditProfile, initialTab='appearance' }
   const previous = useRef(document.activeElement as HTMLElement | null)
   useEffect(() => {
     void devStore.checkLocalGitHubAuth()
+    void appsStore.loadConfig()
     ref.current?.querySelector<HTMLButtonElement>('button')?.focus()
     return () => previous.current?.focus()
   }, [])
@@ -56,6 +59,92 @@ export function SettingsView({ onClose, onEditProfile, initialTab='appearance' }
         </div>
 
         <div className="ct-integrations-grid">
+          {/* Google Workspace Card */}
+          <div className="ct-integration-card ct-integration-google-card">
+            <div className="ct-integration-card-header">
+              <div className="ct-integration-title">
+                <ControlIcon name="mail" size={18}/>
+                <strong>Google Workspace (Gmail, YouTube, Agenda, Drive)</strong>
+              </div>
+              <span className={appsStore.google?.connected ? "ct-badge-connected" : "ct-badge-disconnected"}>
+                {appsStore.google?.connected ? `Conectado (${appsStore.google.email || 'Conta Google'}) ✓` : 'Não Conectado'}
+              </span>
+            </div>
+            <p className="ct-integration-card-desc">
+              Vincule Gmail, YouTube, Google Agenda e Google Drive para solicitar resumos inteligentes, consultar e-mails, vídeos inscritos e compromissos diretamente no chat com IA.
+            </p>
+            <div className="ct-integration-services-toggles">
+              <label className="ct-integration-svc-toggle" title="Habilitar consulta e resumo de e-mails do Gmail">
+                <input
+                  type="checkbox"
+                  checked={appsStore.google?.enabledServices?.gmail ?? true}
+                  onChange={() => void appsStore.toggleService('gmail')}
+                />
+                <ControlIcon name="mail" size={13} />
+                <span>Gmail</span>
+              </label>
+              <label className="ct-integration-svc-toggle" title="Habilitar consulta de canais e vídeos do YouTube">
+                <input
+                  type="checkbox"
+                  checked={appsStore.google?.enabledServices?.youtube ?? true}
+                  onChange={() => void appsStore.toggleService('youtube')}
+                />
+                <ControlIcon name="play" size={13} />
+                <span>YouTube</span>
+              </label>
+              <label className="ct-integration-svc-toggle" title="Habilitar consulta de reuniões e eventos da Google Agenda">
+                <input
+                  type="checkbox"
+                  checked={appsStore.google?.enabledServices?.calendar ?? true}
+                  onChange={() => void appsStore.toggleService('calendar')}
+                />
+                <ControlIcon name="event" size={13} />
+                <span>Agenda</span>
+              </label>
+              <label className="ct-integration-svc-toggle" title="Habilitar busca e leitura de arquivos do Google Drive">
+                <input
+                  type="checkbox"
+                  checked={appsStore.google?.enabledServices?.drive ?? true}
+                  onChange={() => void appsStore.toggleService('drive')}
+                />
+                <ControlIcon name="file" size={13} />
+                <span>Drive</span>
+              </label>
+            </div>
+            <div className="ct-integration-actions">
+              {appsStore.google?.connected ? (
+                <>
+                  <button
+                    type="button"
+                    className="ct-primary ct-direct-login-btn"
+                    onClick={() => {
+                      void appsStore.connectGoogleDirect()
+                    }}
+                  >
+                    <ControlIcon name="check" size={14}/>
+                    <span>Sincronizado: {appsStore.google.email || 'Conta Google'}</span>
+                  </button>
+                  <button
+                    type="button"
+                    className="ct-secondary"
+                    onClick={() => void appsStore.disconnectGoogle()}
+                  >
+                    Desconectar
+                  </button>
+                </>
+              ) : (
+                <button
+                  type="button"
+                  className="ct-primary ct-direct-login-btn"
+                  onClick={() => void appsStore.connectGoogleDirect()}
+                >
+                  <ControlIcon name="mail" size={14}/>
+                  <span>Vincular Google Workspace (1-Clique)</span>
+                </button>
+              )}
+            </div>
+          </div>
+
           {/* GitHub Card */}
           <div className="ct-integration-card">
             <div className="ct-integration-card-header">

@@ -163,6 +163,7 @@ export function parseAgentActions(content: string): ParsedBlock[] {
 export function AgentActionCard({ action }: { action: AgentAction }) {
   const [status, setStatus] = useState<'pending' | 'running' | 'executed' | 'rejected'>('pending')
   const [output, setOutput] = useState<{ stdout: string; stderr: string; exitCode?: number } | null>(null)
+  const [mcpResult, setMcpResult] = useState<any>(null)
   const [errorMessage, setErrorMessage] = useState('')
   const [detailsExpanded, setDetailsExpanded] = useState(false)
   const [generatedImage, setGeneratedImage] = useState<{ src: string; prompt: string } | null>(null)
@@ -268,6 +269,7 @@ export function AgentActionCard({ action }: { action: AgentAction }) {
     try {
       if (!desktop?.mcpCallTool) throw new Error('Suporte a MCP indisponível no momento.')
       const res = await desktop.mcpCallTool(action.server, action.toolName, action.args || {})
+      setMcpResult(res)
       setStatus('executed')
       setOutput({ stdout: JSON.stringify(res, null, 2), stderr: '' })
     } catch (e) {
@@ -280,22 +282,56 @@ export function AgentActionCard({ action }: { action: AgentAction }) {
     setStatus('rejected')
   }
 
-  const toolIcon = action.tool === 'run_command' ? 'terminal' : action.tool === 'mcp_call' || action.tool === 'generate_image' ? 'ai' : 'git-code'
+  let toolIcon: import('./ControlIcon').ControlIconName = action.tool === 'run_command' ? 'terminal' : action.tool === 'generate_image' ? 'ai' : 'git-code'
+  let toolTitle = ''
+
+  if (action.tool === 'mcp_call') {
+    const s = (action.server || '').toLowerCase()
+    const tn = (action.toolName || '').toLowerCase()
+    if (s === 'google' || s === 'google-workspace') {
+      if (tn.startsWith('gmail')) {
+        toolIcon = 'mail'
+        toolTitle = `Gmail: ${tn === 'gmail_get_message' ? 'Ler e-mail' : 'Consultar e-mails'}`
+      } else if (tn.startsWith('youtube')) {
+        toolIcon = 'play'
+        toolTitle = `YouTube: ${tn === 'youtube_list_subscriptions' ? 'Canais inscritos' : 'Pesquisar vídeos'}`
+      } else if (tn.startsWith('calendar')) {
+        toolIcon = 'event'
+        toolTitle = 'Google Agenda: Próximos compromissos'
+      } else if (tn.startsWith('drive')) {
+        toolIcon = 'file'
+        toolTitle = 'Google Drive: Arquivos em nuvem'
+      } else {
+        toolIcon = 'ai'
+        toolTitle = `Google Workspace: ${action.toolName}`
+      }
+    } else if (s === 'github') {
+      toolIcon = 'git'
+      toolTitle = `GitHub: ${action.toolName}`
+    } else {
+      toolIcon = 'ai'
+      toolTitle = `Ferramenta MCP: ${action.server} / ${action.toolName}`
+    }
+  } else if (action.tool === 'run_command') {
+    toolTitle = 'Executar comando'
+  } else if (action.tool === 'write_file') {
+    toolTitle = `Criar / sobrescrever arquivo: ${action.path}`
+  } else if (action.tool === 'edit_file') {
+    toolTitle = `Modificar arquivo: ${action.path}`
+  } else if (action.tool === 'read_file') {
+    toolTitle = `Ler arquivo: ${action.path}`
+  } else if (action.tool === 'list_files') {
+    toolTitle = `Listar pasta: ${action.path || '.'}`
+  } else if (action.tool === 'generate_image') {
+    toolTitle = `Gerar imagem com IA: "${action.prompt || action.command}"`
+  }
 
   return (
     <div className={`ct-agent-card ct-agent-${action.tool} ct-status-${status}`}>
       <div className="ct-agent-card-header">
         <div className="ct-agent-card-title">
           <ControlIcon name={toolIcon} size={15} />
-          <strong>
-            {action.tool === 'run_command' && 'Executar comando'}
-            {action.tool === 'write_file' && `Criar / sobrescrever arquivo: ${action.path}`}
-            {action.tool === 'edit_file' && `Modificar arquivo: ${action.path}`}
-            {action.tool === 'read_file' && `Ler arquivo: ${action.path}`}
-            {action.tool === 'list_files' && `Listar pasta: ${action.path || '.'}`}
-            {action.tool === 'mcp_call' && `Ferramenta MCP: ${action.server} / ${action.toolName}`}
-            {action.tool === 'generate_image' && `Gerar imagem com IA: "${action.prompt || action.command}"`}
-          </strong>
+          <strong>{toolTitle}</strong>
         </div>
         <span className={`ct-agent-badge ct-badge-${status}`}>
           {status === 'pending' && 'Aguardando aprovação'}
@@ -342,10 +378,174 @@ export function AgentActionCard({ action }: { action: AgentAction }) {
           </div>
         )}
 
-        {action.tool === 'mcp_call' && action.args && (
+        {action.tool === 'mcp_call' && !mcpResult && action.args && (
           <pre className="ct-agent-code-box">
             <code>{JSON.stringify(action.args, null, 2)}</code>
           </pre>
+        )}
+
+        {action.tool === 'mcp_call' && mcpResult && (
+          <div className="ct-mcp-results-container">
+            {mcpResult.messages && Array.isArray(mcpResult.messages) && (
+              <div className="ct-mcp-gmail-container">
+                <div className="ct-mcp-account-header">
+                  <ControlIcon name="mail" size={14} />
+                  <span>{mcpResult.account || 'Gmail'} · {mcpResult.messages.length} e-mail(s)</span>
+                </div>
+                <div className="ct-mcp-email-list">
+                  {mcpResult.messages.map((m: any, idx: number) => (
+                    <div key={m.id || idx} className="ct-mcp-email-item">
+                      <div className="ct-mcp-email-top">
+                        <span className="ct-mcp-email-from">{m.from}</span>
+                        <span className="ct-mcp-email-date">{m.date}</span>
+                      </div>
+                      <div className="ct-mcp-email-subject">{m.subject}</div>
+                      {m.snippet && <div className="ct-mcp-email-snippet">{m.snippet}</div>}
+                    </div>
+                  ))}
+                </div>
+                <div className="ct-mcp-quick-summary-bar">
+                  <button
+                    type="button"
+                    className="ct-mcp-summary-btn"
+                    onClick={() => {
+                      const summaryText = mcpResult.messages
+                        .map((m: any) => `- De: ${m.from}\n  Assunto: ${m.subject}\n  Data: ${m.date}\n  Trecho: ${m.snippet}`)
+                        .join('\n\n')
+                      window.dispatchEvent(new CustomEvent('contalk-ai-prompt', {
+                        detail: {
+                          prompt: `Por favor, faça um resumo executivo claro e estruturado dos seguintes e-mails do Gmail, destacando ações prioritárias e pendências:\n\n${summaryText}`
+                        }
+                      }))
+                    }}
+                  >
+                    <ControlIcon name="ai" size={13} />
+                    <span>Resumir estes e-mails no chat com IA</span>
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {mcpResult.channels && Array.isArray(mcpResult.channels) && (
+              <div className="ct-mcp-youtube-container">
+                <div className="ct-mcp-account-header">
+                  <ControlIcon name="play" size={14} />
+                  <span>{mcpResult.account || 'YouTube'} · {mcpResult.channels.length} canais inscritos</span>
+                </div>
+                <div className="ct-mcp-channel-grid">
+                  {mcpResult.channels.map((ch: any, idx: number) => (
+                    <div key={ch.id || idx} className="ct-mcp-channel-card">
+                      {ch.thumbnail && <img src={ch.thumbnail} alt={ch.title} className="ct-mcp-channel-thumb" />}
+                      <div className="ct-mcp-channel-info">
+                        <div className="ct-mcp-channel-title">
+                          <strong>{ch.title}</strong>
+                          {ch.subscriberCount && <span className="ct-mcp-pill">{ch.subscriberCount}</span>}
+                        </div>
+                        {ch.description && <p className="ct-mcp-channel-desc">{ch.description}</p>}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+                <div className="ct-mcp-quick-summary-bar">
+                  <button
+                    type="button"
+                    className="ct-mcp-summary-btn"
+                    onClick={() => {
+                      const summaryText = mcpResult.channels
+                        .map((ch: any) => `- ${ch.title} (${ch.subscriberCount || ''}): ${ch.description || ''}`)
+                        .join('\n')
+                      window.dispatchEvent(new CustomEvent('contalk-ai-prompt', {
+                        detail: {
+                          prompt: `Por favor, faça um resumo e análise dos canais que sigo no YouTube, agrupando-os por temas e destacando recomendações:\n\n${summaryText}`
+                        }
+                      }))
+                    }}
+                  >
+                    <ControlIcon name="ai" size={13} />
+                    <span>Resumir canais do YouTube no chat com IA</span>
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {mcpResult.events && Array.isArray(mcpResult.events) && (
+              <div className="ct-mcp-calendar-container">
+                <div className="ct-mcp-account-header">
+                  <ControlIcon name="event" size={14} />
+                  <span>{mcpResult.account || 'Google Agenda'} · {mcpResult.events.length} compromissos</span>
+                </div>
+                <div className="ct-mcp-event-list">
+                  {mcpResult.events.map((ev: any, idx: number) => (
+                    <div key={ev.id || idx} className="ct-mcp-event-item">
+                      <div className="ct-mcp-event-time">
+                        <span className="ct-mcp-pill">{ev.start}</span>
+                        {ev.location && <span className="ct-mcp-loc">{ev.location}</span>}
+                      </div>
+                      <div className="ct-mcp-event-title">{ev.summary}</div>
+                      {ev.description && <div className="ct-mcp-event-desc">{ev.description}</div>}
+                    </div>
+                  ))}
+                </div>
+                <div className="ct-mcp-quick-summary-bar">
+                  <button
+                    type="button"
+                    className="ct-mcp-summary-btn"
+                    onClick={() => {
+                      const summaryText = mcpResult.events
+                        .map((ev: any) => `- ${ev.summary} | Horário: ${ev.start} até ${ev.end || ''} | Local: ${ev.location || 'Online'}\n  ${ev.description || ''}`)
+                        .join('\n')
+                      window.dispatchEvent(new CustomEvent('contalk-ai-prompt', {
+                        detail: {
+                          prompt: `Por favor, organize minha rotina e faça um briefing dos meus próximos compromissos da Google Agenda:\n\n${summaryText}`
+                        }
+                      }))
+                    }}
+                  >
+                    <ControlIcon name="ai" size={13} />
+                    <span>Organizar compromissos com IA</span>
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {mcpResult.files && Array.isArray(mcpResult.files) && (
+              <div className="ct-mcp-drive-container">
+                <div className="ct-mcp-account-header">
+                  <ControlIcon name="file" size={14} />
+                  <span>{mcpResult.account || 'Google Drive'} · {mcpResult.files.length} arquivos</span>
+                </div>
+                <div className="ct-mcp-file-list">
+                  {mcpResult.files.map((f: any, idx: number) => (
+                    <div key={f.id || idx} className="ct-mcp-file-item">
+                      <ControlIcon name="file" size={15} />
+                      <div className="ct-mcp-file-details">
+                        <strong>{f.name}</strong>
+                        <small>{f.size || ''} · Modificado: {f.modifiedTime || ''}</small>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {mcpResult.issues && Array.isArray(mcpResult.issues) && (
+              <div className="ct-mcp-github-container">
+                <div className="ct-mcp-account-header">
+                  <ControlIcon name="git-issue" size={14} />
+                  <span>Repositório {mcpResult.repo} · {mcpResult.issues.length} issues</span>
+                </div>
+                <div className="ct-mcp-gh-list">
+                  {mcpResult.issues.map((iss: any) => (
+                    <div key={iss.id} className="ct-mcp-gh-item">
+                      <span className={`ct-mcp-status-${iss.state}`}>#{iss.number}</span>
+                      <span className="ct-mcp-gh-title">{iss.title}</span>
+                      <small>@{iss.author}</small>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
         )}
       </div>
 
