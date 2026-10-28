@@ -30,13 +30,19 @@ export function AiChannelSettings({ channelId }: { channelId: string }) {
 
   const manage = !!snapshot && can(snapshot.policy, snapshot.actor, 'MANAGE_CHANNELS', channelId)
 
-  const handleSave = () => {
+  const handleSave = (targetEnabled?: boolean) => {
     setStatus('')
     setIsSuccess(false)
-    void state.command({ type: 'ai-channel-settings', channelId, enabled, endpoints })
+    const isEnabled = typeof targetEnabled === 'boolean' ? targetEnabled : enabled
+    void state.command({
+      type: 'ai-channel-settings',
+      channelId,
+      enabled: isEnabled,
+      endpoints: isEnabled ? endpoints : {}
+    })
       .then(() => {
         setIsSuccess(true)
-        setStatus('Configurações de IA salvas com sucesso para este canal.')
+        setStatus(isEnabled ? 'Configurações de IA salvas com sucesso para este canal.' : 'IA desativada com sucesso para este canal.')
       })
       .catch(error => {
         setIsSuccess(false)
@@ -76,7 +82,11 @@ export function AiChannelSettings({ channelId }: { channelId: string }) {
             type="checkbox"
             checked={enabled}
             disabled={!manage || state.busy}
-            onChange={e => setEnabled(e.target.checked)}
+            onChange={e => {
+              const val = e.target.checked
+              setEnabled(val)
+              handleSave(val)
+            }}
             className="ct-switch-input"
           />
           <span className="ct-switch-slider" />
@@ -94,24 +104,31 @@ export function AiChannelSettings({ channelId }: { channelId: string }) {
           </div>
 
           <AiCredentialEditor endpoints={endpoints} onEndpoints={setEndpoints} />
-
-          <div className="ct-ai-actions-footer">
-            <button
-              className="ct-primary ct-ai-channel-save-btn"
-              type="button"
-              disabled={!manage || state.busy}
-              onClick={handleSave}
-            >
-              <ControlIcon name="check" size={14} />
-              <span>{state.busy ? 'Salvando no servidor…' : 'Salvar IA do Canal'}</span>
-            </button>
-          </div>
         </div>
       ) : (
         <div className="ct-ai-disabled-hint">
           <p>A IA está desativada para este canal. Ative o interruptor acima para liberar o uso de modelos e endpoints.</p>
         </div>
       )}
+
+      {/* Always-visible actions footer */}
+      <div className="ct-ai-actions-footer">
+        <button
+          className={enabled ? "ct-primary ct-ai-channel-save-btn" : "ct-secondary ct-ai-channel-save-btn"}
+          type="button"
+          disabled={!manage || state.busy}
+          onClick={() => handleSave(enabled)}
+        >
+          <ControlIcon name={enabled ? "check" : "close"} size={14} />
+          <span>
+            {state.busy
+              ? 'Salvando no servidor…'
+              : enabled
+              ? 'Salvar Configurações de IA'
+              : 'Salvar e Desativar IA no Canal'}
+          </span>
+        </button>
+      </div>
 
       {status && (
         <div className={isSuccess ? 'ct-success-banner' : 'ct-error-banner'} role="status">

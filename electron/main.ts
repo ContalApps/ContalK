@@ -16,6 +16,8 @@ import { setupCaptureAudio } from './capture-audio'
 import { setupTerminal } from './terminal'
 import { setupAppMenu } from './app-menu'
 import { setupMcp } from './mcp'
+import { setupLinkPreview } from './link-preview'
+import { setupInternalBrowser } from './browser'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 
@@ -45,6 +47,16 @@ function getUsersFilePath(): string {
   return path.join(dir, 'users.json')
 }
 
+export interface LinkedSocialAccount {
+  provider: 'google' | 'instagram' | 'linkedin'
+  accountId: string
+  email?: string
+  username?: string
+  displayName?: string
+  avatarUrl?: string
+  linkedAt: string
+}
+
 interface StoredUser {
   id: string
   username: string
@@ -56,6 +68,7 @@ interface StoredUser {
   created_at: string
   // Profiles created before accounts moved to the server are ignored and replaced.
   server?: true
+  linkedAccounts?: Record<string, LinkedSocialAccount>
 }
 
 function loadUsers(): Record<string, StoredUser> {
@@ -110,6 +123,107 @@ ipcMain.handle('auth-profile', (_event, profile) => {
   return publicUser(current)
 })
 
+ipcMain.handle('auth-social-link', (_event, { provider, accountData }: { provider: 'google' | 'instagram' | 'linkedin'; accountData: Partial<LinkedSocialAccount> }) => {
+  if (!sessionUser) throw new Error('Entre na sua conta para vincular redes sociais.')
+  const users = loadUsers()
+  const current = users[sessionUser]
+  if (!current) throw new Error('Conta não encontrada.')
+  if (!current.linkedAccounts) current.linkedAccounts = {}
+  const accountId = accountData.accountId || accountData.email || accountData.username || `id_${Date.now()}`
+  current.linkedAccounts[provider] = {
+    provider,
+    accountId,
+    email: accountData.email,
+    username: accountData.username,
+    displayName: accountData.displayName || accountData.username || accountData.email,
+    avatarUrl: accountData.avatarUrl,
+    linkedAt: new Date().toISOString()
+  }
+  saveUsers(users)
+  return publicUser(current)
+})
+
+ipcMain.handle('auth-social-unlink', (_event, provider: 'google' | 'instagram' | 'linkedin') => {
+  if (!sessionUser) throw new Error('Entre na sua conta.')
+  const users = loadUsers()
+  const current = users[sessionUser]
+  if (!current) throw new Error('Conta não encontrada.')
+  if (current.linkedAccounts && current.linkedAccounts[provider]) {
+    delete current.linkedAccounts[provider]
+    saveUsers(users)
+  }
+  return publicUser(current)
+})
+
+ipcMain.handle('auth-social-login', async (_event, { provider, accountData }: { provider: 'google' | 'instagram' | 'linkedin'; accountData?: { email?: string; username?: string; displayName?: string; accountId?: string; avatarUrl?: string } }) => {
+  try {
+    const users = loadUsers()
+    const allUsers = Object.values(users)
+    const data = accountData || {}
+    let matched = allUsers.find(u => {
+      const linked = u.linkedAccounts?.[provider]
+      if (linked) {
+        if (data.accountId && linked.accountId === data.accountId) return true
+        if (data.email && linked.email?.toLowerCase() === data.email.toLowerCase()) return true
+        if (data.username && linked.username?.toLowerCase() === data.username.toLowerCase()) return true
+        if (!data.accountId && !data.email && !data.username) return true
+      }
+      if (data.email && u.email?.toLowerCase() === data.email.toLowerCase()) return true
+      return false
+    })
+    if (!matched) {
+      const baseName = (data.username || data.email?.split('@')[0] || data.displayName || provider).replace(/[^A-Za-z0-9_-]/g, '').toLowerCase() || `user_${Date.now()}`
+      let usernameCandidate = baseName
+      let counter = 1
+      while (users[usernameCandidate]) {
+        usernameCandidate = `${baseName}${counter++}`
+      }
+      const email = data.email || `${usernameCandidate}@${provider}.social`
+      const displayName = data.displayName || data.username || usernameCandidate
+      const newStored: StoredUser = {
+        id: `usr_${Date.now()}`,
+        username: usernameCandidate,
+        display_name: displayName,
+        email,
+        password_hash: '',
+        avatar: data.avatarUrl,
+        created_at: new Date().toISOString(),
+        server: true,
+        linkedAccounts: {
+          [provider]: {
+            provider,
+            accountId: data.accountId || email,
+            email: data.email,
+            username: data.username,
+            displayName,
+            avatarUrl: data.avatarUrl,
+            linkedAt: new Date().toISOString()
+          }
+        }
+      }
+      users[usernameCandidate] = newStored
+      saveUsers(users)
+      matched = newStored
+    } else {
+      if (!matched.linkedAccounts) matched.linkedAccounts = {}
+      matched.linkedAccounts[provider] = {
+        provider,
+        accountId: data.accountId || data.email || data.username || matched.email,
+        email: data.email || matched.email,
+        username: data.username,
+        displayName: data.displayName || matched.display_name,
+        avatarUrl: data.avatarUrl || matched.avatar,
+        linkedAt: matched.linkedAccounts[provider]?.linkedAt || new Date().toISOString()
+      }
+      saveUsers(users)
+    }
+    const token = issueSession(matched.username)
+    return { type: 'Success', data: { token, user: publicUser(matched) } }
+  } catch (error) {
+    return { type: 'Error', data: error instanceof Error ? error.message : 'Falha na autenticação vinculada.' }
+  }
+})
+
 function createWindow() {
   if(process.platform==='win32')app.setAppUserModelId('com.contalk.app')
   const iconPath = path.join(process.env.VITE_PUBLIC!, 'app-icon.png')
@@ -144,6 +258,8 @@ function createWindow() {
   const terminals = setupTerminal(win)
   setupAppMenu(win, terminals.killAll)
   setupMcp(win)
+  setupLinkPreview(win)
+  setupInternalBrowser(win)
 
   // Test active push message to Renderer_process.
   win.webContents.on('did-finish-load', () => {

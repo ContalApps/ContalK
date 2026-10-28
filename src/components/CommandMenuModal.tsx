@@ -19,6 +19,7 @@ interface CommandMenuModalProps {
   onOpenSettings?: (tab?: 'ai' | 'appearance') => void
   onOpenHelp?: () => void
   onOpenFolder?: () => void
+  onOpenDevModal?: (modalId: string) => void
 }
 
 export function CommandMenuModal({
@@ -27,7 +28,8 @@ export function CommandMenuModal({
   onToggleReviewPanel,
   onOpenSettings,
   onOpenHelp,
-  onOpenFolder
+  onOpenFolder,
+  onOpenDevModal
 }: CommandMenuModalProps) {
   const [query, setQuery] = useState('')
   const [selectedIndex, setSelectedIndex] = useState(0)
@@ -127,6 +129,57 @@ export function CommandMenuModal({
       icon: 'ai',
       action: () => {
         onOpenSettings?.('ai')
+        onClose()
+      }
+    },
+    {
+      id: 'cmd-browser',
+      title: 'Abrir Navegador Web Interno…',
+      category: 'Desenvolvimento e IA',
+      shortcut: 'Ctrl+Shift+B',
+      icon: 'globe',
+      action: () => {
+        onOpenDevModal?.('browser')
+        onClose()
+      }
+    },
+    {
+      id: 'cmd-mcp',
+      title: 'Servidores MCP (Model Context Protocol)…',
+      category: 'Desenvolvimento e IA',
+      icon: 'ai',
+      action: () => {
+        onOpenDevModal?.('mcp')
+        onClose()
+      }
+    },
+    {
+      id: 'cmd-kanban',
+      title: 'Guia de Projetos (Kanban)…',
+      category: 'Desenvolvimento e IA',
+      icon: 'overview',
+      action: () => {
+        onOpenDevModal?.('overview')
+        onClose()
+      }
+    },
+    {
+      id: 'cmd-tasks',
+      title: 'Lista de Tarefas do Desenvolvedor…',
+      category: 'Desenvolvimento e IA',
+      icon: 'tasks',
+      action: () => {
+        onOpenDevModal?.('tasks')
+        onClose()
+      }
+    },
+    {
+      id: 'cmd-docs',
+      title: 'Central de Documentação…',
+      category: 'Desenvolvimento e IA',
+      icon: 'docs',
+      action: () => {
+        onOpenDevModal?.('docs')
         onClose()
       }
     },

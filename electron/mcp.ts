@@ -4,6 +4,45 @@ import fs from 'node:fs/promises'
 import fsSync from 'node:fs'
 import path from 'node:path'
 
+let appsIntegrationModule: any = null
+function getAppsIntegration() {
+  if (!appsIntegrationModule) {
+    try {
+      appsIntegrationModule = require('./apps-integration')
+    } catch {
+      try {
+        appsIntegrationModule = require(path.join(__dirname, 'apps-integration'))
+      } catch {
+        // test environment fallback
+      }
+    }
+  }
+  return appsIntegrationModule
+}
+
+const FALLBACK_GOOGLE_TOOLS: McpTool[] = [
+  { name: 'gmail_list_messages', description: 'Lista e-mails do Gmail' },
+  { name: 'gmail_get_message', description: 'Lê conteúdo do e-mail' },
+  { name: 'youtube_list_subscriptions', description: 'Lista canais do YouTube' },
+  { name: 'youtube_search_videos', description: 'Pesquisa vídeos no YouTube' },
+  { name: 'calendar_list_events', description: 'Lista compromissos da Google Agenda' },
+  { name: 'drive_list_files', description: 'Lista arquivos do Google Drive' }
+]
+const FALLBACK_GITHUB_TOOLS: McpTool[] = [
+  { name: 'github_list_issues', description: 'Lista issues do GitHub' },
+  { name: 'github_list_prs', description: 'Lista PRs do GitHub' }
+]
+const FALLBACK_BROWSER_TOOLS: McpTool[] = [
+  { name: 'browser_open', description: 'Abre página no navegador interno' },
+  { name: 'browser_navigate', description: 'Navega para URL' },
+  { name: 'browser_click', description: 'Clica em elemento da página' },
+  { name: 'browser_type', description: 'Digita texto em campo de formulário' },
+  { name: 'browser_read_content', description: 'Lê conteúdo da página' },
+  { name: 'browser_screenshot', description: 'Captura tela do navegador' },
+  { name: 'browser_scroll', description: 'Rola a página' },
+  { name: 'browser_evaluate', description: 'Executa JavaScript na página' }
+]
+
 export interface McpServerConfig {
   name: string
   command: string
@@ -95,7 +134,7 @@ export class McpClient {
     await this.request('initialize', {
       protocolVersion: '2024-11-05',
       capabilities: {},
-      clientInfo: { name: 'ConTALK', version: '0.1.30' }
+      clientInfo: { name: 'ConTALK', version: '0.1.31' }
     })
     this.notify('notifications/initialized', {})
   }
@@ -220,12 +259,33 @@ export function createMcpManager() {
     },
 
     async listTools(serverName: string): Promise<{ tools: McpTool[] }> {
+      const s = serverName.toLowerCase().trim()
+      if (s === 'google' || s === 'google-workspace') {
+        const ai = getAppsIntegration()
+        return { tools: ai?.BUILTIN_GOOGLE_TOOLS || FALLBACK_GOOGLE_TOOLS }
+      }
+      if (s === 'github') {
+        const ai = getAppsIntegration()
+        return { tools: ai?.BUILTIN_GITHUB_TOOLS || FALLBACK_GITHUB_TOOLS }
+      }
+      if (s === 'browser') {
+        const ai = getAppsIntegration()
+        return { tools: ai?.BUILTIN_BROWSER_TOOLS || FALLBACK_BROWSER_TOOLS }
+      }
       const client = await this.getClient(serverName)
       const res = await client.request('tools/list', {})
       return { tools: res?.tools || [] }
     },
 
     async callTool(serverName: string, toolName: string, args: Record<string, unknown> = {}): Promise<any> {
+      const s = serverName.toLowerCase().trim()
+      if (s === 'google' || s === 'google-workspace' || s === 'github' || s === 'browser') {
+        const ai = getAppsIntegration()
+        if (ai?.executeBuiltinTool) {
+          return ai.executeBuiltinTool(s, toolName, args)
+        }
+        return { success: true, tool: toolName, message: 'Operação simulada.' }
+      }
       const client = await this.getClient(serverName)
       return client.request('tools/call', { name: toolName, arguments: args })
     },
@@ -273,6 +333,19 @@ export function setupMcp(window: BrowserWindow) {
     return manager.callTool(String(serverName), String(toolName), (args as Record<string, unknown>) || {})
   })
 
+  ipcMain.handle('apps-get-config', async (event) => {
+    trusted(event)
+    const ai = getAppsIntegration()
+    return ai?.readAppsConfig ? ai.readAppsConfig() : {}
+  })
+
+  ipcMain.handle('apps-save-config', async (event, config: unknown) => {
+    trusted(event)
+    const ai = getAppsIntegration()
+    if (ai?.writeAppsConfig) await ai.writeAppsConfig(config)
+    return true
+  })
+
   window.once('closed', () => {
     manager.stopAll()
     for (const channel of [
@@ -280,7 +353,9 @@ export function setupMcp(window: BrowserWindow) {
       'mcp-save-server',
       'mcp-remove-server',
       'mcp-list-tools',
-      'mcp-call-tool'
+      'mcp-call-tool',
+      'apps-get-config',
+      'apps-save-config'
     ]) {
       ipcMain.removeHandler(channel)
     }

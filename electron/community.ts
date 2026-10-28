@@ -52,8 +52,46 @@ export function setupCommunity(window:BrowserWindow,getUsername:()=>string|null)
   const aiPath=()=>path.join(app.getPath('userData'),'ai-'+createHash('sha256').update(getUsername()||'').digest('hex')+'.enc')
   const aiConfig=():{keys:Partial<Record<AiProviderId,string>>;contextTokens:number;maxOutputTokens:number}|null=>{
     if(!getUsername()||!safeStorage.isEncryptionAvailable()||!fs.existsSync(aiPath()))return null
-    const saved=JSON.parse(safeStorage.decryptString(fs.readFileSync(aiPath())))
-    return {keys:saved.keys||{openai:saved.key},contextTokens:saved.contextTokens||8192,maxOutputTokens:saved.maxOutputTokens||2048}
+    try{
+      const saved=JSON.parse(safeStorage.decryptString(fs.readFileSync(aiPath())))
+      const rawKeys:Partial<Record<AiProviderId,string>> = saved.keys||(saved.key?{openai:saved.key}:{})
+      const keys:Partial<Record<AiProviderId,string>> = {}
+      let changed=false
+
+      for(const [p,k] of Object.entries(rawKeys)){
+        if(!k||typeof k!=='string'||!k.trim()){
+          changed=true
+          continue
+        }
+        keys[p as AiProviderId]=k.trim()
+      }
+
+      // Descartar chave de OpenAI falsamente duplicada/atribuída:
+      // 1. Se a chave da OpenAI for idêntica a de outro provedor (ex: gemini), foi duplicada na migração.
+      // 2. Se a chave da OpenAI possuir formato do Google (AQ. ou AIzaSy) e não começar com sk-.
+      if(keys.openai){
+        const isDuplicateOfOther=Object.entries(keys).some(([p,k])=>p!=='openai'&&k===keys.openai)
+        const isGoogleKey=keys.openai.startsWith('AQ.')||keys.openai.startsWith('AIzaSy')
+        if(isDuplicateOfOther||isGoogleKey){
+          delete keys.openai
+          changed=true
+        }
+      }
+
+      if(changed||saved.key!==undefined){
+        delete saved.key
+        saved.keys=keys
+        if(Object.values(keys).some(Boolean)){
+          fs.writeFileSync(aiPath(),safeStorage.encryptString(JSON.stringify(saved)))
+        }else{
+          fs.writeFileSync(aiPath(),safeStorage.encryptString(JSON.stringify({keys:{},contextTokens:saved.contextTokens||8192,maxOutputTokens:saved.maxOutputTokens||2048})))
+        }
+      }
+
+      return {keys,contextTokens:saved.contextTokens||8192,maxOutputTokens:saved.maxOutputTokens||2048}
+    }catch{
+      return null
+    }
   }
   const request=async(route:string,body?:unknown,timeout=15000)=>{
     const owner=getUsername()
@@ -120,16 +158,23 @@ export function setupCommunity(window:BrowserWindow,getUsername:()=>string|null)
     'community-status':()=>{const owner=getUsername();return owner&&readCommunityConfig(owner)?{configured:true,url:COMMUNITY_URL}:{configured:false,url:COMMUNITY_URL}},
     'community-servers':async()=>(await request('/identity')).servers as Array<{id:string;name:string}>,
     'community-create-server':async(name:string)=>{if(typeof name!=='string'||!name.trim()||name.trim().length>60)throw new Error('Use um nome de 1 a 60 caracteres.');return request('/servers',{name:name.trim()})},
-    'community-ai-status':()=>{const value=aiConfig();return {configured:!!value?.keys.openai,providers:aiProviders.filter(provider=>!!value?.keys[provider]),contextTokens:value?.contextTokens||8192,maxOutputTokens:value?.maxOutputTokens||2048}},
+    'community-ai-status':()=>{
+      const value=aiConfig();
+      return {configured:!!value?.keys.openai,providers:aiProviders.filter(provider=>!!value?.keys[provider]),contextTokens:value?.contextTokens||8192,maxOutputTokens:value?.maxOutputTokens||2048}
+    },
     'community-ai-configure':(value:{provider?:AiProviderId;key?:string;contextTokens:number;maxOutputTokens:number})=>{
       if(!value||!Number.isInteger(value.contextTokens)||value.contextTokens<1024||value.contextTokens>32768||!Number.isInteger(value.maxOutputTokens)||value.maxOutputTokens<128||value.maxOutputTokens>8192)throw new Error('Defina limites válidos para o uso da IA.')
+      const previous=aiConfig()
+      const keys={...previous?.keys}
       const provider=value.provider||'openai';if(!aiProviders.includes(provider))throw new Error('Provedor de IA inválido.')
-      const previous=aiConfig(),key=value.key?.trim()||previous?.keys[provider]
-      if(!key||key.length<8||key.length>512)throw new Error('Informe uma chave pessoal deste provedor.')
+      const key=value.key?.trim()||previous?.keys[provider]
+      if(value.key?.trim()||!previous?.keys[provider]){
+        if(!key||key.length<8||key.length>512)throw new Error('Informe uma chave pessoal deste provedor.')
+        keys[provider]=key
+      }
       if(!safeStorage.isEncryptionAvailable())throw new Error('Proteção de credenciais indisponível.')
-      const keys={...previous?.keys,[provider]:key}
       fs.writeFileSync(aiPath(),safeStorage.encryptString(JSON.stringify({keys,contextTokens:value.contextTokens,maxOutputTokens:value.maxOutputTokens})))
-      return {configured:true,providers:aiProviders.filter(item=>!!keys[item]),contextTokens:value.contextTokens,maxOutputTokens:value.maxOutputTokens}
+      return {configured:!!keys.openai,providers:aiProviders.filter(item=>!!keys[item]),contextTokens:value.contextTokens,maxOutputTokens:value.maxOutputTokens}
     },
     'community-ai-remove':(provider?:AiProviderId)=>{if(provider&&!aiProviders.includes(provider))throw new Error('Provedor inválido.');const file=aiPath(),saved=aiConfig();if(provider&&saved){delete saved.keys[provider];if(Object.values(saved.keys).some(Boolean))fs.writeFileSync(file,safeStorage.encryptString(JSON.stringify(saved)));else if(fs.existsSync(file))fs.unlinkSync(file)}else if(fs.existsSync(file))fs.unlinkSync(file);selectedAiFiles.clear()},
     'community-ai-models':async(provider:AiProviderId,endpoint?:string)=>{
@@ -216,6 +261,6 @@ export function setupCommunity(window:BrowserWindow,getUsername:()=>string|null)
     'community-subscribe':(serverId:string)=>{if(!validId(serverId))throw new Error('Servidor inválido.');config();stream?.abort();stream=new AbortController();void subscribe(serverId,getUsername()!,stream)},
     'community-unsubscribe':()=>{stream?.abort();stream=undefined},
   }
-  for(const [channel,handler]of Object.entries(handlers))ipcMain.handle(channel,(event,...args)=>{if(event.sender!==contents||event.senderFrame!==contents.mainFrame)throw new Error('Origem inválida.');if(!getUsername())throw new Error('Entre no ConTALK.');return handler(...args)})
+  for(const [channel,handler]of Object.entries(handlers))ipcMain.handle(channel,(event,...args)=>{if(event.sender!==contents||event.senderFrame!==contents.mainFrame)throw new Error('Origem inválida.');if(!getUsername()&&channel!=='community-unsubscribe'&&channel!=='community-ai-unsubscribe')throw new Error('Entre no ConTALK.');return handler(...args)})
   window.once('closed',()=>{stream?.abort();aiStream?.abort();selectedAiFiles.clear();for(const channel of Object.keys(handlers))ipcMain.removeHandler(channel)})
 }

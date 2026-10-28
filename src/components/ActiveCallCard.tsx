@@ -4,6 +4,7 @@ import { Avatar } from './Avatar'
 import { ControlIcon } from './ControlIcon'
 import { ScreenShareModal } from './ScreenShareModal'
 import { useCallClock } from './RightPanel'
+import { useSharedBrowserStore } from '../store/useSharedBrowserStore'
 
 export function ActiveCallCard({
   channelId,
@@ -19,6 +20,7 @@ export function ActiveCallCard({
   onParticipantContextMenu?: (participant: VoiceParticipant, event: React.MouseEvent) => void
 }) {
   const voice = useVoiceStore()
+  const sharedBrowser = useSharedBrowserStore()
   const clock = useCallClock()
   const [shareOpen, setShareOpen] = useState(false)
   const [error, setError] = useState('')
@@ -87,6 +89,15 @@ export function ActiveCallCard({
             onClick={() => voice.isScreenSharing ? void run(voice.toggleScreenShare) : setShareOpen(true)}
           >
             <ControlIcon name="screen"/>
+          </button>
+          <button
+            aria-label={sharedBrowser.isSharing ? 'Parar navegador compartilhado' : 'Compartilhar navegador web'}
+            title={sharedBrowser.isSharing ? 'Parar navegador compartilhado' : 'Compartilhar navegador web em tempo real'}
+            aria-pressed={sharedBrowser.isSharing}
+            disabled={!connected}
+            onClick={() => sharedBrowser.isSharing ? void sharedBrowser.stopSharing() : void sharedBrowser.startSharing(channelId)}
+          >
+            <ControlIcon name="browser"/>
           </button>
           <button
             className="ct-rp-leave"

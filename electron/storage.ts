@@ -98,6 +98,15 @@ export function setupStorage(window:BrowserWindow,getUsername:()=>string|null) {
       if(target.origin!==new URL(url).origin)throw new Error('Endereço de download inválido.')
       await shell.openExternal(target.href)
     },
+    'storage-file-url':async(_event,id:string):Promise<string>=>{
+      if(!/^[0-9a-f-]{36}$/.test(id))throw new Error('Arquivo inválido.')
+      const {url,token}=config()
+      const response=await fetch(new URL('/links/'+id,url),{headers:{Authorization:'Bearer '+token},signal:AbortSignal.timeout(10000)})
+      if(!response.ok)throw new Error('Não foi possível obter o link do arquivo.')
+      const result=await response.json();const target=new URL(result.url,url)
+      if(target.origin!==new URL(url).origin)throw new Error('Endereço de download inválido.')
+      return target.href
+    },
   }
   for(const [name,handler] of Object.entries(handlers))ipcMain.handle(name,(event,...args)=>{trusted(event);if(!getUsername())throw new Error('Entre no ConTALK.');return handler(event,...args)})
   window.once('closed',()=>{for(const name of Object.keys(handlers))ipcMain.removeHandler(name)})

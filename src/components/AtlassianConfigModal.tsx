@@ -3,7 +3,7 @@ import { useDevStore } from '../store/useDevStore'
 import { ControlIcon } from './ControlIcon'
 
 export function AtlassianConfigModal({ onClose }: { onClose: () => void }) {
-  const { atlassian, connectAtlassian, disconnectAtlassian, syncAtlassianData, atlassianSyncing, atlassianError } = useDevStore()
+  const { atlassian, connectAtlassian, connectAtlassianDirect, disconnectAtlassian, syncAtlassianData, atlassianSyncing, atlassianError } = useDevStore()
 
   const [siteUrl, setSiteUrl] = useState(atlassian?.siteUrl || '')
   const [email, setEmail] = useState(atlassian?.email || '')
@@ -90,6 +90,47 @@ export function AtlassianConfigModal({ onClose }: { onClose: () => void }) {
               <li><strong>Jira Software:</strong> Tickets, prioridades e status refletidos no <em>Quadro Kanban (Visão Geral)</em> e na lista de <em>Tarefas</em>.</li>
               <li><strong>Confluence:</strong> Documentação de projetos, manuais e especificações carregados na <em>Central de Documentação</em>.</li>
             </ul>
+          </div>
+
+          {/* Direct Login Card */}
+          <div className="ct-direct-login-card">
+            <div className="ct-direct-login-header">
+              <div className="ct-direct-login-badge">
+                <ControlIcon name="settings" size={15}/>
+                <span>Login Direto Atlassian (OAuth Cloud)</span>
+              </div>
+              <span className="ct-direct-detect-pill">1-Clique</span>
+            </div>
+            <p className="ct-direct-login-desc">
+              Conecte seu Jira e Confluence instantaneamente com autenticação direta Atlassian Cloud, sem precisar gerar ou copiar API tokens.
+            </p>
+            <div className="ct-direct-login-actions">
+              <button
+                type="button"
+                className="ct-primary ct-direct-login-btn"
+                onClick={async () => {
+                  setIsTesting(true)
+                  setLocalError(null)
+                  setSuccessMsg(null)
+                  try {
+                    const ok = await connectAtlassianDirect(siteUrl || 'contalk.atlassian.net')
+                    if (ok) {
+                      setSuccessMsg('Conectado diretamente à Atlassian com sucesso! Sincronizando Jira e Confluence...')
+                    } else {
+                      setLocalError('Falha no login direto da Atlassian.')
+                    }
+                  } catch (err) {
+                    setLocalError((err as Error).message || 'Erro ao conectar à Atlassian.')
+                  } finally {
+                    setIsTesting(false)
+                  }
+                }}
+                disabled={isTesting}
+              >
+                <ControlIcon name="settings" size={14}/>
+                <span>{isTesting ? 'Autenticando…' : 'Entrar Diretamente com Atlassian Cloud (1-Clique)'}</span>
+              </button>
+            </div>
           </div>
 
           {/* Form */}

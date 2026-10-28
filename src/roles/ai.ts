@@ -55,3 +55,49 @@ export function aiFileMime(name:string):string|null{
 export function activeProject(project:AiProject,members:readonly string[]):boolean{
   return !project.archived&&Object.entries(project.members).some(([member,level])=>level==='manager'&&members.includes(member))
 }
+
+export type TokenEconomyMode = 'standard' | 'moderate' | 'aggressive'
+
+export interface TokenEconomyOption {
+  mode: TokenEconomyMode
+  label: string
+  shortLabel: string
+  description: string
+  contextTokens: number
+  maxOutputTokens: number
+}
+
+export const TOKEN_ECONOMY_CONFIG: Record<TokenEconomyMode, TokenEconomyOption> = {
+  standard: {
+    mode: 'standard',
+    label: 'Padrão (Sem economia)',
+    shortLabel: 'Padrão',
+    description: 'Máximo contexto e respostas completas sem restrições.',
+    contextTokens: 16384,
+    maxOutputTokens: 4096
+  },
+  moderate: {
+    mode: 'moderate',
+    label: 'Moderada (Recomendado)',
+    shortLabel: 'Moderada',
+    description: 'Equilíbrio ideal: contexto de conversas recentes e economia de tokens.',
+    contextTokens: 8192,
+    maxOutputTokens: 2048
+  },
+  aggressive: {
+    mode: 'aggressive',
+    label: 'Bruta (Máxima economia)',
+    shortLabel: 'Bruta',
+    description: 'Prioriza mensagens imediatas e respostas diretas sem perder qualidade.',
+    contextTokens: 4096,
+    maxOutputTokens: 1024
+  }
+}
+
+export function getEconomyMode(contextTokens?: number, maxOutputTokens?: number): TokenEconomyMode {
+  if (!contextTokens || !maxOutputTokens) return 'moderate'
+  if (contextTokens <= 4096 || maxOutputTokens <= 1024) return 'aggressive'
+  if (contextTokens <= 8192 || maxOutputTokens <= 2048) return 'moderate'
+  return 'standard'
+}
+

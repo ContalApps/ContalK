@@ -1,7 +1,7 @@
 {
   "name": "contalk",
   "private": true,
-  "version": "0.1.30",
+  "version": "0.1.31",
   "type": "module",
   "main": "dist-electron/main.js",
   "scripts": {
@@ -15,6 +15,8 @@
     "test": "node --test tests/*.test.mjs",
     "typecheck": "tsc --noEmit && tsc -p tsconfig.electron.json",
     "verify": "npm run typecheck && npm test",
+    "live:test": "node scripts/live-app-driver.mjs",
+    "live:inspect": "node scripts/live-app-driver.mjs --keep-open",
     "publish:electron": "node scripts/publish-electron.mjs",
     "storage:login": "node --env-file=.env.storage scripts/telegram-storage-server.mjs login",
     "storage:start": "node --env-file=.env.storage scripts/telegram-storage-server.mjs",

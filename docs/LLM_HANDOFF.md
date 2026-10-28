@@ -1,5 +1,15 @@
 # Retomada do ConTALK
 
+## Entrega 0.1.31: Co-browsing no Palco, Blindagem de Senhas, Google Workspace e Automação Web
+
+Em `dev/caliari`, foram implementadas e concluídas as seguintes capacidades para o ConTALK:
+- **Navegador Web Compartilhado no Palco de Voz (Co-browsing):** Navegação web em tempo real no palco da chamada, sem consumo excessivo de streaming de tela, com modo colaborativo multiusuário, cursores ao vivo, nomes coloridos dos participantes e cliques sincronizados com ondas visuais (`SharedBrowserStage.tsx`, `useSharedBrowserStore.ts`).
+- **Blindagem Contra Vazamento de Senhas (Zero-Leak Privacy Shield):** Mascaramento automático no nível do Chromium (`blur(14px)` e fundo preto sólido) sobre campos confidenciais e senhas antes de qualquer captura ou transmissão. Zero caracteres de senha trafegados na rede.
+- **Hub de Aplicativos e Google Workspace:** Conexão 1-Clique em Configurações para Gmail, YouTube, Agenda e Drive com ferramentas integradas ao chat com IA (`electron/apps-integration.ts`, `useAppsStore.ts`).
+- **Navegador Interno com Automação por IA:** Navegador nativo com automação completa via MCP/chat (`browserOpen`, `browserClick`, `browserType`, `browserReadContent`, `browserScreenshot`, `browserScroll`).
+- **Vínculo Social e Login Federado:** Suporte a contas sociais (Google, LinkedIn, Instagram) e autenticação vinculada.
+- **Validação:** Tipos TypeScript sem erros, 326 testes aprovados, simulação de usuário real via CDP com 100% de sucesso e build de produção Vite e Electron concluídos.
+
 ## Entrega 0.1.30: REA do Codex Desktop, Cursores Reais e Review Panel
 
 Em `dev/caliari`, foram concluídas a engenharia reversa do OpenAI Codex Desktop e a fidelização completa do design system e colaboração:

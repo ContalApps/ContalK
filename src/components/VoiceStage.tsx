@@ -6,6 +6,8 @@ import { Track } from '../media/realtime'
 import { ControlIcon } from './ControlIcon'
 import { FriendButton } from './FriendButton'
 import { RoleName } from './RoleName'
+import { useSharedBrowserStore } from '../store/useSharedBrowserStore'
+import { SharedBrowserStage } from './SharedBrowserStage'
 
 function voiceName(person:VoiceParticipant){return person.serverNickname||person.name}
 
@@ -254,6 +256,10 @@ export function VoiceStage({
 
   // Telas compartilhadas ativas
   const screenShares = participants.filter((p) => p.isScreenShareEnabled && p.screenTrack)
+  const sharedBrowser = useSharedBrowserStore()
+  const hasSharedBrowser = Boolean(
+    sharedBrowser.activeSession && (!activeChannelId || sharedBrowser.activeSession.roomId === activeChannelId)
+  )
 
   // Modo de exibição: 'grid' (grade lado a lado) ou 'spotlight' (foco em 1 tela)
   const [stageViewMode, setStageViewMode] = useState<'grid' | 'spotlight'>('grid')
@@ -343,7 +349,7 @@ export function VoiceStage({
         {/* Canto direito do Header: Controles de Grade/Foco, Contador e Membros */}
         <div className="flex items-center gap-3">
           {/* Seletor Grade vs Foco quando há telas compartilhadas */}
-          {screenShares.length > 0 && (
+          {(screenShares.length > 0 || hasSharedBrowser) && (
             <div className="flex items-center bg-[#0f0f0f] p-0.5 rounded-xl border border-neutral-900/40">
               <button
                 onClick={() => setStageViewMode('grid')}
@@ -426,15 +432,23 @@ export function VoiceStage({
             <p className="text-white font-medium">Você está na sala!</p>
             <p className="text-xs text-neutral-400/60">Aguardando outros participantes entrarem...</p>
           </div>
-        ) : screenShares.length > 0 && stageViewMode === 'grid' ? (
+        ) : stageViewMode === 'grid' && (screenShares.length > 0 || hasSharedBrowser) ? (
           /* ═══════════════════════════════════════════════════════════════════ */
-          /* MODO GRADE DE TELAS (EXIBE 2 OU MAIS TELAS LADO A LADO!)           */
+          /* MODO GRADE: NAVEGADOR COMPARTILHADO E/OU TELAS LADO A LADO         */
           /* ═══════════════════════════════════════════════════════════════════ */
           <div className="ct-share-layout flex-1 flex flex-col min-h-0 w-full h-full">
             <div
               className="ct-stream-grid"
-              data-count={screenShares.length}
+              data-count={screenShares.length + (hasSharedBrowser ? 1 : 0)}
             >
+              {hasSharedBrowser && (
+                <div className="ct-stream-cell min-h-[320px]">
+                  <SharedBrowserStage
+                    onMinimize={() => setStageViewMode('grid')}
+                    isSpotlight={false}
+                  />
+                </div>
+              )}
               {screenShares.map((p) => (
                 <div key={p.identity} className="ct-stream-cell">
                   <ScreenShareViewer
@@ -449,8 +463,33 @@ export function VoiceStage({
                 </div>
               ))}
             </div>
-
-
+          </div>
+        ) : hasSharedBrowser ? (
+          <div className="flex-1 flex flex-col gap-2 min-h-0 w-full h-full p-2">
+            <SharedBrowserStage
+              onMinimize={() => setStageViewMode('grid')}
+              isSpotlight={true}
+            />
+            {participants.length > 0 && (
+              <div className="h-16 flex items-center justify-center gap-2 overflow-x-auto py-1 px-1 scrollbar-thin flex-shrink-0">
+                {participants.map((p) => (
+                  <div
+                    key={p.identity}
+                    onClick={() => setPinnedParticipantId(p.identity)}
+                    className={`relative h-14 aspect-video rounded-xl overflow-hidden bg-[#181818] flex-shrink-0 flex items-center justify-center transition cursor-pointer hover:scale-105 shadow-md ${
+                      p.isSpeaking ? 'ring-2 ring-white/80' : 'border border-neutral-800'
+                    }`}
+                  >
+                    <div className="w-7 h-7 rounded-full bg-[#303030] flex items-center justify-center text-white font-bold text-xs">
+                      {voiceName(p).charAt(0).toUpperCase()}
+                    </div>
+                    <div className="absolute bottom-1 left-1 bg-black/75 px-1 py-0.2 rounded text-[9px] text-white">
+                      {voiceName(p)}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
         ) : screenShares.length > 0 && stageViewMode === 'spotlight' && focusedScreen ? (
           /* ═══════════════════════════════════════════════════════════════════ */

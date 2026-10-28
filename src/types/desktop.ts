@@ -22,7 +22,17 @@ export interface WorkspaceFileEntry {
   isDirectory: boolean
   size?: number
 }
+export interface LinkPreviewData {
+  url: string
+  title?: string
+  description?: string
+  image?: string
+  siteName?: string
+  favicon?: string
+}
 export interface DesktopBridge {
+  fetchLinkPreview?:(url:string)=>Promise<LinkPreviewData|null>
+  getStorageFileUrl?:(id:string)=>Promise<string>
   communityAiStatus:()=>Promise<{configured:boolean;providers:import('../roles/ai').AiProviderId[];contextTokens:number;maxOutputTokens:number}>
   communityAiConfigure:(value:{provider?:import('../roles/ai').AiProviderId;key?:string;contextTokens:number;maxOutputTokens:number})=>Promise<{configured:boolean;providers:import('../roles/ai').AiProviderId[];contextTokens:number;maxOutputTokens:number}>
   communityAiRemove:(provider?:import('../roles/ai').AiProviderId)=>Promise<void>
@@ -67,6 +77,26 @@ export interface DesktopBridge {
   mcpRemoveServer:(name:string)=>Promise<boolean>
   mcpListTools:(serverName:string)=>Promise<{tools:Array<{name:string;description?:string;inputSchema?:Record<string,unknown>}>}>
   mcpCallTool:(serverName:string,toolName:string,args?:Record<string,unknown>)=>Promise<any>
+  appsGetConfig?:()=>Promise<any>
+  appsSaveConfig?:(config:any)=>Promise<boolean>
+  browserOpen?:(url?:string,show?:boolean)=>Promise<any>
+  browserNavigate?:(url:string)=>Promise<{success:boolean;url:string;title:string}>
+  browserClick?:(selector:string)=>Promise<{success:boolean;message:string;tag?:string;text?:string}>
+  browserType?:(selector:string,text:string,submit?:boolean)=>Promise<{success:boolean;message:string;value?:string}>
+  browserReadContent?:(selector?:string)=>Promise<{title:string;url:string;content:string;links:Array<{text:string;href:string}>;forms:Array<{name:string;type:string;placeholder:string}>}>
+  browserScreenshot?:()=>Promise<{src:string;url:string;title:string}>
+  browserSanitizedScreenshot?:()=>Promise<{src:string;url:string;title:string;hasPasswordField:boolean}>
+  browserClickAt?:(xPercent:number,yPercent:number)=>Promise<{success:boolean;tag?:string;text?:string;message?:string}>
+  browserGoBack?:()=>Promise<boolean>
+  browserGoForward?:()=>Promise<boolean>
+  browserReload?:()=>Promise<boolean>
+  browserScroll?:(direction?:'up'|'down',amount?:number)=>Promise<{success:boolean;direction:string}>
+  browserEvaluate?:(script:string)=>Promise<any>
+  browserGetStatus?:()=>Promise<any>
+  browserShow?:()=>Promise<boolean>
+  browserHide?:()=>Promise<boolean>
+  browserClose?:()=>Promise<boolean>
+  onBrowserStatusChanged?:(listener:(status:any)=>void)=>()=>void
   terminalCreate:(cwd:string|null,cols:number,rows:number)=>Promise<{id:string;shell:string;cwd:string}>
   terminalInput:(id:string,data:string)=>void
   terminalResize:(id:string,cols:number,rows:number)=>void
@@ -100,6 +130,9 @@ export interface DesktopBridge {
   setTitleBarAppearance: (theme: 'classic' | 'vice-city', scale: number) => void
   isElectron: true
   getDesktopSources: () => Promise<DesktopSource[]>
+  socialLink: (provider: 'google' | 'instagram' | 'linkedin', accountData: Record<string, unknown>) => Promise<import('../store/useAuthStore').User>
+  socialUnlink: (provider: 'google' | 'instagram' | 'linkedin') => Promise<import('../store/useAuthStore').User>
+  socialLogin: (provider: 'google' | 'instagram' | 'linkedin', accountData?: Record<string, unknown>) => Promise<{ type: 'Success'; data: { token: string; user: import('../store/useAuthStore').User } } | { type: 'Error'; data: string }>
   login: (params: { identifier: string; password: string }) => Promise<any>
   register: (params: { username: string; email: string; password: string }) => Promise<any>
   getUpdateState: () => Promise<UpdateState>

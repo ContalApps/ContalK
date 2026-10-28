@@ -40,6 +40,7 @@ import { CommandMenuModal } from './CommandMenuModal'
 import { ReviewPanel } from './ReviewPanel'
 import { ActiveCallCard } from './ActiveCallCard'
 import { McpManagerModal } from './McpManagerModal'
+import { InternalBrowserModal } from './InternalBrowserModal'
 import { RightPanel } from './RightPanel'
 import type { MenuGroup } from './TitleMenus'
 import { UserDock } from './UserDock'
@@ -57,7 +58,9 @@ import { useDevStore } from '../store/useDevStore'
 import { DevKanbanModal } from './DevKanbanModal'
 import { DevTasksModal } from './DevTasksModal'
 import { DevDocsModal } from './DevDocsModal'
+import { DevRoadmapModal } from './DevRoadmapModal'
 import { DevGitHubAccountsModal } from './DevGitHubAccountsModal'
+import { DevRepositoriesModal } from './DevRepositoriesModal'
 import { AtlassianConfigModal } from './AtlassianConfigModal'
 import '../themes.css'
 import '../ai.css'
@@ -85,7 +88,7 @@ export function ConTALKLayout() {
   const [eventsOpen,setEventsOpen]=useState(false),[eventTarget,setEventTarget]=useState<string|undefined>()
   const [rolesOpen,setRolesOpen]=useState(false)
   const [joinOpen,setJoinOpen]=useState(false)
-  const [settingsTab,setSettingsTab]=useState<'appearance'|'ai'>('appearance')
+  const [settingsTab,setSettingsTab]=useState<'appearance'|'audio'|'account'|'about'|'notifications'|'ai'|'integrations'>('appearance')
   const [nicknameFirst,setNicknameFirst]=useState(false)
   const [memberRoles,setMemberRoles]=useState<string|null>(null)
   const roles=useRoleStore()
@@ -105,80 +108,97 @@ export function ConTALKLayout() {
   const [workspaceFiles, setWorkspaceFiles] = useState<import('../types/desktop').WorkspaceFileEntry[]>([])
   const [loadingWorkspaceFiles, setLoadingWorkspaceFiles] = useState(false)
   const [isSavingCode, setIsSavingCode] = useState(false)
-  const [editorTabs,setEditorTabs]=useState<DevEditorTab[]>([
-    {id:'page',name:'page.tsx',path:'projeto-atlas/apps/web/src/components/editor/page.tsx'},
-    {id:'cursor',name:'CursorPresence.tsx',path:'projeto-atlas/apps/web/src/components/editor/CursorPresence.tsx'},
-    {id:'yjs',name:'yjs-provider.ts',path:'projeto-atlas/apps/web/src/components/editor/yjs-provider.ts'}
+  const [gitBranch, setGitBranch] = useState('dev/caliari')
+  const [editorTabs, setEditorTabs] = useState<DevEditorTab[]>([
+    { id: 'app', name: 'App.tsx', path: 'src/App.tsx' },
+    { id: 'layout', name: 'ConTALKLayout.tsx', path: 'src/components/ConTALKLayout.tsx' },
+    { id: 'package', name: 'package.json', path: 'package.json' }
   ])
-  const [activeEditorTab,setActiveEditorTab]=useState('page')
+  const [activeEditorTab, setActiveEditorTab] = useState('app')
   const initialCodes: Record<string, string> = {
-    page: `'use client'
+    app: `import { useEffect, useState } from 'react'
+import { ConTALKLayout } from './components/ConTALKLayout'
+import { AuthView } from './components/AuthView'
+import { useAuthStore } from './store/useAuthStore'
 
-import { useEffect, useRef, useState } from 'react'
-import * as Y from 'yjs'
-import { WebsocketProvider } from 'y-websocket'
-import { Editor } from '@tiptap/react'
-import { CursorPresence } from './CursorPresence'
-
-export default function EditorPage() {
-  const [editor, setEditor] = useState<Editor | null>(null)
-  const providerRef = useRef<WebsocketProvider | null>(null)
+export function App() {
+  const { user, token, checkAuth } = useAuthStore()
+  const [checking, setChecking] = useState(true)
 
   useEffect(() => {
-    const doc = new Y.Doc()
-    providerRef.current = new WebsocketProvider(
-      'wss://seu-servidor.com',
-      'projeto-atlas',
-      doc
-    )
+    void checkAuth().finally(() => setChecking(false))
+  }, [checkAuth])
 
-    // Inicializa o editor colaborativo com presença em tempo real
-    const newEditor = new Editor({
-      element: document.querySelector('#editor'),
-      extensions: [/* ... */],
-      content: '<p>Bem-vindo ao ConTALK Code Studio! 🚀</p>',
-    })
-    setEditor(newEditor)
-  }, [])
-}`,
-    cursor: `import React from 'react'
+  if (checking) {
+    return <div className="ct-loading">Carregando ConTALK…</div>
+  }
 
-export interface RemoteCursorProps {
-  id: string
-  name: string
-  color: string
-  line: number
-  ch: number
+  if (!user || !token) {
+    return <AuthView />
+  }
+
+  return <ConTALKLayout />
 }
+`,
+    layout: `import React from 'react'
+import { useAppStore } from '../store/useAppStore'
+import { useAuthStore } from '../store/useAuthStore'
+import { DevCodeEditor } from './DevCodeEditor'
+import { TerminalPanel } from './TerminalPanel'
 
-export function CursorPresence({ name, color, line, ch }: RemoteCursorProps) {
-  return (
-    <div
-      className="ct-remote-cursor-indicator"
-      style={{
-        top: \`\${(line - 1) * 20}px\`,
-        left: \`\${ch * 7.8}px\`,
-        borderColor: color
-      }}
-    >
-      <span className="ct-remote-cursor-badge" style={{ backgroundColor: color }}>
-        {name}
-      </span>
-    </div>
-  )
-}`,
-    yjs: `import * as Y from 'yjs'
-import { WebsocketProvider } from 'y-websocket'
-
-export function initYjsProvider(room: string, doc: Y.Doc) {
-  return new WebsocketProvider('wss://con-talk.app/yjs', room, doc)
-}`
+// ConTALK Desktop Studio Shell
+export function ConTALKLayout() {
+  // Hub de desenvolvimento, chat e chamadas WebRTC
+  return <div className="ct-shell">ConTALK Desktop</div>
+}
+`,
+    package: `{
+  "name": "contalk",
+  "version": "0.1.31",
+  "description": "ConTALK - Plataforma de Comunicação e Desenvolvimento Colaborativo com IA e WebRTC",
+  "main": "dist-electron/main.js",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "test": "node --test tests/*.test.mjs"
+  }
+}
+`
   }
   const [tabCodes, setTabCodes] = useState<Record<string, string>>(initialCodes)
   const devCollab = useDevCollaborationStore()
   const liveRemoteCursors = Object.values(devCollab.remoteCursors).filter(
     c => c.fileId === activeEditorTab && c.id !== user?.username
   )
+
+  useEffect(() => {
+    const desktop = window.contalkDesktop
+    if (!desktop) return
+
+    // Query real git branch
+    if (desktop.workspaceExecCommand) {
+      void desktop.workspaceExecCommand('git branch --show-current').then(res => {
+        if (res.exitCode === 0 && res.stdout.trim()) {
+          setGitBranch(res.stdout.trim())
+        }
+      }).catch(() => {})
+    }
+
+    // Load actual files from disk
+    if (desktop.workspaceReadFile) {
+      void desktop.workspaceReadFile('src/App.tsx').then(content => {
+        if (content) setTabCodes(prev => ({ ...prev, app: content }))
+      }).catch(() => {})
+
+      void desktop.workspaceReadFile('src/components/ConTALKLayout.tsx').then(content => {
+        if (content) setTabCodes(prev => ({ ...prev, layout: content }))
+      }).catch(() => {})
+
+      void desktop.workspaceReadFile('package.json').then(content => {
+        if (content) setTabCodes(prev => ({ ...prev, package: content }))
+      }).catch(() => {})
+    }
+  }, [])
 
   useEffect(() => {
     const handleRemoteCodeUpdate = (e: Event) => {
@@ -281,6 +301,11 @@ export function initYjsProvider(room: string, doc: Y.Doc) {
     if(destination&&notice.channelId){setActiveServer(destination.id);openChannel(notice.channelId)}
   }
   useEffect(()=>window.contalkDesktop?.onNotificationOpen?.(openNotice),[servers,navigation])
+  useEffect(() => {
+    void devStore.checkLocalGitHubAuth().then(() => {
+      void devStore.syncAllRepositories()
+    })
+  }, [])
   const join=async(id:string,name:string)=>{openChannel(id);if(user)await voice.joinChannel(id,name,{username:user.username,display_name:user.display_name,avatar:user.avatar})}
   const [hiddenSections,setHiddenSections]=useState<Record<string,boolean>>({})
   const toggleSection=(id:string)=>setHiddenSections(current=>({...current,[id]:!current[id]}))
@@ -313,10 +338,13 @@ export function initYjsProvider(room: string, doc: Y.Doc) {
     setIsSavingCode(true)
     try {
       const currentCode = tabCodes[activeEditorTab] ?? ''
-      if (desktop?.workspaceWriteFile && (currentTab.path.includes(':') || currentTab.path.startsWith('/') || currentTab.path.startsWith('\\'))) {
+      if (desktop?.workspaceWriteFile) {
         await desktop.workspaceWriteFile(currentTab.path, currentCode)
       }
       setEditorTabs(tabs => tabs.map(tab => tab.id === activeEditorTab ? { ...tab, isDirty: false } : tab))
+      showToast(`Arquivo ${currentTab.name} salvo no disco!`)
+    } catch {
+      showToast('Falha ao salvar arquivo.')
     } finally {
       setIsSavingCode(false)
     }
@@ -338,17 +366,63 @@ export function initYjsProvider(room: string, doc: Y.Doc) {
       const detail = (event as CustomEvent<{ path: string; content: string }>).detail
       if (!detail?.path) return
       setDevEditorOpen(true)
+      const fileName = detail.path.split(/[/\\]/).filter(Boolean).pop() || detail.path
       setEditorTabs(tabs => {
-        const found = tabs.find(t => t.path === detail.path || t.name === detail.path.split(/[/\\]/).pop())
+        const found = tabs.find(t => t.path === detail.path || t.name === fileName)
         if (found) {
           setTabCodes(codes => ({ ...codes, [found.id]: detail.content }))
+          return tabs
         }
-        return tabs
+        const newTab: DevEditorTab = {
+          id: detail.path,
+          name: fileName,
+          path: detail.path,
+          isDirty: false
+        }
+        setTabCodes(codes => ({ ...codes, [detail.path]: detail.content }))
+        return [...tabs, newTab]
       })
+      setActiveEditorTab(detail.path)
+      void loadWorkspaceFiles()
     }
+
+    const handleOpenEditorFile = async (event: Event) => {
+      const detail = (event as CustomEvent<{ path: string; content?: string }>).detail
+      if (!detail?.path) return
+      setDevEditorOpen(true)
+      const fileName = detail.path.split(/[/\\]/).filter(Boolean).pop() || detail.path
+      const existing = editorTabs.find(t => t.path === detail.path || t.name === fileName)
+      if (existing) {
+        setActiveEditorTab(existing.id)
+        if (detail.content !== undefined) {
+          setTabCodes(codes => ({ ...codes, [existing.id]: detail.content! }))
+        }
+        return
+      }
+      let content = detail.content
+      if (content === undefined && desktop?.workspaceReadFile) {
+        try {
+          content = await desktop.workspaceReadFile(detail.path)
+        } catch { content = '' }
+      }
+      const newTab: DevEditorTab = {
+        id: detail.path,
+        name: fileName,
+        path: detail.path,
+        isDirty: false
+      }
+      setEditorTabs(tabs => [...tabs, newTab])
+      setTabCodes(codes => ({ ...codes, [detail.path]: content || '' }))
+      setActiveEditorTab(detail.path)
+    }
+
     window.addEventListener('contalk-file-written', handleFileWritten)
-    return () => window.removeEventListener('contalk-file-written', handleFileWritten)
-  }, [])
+    window.addEventListener('contalk-open-editor-file', handleOpenEditorFile)
+    return () => {
+      window.removeEventListener('contalk-file-written', handleFileWritten)
+      window.removeEventListener('contalk-open-editor-file', handleOpenEditorFile)
+    }
+  }, [loadWorkspaceFiles, desktop, editorTabs])
 
   const toggleRepoExplorer = async () => {
     if (!preferences.workspaceFolder) {
@@ -394,7 +468,7 @@ export function initYjsProvider(room: string, doc: Y.Doc) {
     try {
       const diag = {
         app: 'ConTALK',
-        version: '0.1.30',
+        version: '0.1.31',
         timestamp: new Date().toISOString(),
         view,
         server: { id: server.id, name: server.name },
@@ -435,7 +509,6 @@ export function initYjsProvider(room: string, doc: Y.Doc) {
       {label:'Novo projeto',disabled:true,hint:'em breve'},
       'separator',
       {label:'Abrir pasta…',shortcut:'Ctrl+O',onSelect:()=>void openFolder(),disabled:!desktop?.openFolder,hint:desktop?.openFolder?undefined:desktopOnly},
-      {label:'Copiar diagnóstico do sistema',onSelect:()=>void handleCopyDiagnostics()},
       'separator',
       {label:'Sair da conta',onSelect:signOut},
       {label:'Encerrar o ConTALK',onSelect:()=>void quit(),disabled:!desktop?.quitApp,hint:desktop?.quitApp?undefined:desktopOnly},
@@ -461,6 +534,7 @@ export function initYjsProvider(room: string, doc: Y.Doc) {
       {label:'Barra de servidores',checked:!preferences.railHidden,onSelect:()=>togglePanel('railHidden')},
       {label:'Mensagens fixadas do canal',disabled:!(view==='server'&&channel.type==='text'&&!!channel.id),onSelect:()=>setPinnedChannel(channel.id)},
       {label:'Servidores MCP (IA)...',onSelect:()=>setActiveDevModal('mcp')},
+      {label:'Navegador Web Interno...',shortcut:'Ctrl+Shift+B',onSelect:()=>setActiveDevModal('browser')},
       'separator',
       {label:'Aumentar zoom',disabled:preferences.interfaceScale>=120,onSelect:()=>zoom(10)},
       {label:'Diminuir zoom',disabled:preferences.interfaceScale<=80,onSelect:()=>zoom(-10)},
@@ -474,7 +548,7 @@ export function initYjsProvider(room: string, doc: Y.Doc) {
       {label:'Copiar diagnóstico do sistema',onSelect:()=>void handleCopyDiagnostics()},
       'separator',
       {label:'Documentação do ConTALK',onSelect:()=>setActiveDevModal('docs')},
-      {label:'Sobre o ConTALK',onSelect:()=>setActiveDevModal('overview')},
+      {label:'Sobre o ConTALK',onSelect:()=>{setSettingsTab('about');setSettingsOpen(true)}},
     ]},
   ]
   useEffect(()=>{
@@ -487,6 +561,7 @@ export function initYjsProvider(room: string, doc: Y.Doc) {
       else if(key==='e'&&event.altKey){event.preventDefault();setDevEditorOpen(v=>!v)}
       else if(key==='r'&&event.altKey){event.preventDefault();setReviewPanelOpen(v=>!v)}
       else if(key==='k'&&!event.altKey){event.preventDefault();setCommandMenuOpen(true)}
+      else if(key==='b'&&event.shiftKey){event.preventDefault();setActiveDevModal('browser')}
       else if(key==='b'&&!event.shiftKey){event.preventDefault();togglePanel('sidebarHidden')}
       else if((key==='j'||event.key==='`')&&!event.shiftKey&&!event.altKey){event.preventDefault();togglePanel('bottomPanelOpen')}
       else if(key==='n'&&event.shiftKey){event.preventDefault();setView('messages')}
@@ -506,11 +581,11 @@ export function initYjsProvider(room: string, doc: Y.Doc) {
       const person=voice.participants.find(p=>p.identity===identity)
       setContext({participant:person||{identity,name:globalName(identity,target.dataset.profileName||identity),serverNickname:view==='server'&&roles.snapshot?.id===server.id?roles.snapshot.nicknames?.[identity]:undefined,isLocal:identity===user?.username,isSpeaking:false,isAudioEnabled:true,isVideoEnabled:false,isScreenShareEnabled:false},x:event.clientX,y:event.clientY})
     }}>
-    <TitleBar onOpenNotification={openNotice} authenticated disabled={settingsOpen} title={view==='server'?server.name+' · '+(channel.name||'Canais'):view==='friends'?'Amigos':view==='messages'?(selectedPeer?'Mensagens · '+(community.members.find(m=>m.username===selectedPeer)?.display_name||selectedPeer):'Mensagens diretas'):'ConTALK'} canBack={navigation.index>0} canForward={navigation.index<navigation.entries.length-1} onBack={()=>travel(-1)} onForward={()=>travel(1)} search={search} onSearch={setSearch} menus={menus} scope={view==='server'?server.name:'ConTALK'} sidebarOpen={!preferences.sidebarHidden} onToggleSidebar={()=>togglePanel('sidebarHidden')} rightPanelOpen={!preferences.membersCollapsed} onToggleRightPanel={()=>togglePanel('membersCollapsed')} onProfile={()=>setProfile(user?.display_name||'Você',user?.username)} onOpenCommandMenu={()=>setCommandMenuOpen(true)}/>
+    <TitleBar onOpenNotification={openNotice} authenticated disabled={settingsOpen} title={view==='server'?server.name+' · '+(channel.name||'Canais'):view==='friends'?'Amigos':view==='messages'?(selectedPeer?'Mensagens · '+(community.members.find(m=>m.username===selectedPeer)?.display_name||selectedPeer):'Mensagens diretas'):'ConTALK'} canBack={navigation.index>0} canForward={navigation.index<navigation.entries.length-1} onBack={()=>travel(-1)} onForward={()=>travel(1)} search={search} onSearch={setSearch} menus={menus} scope={view==='server'?server.name:'ConTALK'} sidebarOpen={!preferences.sidebarHidden} onToggleSidebar={()=>togglePanel('sidebarHidden')} onProfile={()=>setProfile(user?.display_name||'Você',user?.username)} onOpenCommandMenu={()=>setCommandMenuOpen(true)}/>
     <div className="ct-body" inert={settingsOpen}><aside className="ct-rail" hidden={preferences.railHidden}><button className={view==='home'?'selected':''} title="Início" onClick={()=>setView('home')}><Icon name="home"/></button><button className={view==='messages'?'selected':''} title="Mensagens diretas" onClick={()=>setView('messages')}><Icon name="chat"/></button><hr/>{servers.map(s=><button key={s.id} title={s.name} className={view==='server'&&s.id===server.id?'selected ct-server-logo':'ct-server-logo'} onClick={()=>{setActiveServer(s.id);setActiveChannel(s.channels[0]?.id || '');setView('server')}}><BrandMark/></button>)}<button title="Criar ou entrar em um servidor" aria-label="Criar ou entrar em um servidor" onClick={()=>setJoinOpen(true)}><Icon name="plus"/></button><div className="ct-rail-bottom"><button title="Meu perfil" onClick={()=>setProfile(user?.display_name||'Você',user?.username)}><Avatar name={user?.display_name||'Você'}/></button></div></aside>
     <>
     <nav className="ct-sidebar" data-collapsed={preferences.sidebarCollapsed} hidden={preferences.sidebarHidden}><button className="ct-sidebar-toggle" aria-label={preferences.sidebarCollapsed?'Expandir lista de canais':'Recolher lista de canais'} title={preferences.sidebarCollapsed?'Expandir canais':'Recolher canais'} onClick={()=>preferences.update({sidebarCollapsed:!preferences.sidebarCollapsed})}><ControlIcon name="chevron"/><span>Canais e conversas</span></button><div className="ct-sidebar-scroll">{view!=='server'?<><div className="ct-side-nav"><button className="ct-new-chat" onClick={()=>setView('messages')}><Icon name="chat"/>Nova conversa</button><button className={view==='home'?'active':''} onClick={()=>setView('home')}><Icon name="home"/>Início <span className="ct-nav-dot"/></button><button className={view==='friends'?'active':''} onClick={()=>setView('friends')}><Icon name="friends"/>Amigos</button></div><div className="ct-section-label">Mensagens diretas <button title="Abrir mensagens" onClick={()=>setView('messages')}>+</button></div><div className="ct-people">{visibleContacts.map(m=><button className="ct-person" data-profile-identity={m.username} data-profile-name={m.display_name} key={m.username} onClick={()=>openConversation(m.username)}><Avatar name={m.display_name} identity={m.username} live={voice.participants.some(p=>p.identity===m.username&&p.isScreenShareEnabled)||Object.values(voice.channelOccupants).some(list=>list.some(p=>p.identity===m.username&&p.isScreenShareEnabled))}/><span><strong><RoleName identity={m.username} name={m.display_name}/></strong><small>{statusText(m.username)}</small></span></button>)}{!visibleContacts.length&&<p className="ct-friend-hint">Suas amizades e conversas aparecerão aqui.</p>}</div></>:<><div className="ct-server-banner">{roles.snapshot?.id===server.id&&<button className="ct-server-events" title="Eventos do servidor" aria-label="Eventos do servidor" onClick={()=>{setEventTarget(undefined);setEventsOpen(true)}}><ControlIcon name="event"/></button>}<strong title={server.description||server.name}>{server.name}</strong>{(!roles.snapshot||centralAllows('VIEW_GUILD_INSIGHTS')||centralAllows('MANAGE_GUILD')||centralAllows('MANAGE_ROLES')||centralAllows('BAN_MEMBERS')||!!roles.snapshot.invites?.length||roles.snapshot.channels.some(item=>centralAllows('CREATE_INSTANT_INVITE',item.id)))&&<button className="ct-server-role-settings" title="Configurações do servidor" aria-label="Configurações do servidor" onClick={()=>setRolesOpen(true)}><ControlIcon name="settings"/></button>}<small><i className="ct-online-dot"/> {community.status==='online'?community.members.filter(m=>m.online).length+' membros online':'Presença indisponível'}</small></div>
-<div className="ct-section-label"><button className="ct-section-toggle" aria-expanded={!hiddenSections.projects} onClick={()=>toggleSection('projects')}><ControlIcon name="chevron" size={12}/>Projetos</button><button title="Configurações Atlassian (Jira e Confluence)" aria-label="Configurações Atlassian" onClick={()=>setActiveDevModal('atlassian')}><ControlIcon name="settings" size={12}/></button></div>
+<div className="ct-section-label"><button className="ct-section-toggle" aria-expanded={!hiddenSections.projects} onClick={()=>toggleSection('projects')}><ControlIcon name="chevron" size={12}/><span>Projetos</span><span className="ct-section-count-badge">{devStore.kanbanCards.length + devStore.todoTasks.filter(t=>!t.completed).length}</span></button><div className="ct-section-actions"><button title="Abrir Guia de Projetos (Kanban)" aria-label="Abrir Guia de Projetos" onClick={()=>setActiveDevModal('overview')}><ControlIcon name="overview" size={12}/></button><button title="Configurações Atlassian (Jira e Confluence)" aria-label="Configurações Atlassian" onClick={()=>setActiveDevModal('atlassian')}><ControlIcon name="settings" size={12}/></button></div></div>
 {!hiddenSections.projects&&<div className="ct-side-dev-group">
   <button className="ct-side-dev-item" onClick={()=>setActiveDevModal('overview')} title="Quadro Kanban de Entregas"><div><ControlIcon name="overview" size={14}/><span>Visão geral (Kanban)</span></div><span className="ct-side-dev-badge">{devStore.kanbanCards.length}</span></button>
   <button className="ct-side-dev-item" onClick={()=>setActiveDevModal('tasks')} title="Lista de Tarefas"><div><ControlIcon name="tasks" size={14}/><span>Tarefas</span></div><span className="ct-side-dev-badge">{devStore.todoTasks.filter(t=>!t.completed).length}</span></button>
@@ -519,16 +594,62 @@ export function initYjsProvider(room: string, doc: Y.Doc) {
 </div>}
 
 <div className="ct-section-label"><button className="ct-section-toggle" aria-expanded={!hiddenSections.text} onClick={()=>toggleSection('text')}><ControlIcon name="chevron" size={12}/>Canais</button><button title="Criar canal de texto" aria-label="Criar canal de texto" onClick={()=>setCreateType('text')}>+</button></div>{!hiddenSections.text&&server.channels.filter(c=>c.type==='text'&&!c.parentId).map(c=><Fragment key={c.id}><ChannelRow unread={activity.unreadByChannel[c.id]||0} channel={c} active={channel.id===c.id} onOpen={()=>openChannel(c.id)} onSettings={()=>setChannelSettings(c)}/>{server.channels.filter(child=>child.parentId===c.id&&(child.id===channel.id||roles.snapshot?.policy.projects?.[child.id]||roles.snapshot?.policy.threads?.[child.id]&&!threadArchived(roles.snapshot.policy.threads[child.id],roles.snapshot.serverNow))).map(child=><div className="ct-thread-sidebar" key={child.id}><ChannelRow unread={activity.unreadByChannel[child.id]||0} channel={child} active={channel.id===child.id} onOpen={()=>openChannel(child.id)} onSettings={()=>setChannelSettings(child)}/></div>)}</Fragment>)}
-<div className="ct-section-label"><button className="ct-section-toggle" aria-expanded={!hiddenSections.repos} onClick={()=>toggleSection('repos')}><ControlIcon name="chevron" size={12}/>Repositórios</button><button title="Gerenciar contas GitHub" aria-label="Gerenciar contas GitHub" onClick={()=>setActiveDevModal('github-accounts')}><ControlIcon name="git" size={13}/></button></div>
+<div className="ct-section-label">
+  <button className="ct-section-toggle" aria-expanded={!hiddenSections.repos} onClick={()=>toggleSection('repos')}>
+    <ControlIcon name="chevron" size={12}/>
+    <span>Repositórios</span>
+    <span className="ct-section-count-badge">{devStore.repositories.length}</span>
+  </button>
+  <div className="ct-section-actions">
+    <button
+      type="button"
+      className={devStore.loadingRepos ? 'ct-spin' : ''}
+      title={devStore.loadingRepos ? 'Sincronizando repositórios…' : 'Sincronizar repositórios com GitHub'}
+      aria-label="Sincronizar repositórios"
+      onClick={() => void devStore.syncAllRepositories()}
+      disabled={devStore.loadingRepos}
+    >
+      <ControlIcon name="refresh" size={12}/>
+    </button>
+    <button
+      type="button"
+      title="Ver todos os repositórios"
+      aria-label="Ver todos os repositórios"
+      onClick={() => setActiveDevModal('repositories')}
+    >
+      <ControlIcon name="git-branch" size={12}/>
+    </button>
+    <button
+      type="button"
+      title="Gerenciar contas GitHub"
+      aria-label="Gerenciar contas GitHub"
+      onClick={() => setActiveDevModal('github-accounts')}
+    >
+      <ControlIcon name="git" size={12}/>
+    </button>
+  </div>
+</div>
 {!hiddenSections.repos&&<div className="ct-side-dev-group">
   {devStore.githubAccounts.length === 0 ? (
-    <button className="ct-side-dev-item ct-gh-link-prompt" onClick={()=>setActiveDevModal('github-accounts')} title="Vincular contas GitHub (multi-conta)">
-      <div><ControlIcon name="git" size={14}/><span>Vincular conta GitHub…</span></div>
-      <span className="ct-side-dev-badge">+</span>
-    </button>
+    <div className="ct-side-gh-empty-wrap">
+      {devStore.detectedLocalGitHub ? (
+        <button
+          className="ct-side-dev-item ct-gh-link-prompt"
+          onClick={() => void devStore.connectGitHubDirect()}
+          title={`Conectar sessão local @${devStore.detectedLocalGitHub.username} em 1 clique`}
+        >
+          <div><ControlIcon name="git" size={14}/><span>⚡ Conectar @{devStore.detectedLocalGitHub.username}</span></div>
+        </button>
+      ) : (
+        <button className="ct-side-dev-item ct-gh-link-prompt" onClick={()=>setActiveDevModal('github-accounts')} title="Vincular contas GitHub (multi-conta)">
+          <div><ControlIcon name="git" size={14}/><span>Vincular conta GitHub…</span></div>
+          <span className="ct-side-dev-badge">+</span>
+        </button>
+      )}
+    </div>
   ) : (
     <div className="ct-side-gh-account-bar">
-      <div className="ct-side-gh-acc-pill" onClick={()=>setActiveDevModal('github-accounts')} title="Alternar ou gerenciar contas GitHub">
+      <div className="ct-side-gh-acc-pill" onClick={()=>setActiveDevModal('repositories')} title="Ver repositórios desta conta">
         {devStore.githubAccounts.find(a=>a.id===devStore.activeAccountId)?.avatarUrl ? (
           <img src={devStore.githubAccounts.find(a=>a.id===devStore.activeAccountId)!.avatarUrl} alt="" className="ct-side-gh-avatar"/>
         ) : (
@@ -536,27 +657,44 @@ export function initYjsProvider(room: string, doc: Y.Doc) {
         )}
         <span>@{devStore.githubAccounts.find(a=>a.id===devStore.activeAccountId)?.username || 'GitHub'}</span>
       </div>
-      <button className="ct-side-gh-add-btn" onClick={()=>setActiveDevModal('github-accounts')} title="Adicionar outra conta GitHub">
+      <button className="ct-side-gh-add-btn" onClick={()=>setActiveDevModal('github-accounts')} title="Gerenciar contas GitHub">
         <ControlIcon name="plus" size={11}/>
       </button>
     </div>
   )}
-  {devStore.repositories.slice(0, 5).map(repo => (
-    <button
-      key={repo.id}
-      className="ct-side-dev-item"
-      onClick={()=>void openFolder()}
-      title={`${repo.fullName} (${repo.isPrivate ? 'Privado' : 'Público'})`}
-    >
-      <div>
-        <ControlIcon name={repo.isPrivate ? "lock" : "git-branch"} size={14}/>
-        <span className="ct-truncate">{repo.name}</span>
-      </div>
-    </button>
+  {devStore.repositories.slice(0, 6).map(repo => (
+    <div key={repo.id} className="ct-side-repo-row">
+      <button
+        className="ct-side-dev-item ct-side-repo-btn"
+        onClick={() => {
+          devStore.setSelectedRepoId(repo.id)
+          setActiveDevModal('repositories')
+        }}
+        title={`${repo.fullName} (${repo.isPrivate ? 'Privado' : 'Público'})${repo.description ? ' — ' + repo.description : ''}`}
+      >
+        <div className="ct-side-repo-title-wrap">
+          <ControlIcon name={repo.isPrivate ? "lock" : "git-branch"} size={13}/>
+          <span className="ct-truncate">{repo.name}</span>
+        </div>
+        {repo.language && <span className="ct-side-repo-lang">{repo.language}</span>}
+      </button>
+      <button
+        type="button"
+        className="ct-side-repo-ext-btn"
+        onClick={(e) => { e.stopPropagation(); window.open(repo.htmlUrl, '_blank') }}
+        title="Abrir no GitHub"
+      >
+        <ControlIcon name="arrow" size={10}/>
+      </button>
+    </div>
   ))}
-  {devStore.repositories.length > 5 && (
-    <button className="ct-side-dev-item ct-side-more-repos" onClick={()=>setActiveDevModal('github-accounts')} title="Ver todas as contas e repositórios">
-      <div><ControlIcon name="chevron" size={12}/><span>+{devStore.repositories.length - 5} outros repositórios…</span></div>
+  {devStore.repositories.length > 0 && (
+    <button
+      className="ct-side-dev-item ct-side-more-repos"
+      onClick={()=>setActiveDevModal('repositories')}
+      title="Ver todos os repositórios sincronizados"
+    >
+      <div><ControlIcon name="git-branch" size={12}/><span>Ver todos os repositórios ({devStore.repositories.length})…</span></div>
     </button>
   )}
   <button className={`ct-side-dev-item ${repoExplorerOpen?'active':''}`} onClick={()=>void toggleRepoExplorer()} title="Código do repositório"><div><ControlIcon name="git-code" size={14}/><span>Código</span></div><ControlIcon name="chevron" size={12}/></button>
@@ -586,6 +724,7 @@ export function initYjsProvider(room: string, doc: Y.Doc) {
   <button className="ct-side-dev-item" onClick={()=>setActiveDevModal('issues')} title="Issues abertas"><div><ControlIcon name="git-issue" size={14}/><span>Issues</span></div><span className="ct-side-dev-badge">4</span></button>
   <button className="ct-side-dev-item" onClick={()=>setActiveDevModal('actions')} title="Actions"><div><ControlIcon name="rocket" size={14}/><span>Actions</span></div></button>
   <button className="ct-side-dev-item" onClick={()=>setActiveDevModal('mcp')} title="Servidores MCP configurados"><div><ControlIcon name="ai" size={14}/><span>Servidores MCP</span></div></button>
+  <button className="ct-side-dev-item" onClick={()=>setActiveDevModal('browser')} title="Navegador Web Integrado (com Automação por IA)"><div><ControlIcon name="globe" size={14}/><span>Navegador Web</span></div></button>
   <button className="ct-side-dev-item" onClick={()=>setActiveDevModal('wiki')} title="Wiki do projeto"><div><ControlIcon name="git-wiki" size={14}/><span>Wiki</span></div></button>
 </div>}
 
@@ -633,9 +772,9 @@ export function initYjsProvider(room: string, doc: Y.Doc) {
     }
   }}
   onCloseEditor={()=>setDevEditorOpen(false)}
-  branch="feature/realtime-cursors"
-  fileName={editorTabs.find(t=>t.id===activeEditorTab)?.name || 'page.tsx'}
-  filePath={editorTabs.find(t=>t.id===activeEditorTab)?.path || 'projeto-atlas/apps/web/src/components/editor/page.tsx'}
+  branch={gitBranch}
+  fileName={editorTabs.find(t=>t.id===activeEditorTab)?.name || 'App.tsx'}
+  filePath={editorTabs.find(t=>t.id===activeEditorTab)?.path || 'src/App.tsx'}
   code={tabCodes[activeEditorTab] ?? ''}
   onChangeCode={handleUpdateCode}
   onSave={handleSaveActiveCode}
@@ -665,12 +804,15 @@ export function initYjsProvider(room: string, doc: Y.Doc) {
     {editProfile&&<EditProfile onClose={()=>setEditProfile(false)}/>}
     {createType&&<CreateChannel type={createType} serverId={server.id} onClose={()=>setCreateType(null)}/>}
     {activeDevModal==='mcp'&&<McpManagerModal onClose={()=>setActiveDevModal(null)}/>}
-    {activeDevModal==='overview'&&<DevKanbanModal onClose={()=>setActiveDevModal(null)} onOpenAtlassian={()=>setActiveDevModal('atlassian')}/>}
-    {activeDevModal==='tasks'&&<DevTasksModal onClose={()=>setActiveDevModal(null)} onOpenAtlassian={()=>setActiveDevModal('atlassian')}/>}
-    {activeDevModal==='docs'&&<DevDocsModal onClose={()=>setActiveDevModal(null)} onOpenAtlassian={()=>setActiveDevModal('atlassian')}/>}
+    {activeDevModal==='browser'&&<InternalBrowserModal onClose={()=>setActiveDevModal(null)}/>}
+    {activeDevModal==='overview'&&<DevKanbanModal onClose={()=>setActiveDevModal(null)} onOpenAtlassian={()=>setActiveDevModal('atlassian')} onSwitchTab={tab=>setActiveDevModal(tab)}/>}
+    {activeDevModal==='tasks'&&<DevTasksModal onClose={()=>setActiveDevModal(null)} onOpenAtlassian={()=>setActiveDevModal('atlassian')} onSwitchTab={tab=>setActiveDevModal(tab)}/>}
+    {activeDevModal==='docs'&&<DevDocsModal onClose={()=>setActiveDevModal(null)} onOpenAtlassian={()=>setActiveDevModal('atlassian')} onSwitchTab={tab=>setActiveDevModal(tab)}/>}
+    {activeDevModal==='roadmap'&&<DevRoadmapModal onClose={()=>setActiveDevModal(null)} onSwitchTab={tab=>setActiveDevModal(tab)}/>}
     {activeDevModal==='github-accounts'&&<DevGitHubAccountsModal onClose={()=>setActiveDevModal(null)}/>}
+    {(activeDevModal==='repositories'||activeDevModal==='repos')&&<DevRepositoriesModal onClose={()=>setActiveDevModal(null)} onOpenAccounts={()=>setActiveDevModal('github-accounts')}/>}
     {activeDevModal==='atlassian'&&<AtlassianConfigModal onClose={()=>setActiveDevModal(null)}/>}
-    {activeDevModal&&!['mcp','overview','tasks','docs','github-accounts','atlassian'].includes(activeDevModal)&&(
+    {activeDevModal&&!['mcp','browser','overview','tasks','docs','roadmap','github-accounts','repositories','repos','atlassian'].includes(activeDevModal)&&(
   <div className="ct-modal-backdrop" onClick={()=>setActiveDevModal(null)}>
     <section className="ct-edit-dialog" role="dialog" aria-modal="true" onClick={e=>e.stopPropagation()}>
       {activeDevModal==='prs'&&(
@@ -744,16 +886,6 @@ export function initYjsProvider(room: string, doc: Y.Doc) {
           </div>
         </>
       )}
-      {activeDevModal==='roadmap'&&(
-        <>
-          <h2>Roadmap</h2>
-          <div style={{display:'flex',flexDirection:'column',gap:'8px',margin:'14px 0'}}>
-            <div style={{padding:'8px 12px',background:'var(--cx-surface)',borderRadius:'6px'}}><strong>v2.5:</strong> Dev Studio integrado com IA generativa e terminal interativo</div>
-            <div style={{padding:'8px 12px',background:'var(--cx-surface)',borderRadius:'6px'}}><strong>v2.6:</strong> Colaboração P2P com CRDTs e compartilhamento de telas multi-display</div>
-            <div style={{padding:'8px 12px',background:'var(--cx-surface)',borderRadius:'6px'}}><strong>v3.0:</strong> Plugins MCP integrados para automação de CI/CD e deployment</div>
-          </div>
-        </>
-      )}
       <footer><button type="button" onClick={()=>setActiveDevModal(null)}>Fechar</button></footer>
     </section>
   </div>
@@ -770,12 +902,13 @@ export function initYjsProvider(room: string, doc: Y.Doc) {
         }}
         onOpenHelp={() => document.dispatchEvent(new KeyboardEvent('keydown', { key: 'F1', bubbles: true }))}
         onOpenFolder={() => void openFolder()}
+        onOpenDevModal={modal => setActiveDevModal(modal)}
       />
     )}
     {reviewPanelOpen && (
       <ReviewPanel
         onClose={() => setReviewPanelOpen(false)}
-        branch="dev/caliari"
+        branch={gitBranch || 'dev/caliari'}
       />
     )}
     {toastMessage && (

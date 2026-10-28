@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { aiProviders, aiProviderName, type AiProviderId } from '../roles/ai'
+import { aiProviders, aiProviderName, type AiProviderId, TOKEN_ECONOMY_CONFIG, getEconomyMode, type TokenEconomyMode } from '../roles/ai'
 import { ControlIcon } from './ControlIcon'
 
 export function AiSettings() {
@@ -7,17 +7,19 @@ export function AiSettings() {
   const [key, setKey] = useState('')
   const [showKey, setShowKey] = useState(false)
   const [configured, setConfigured] = useState<AiProviderId[]>([])
-  const [contextTokens, setContextTokens] = useState(8192)
-  const [maxOutputTokens, setMaxOutputTokens] = useState(2048)
+  const [economyMode, setEconomyMode] = useState<TokenEconomyMode>('moderate')
   const [busy, setBusy] = useState(false)
   const [status, setStatus] = useState('')
   const [isSuccess, setIsSuccess] = useState(false)
 
   useEffect(() => {
     void window.contalkDesktop?.communityAiStatus().then(value => {
-      setConfigured(value.providers || [])
-      setContextTokens(value.contextTokens)
-      setMaxOutputTokens(value.maxOutputTokens)
+      const provs = value.providers || []
+      setConfigured(provs)
+      setEconomyMode(getEconomyMode(value.contextTokens, value.maxOutputTokens))
+      if (!provs.includes('openai') && provs.length > 0) {
+        setProvider(provs[0])
+      }
     }).catch(() => {
       setStatus('Não foi possível ler as configurações de IA.')
       setIsSuccess(false)
@@ -31,11 +33,12 @@ export function AiSettings() {
     setBusy(true)
     setStatus('')
     setIsSuccess(false)
+    const economy = TOKEN_ECONOMY_CONFIG[economyMode]
     void window.contalkDesktop!.communityAiConfigure({
       provider,
       ...(key.trim() ? { key: key.trim() } : {}),
-      contextTokens,
-      maxOutputTokens
+      contextTokens: economy.contextTokens,
+      maxOutputTokens: economy.maxOutputTokens
     }).then(value => {
       setConfigured(value.providers)
       setKey('')
@@ -140,39 +143,37 @@ export function AiSettings() {
             </div>
           </div>
 
-          <div className="ct-ai-limits-grid">
-            <div className="ct-ai-limit-box">
-              <label htmlFor="user-ai-context">Máximo de Tokens de Contexto:</label>
-              <div className="ct-ai-limit-input-wrap">
-                <input
-                  id="user-ai-context"
-                  className="ct-ai-input"
-                  type="number"
-                  min={1024}
-                  max={32768}
-                  step={1024}
-                  value={contextTokens}
-                  onChange={event => setContextTokens(Number(event.target.value))}
-                />
-                <span className="ct-ai-unit-label">tokens</span>
-              </div>
+          <div className="ct-ai-economy-section">
+            <div className="ct-ai-card-section-title">
+              <strong>Economia de Tokens</strong>
+              <span className="ct-ai-card-hint">Otimize o consumo de tokens sem perder qualidade</span>
             </div>
-
-            <div className="ct-ai-limit-box">
-              <label htmlFor="user-ai-output">Máximo de Tokens de Resposta:</label>
-              <div className="ct-ai-limit-input-wrap">
-                <input
-                  id="user-ai-output"
-                  className="ct-ai-input"
-                  type="number"
-                  min={128}
-                  max={8192}
-                  step={128}
-                  value={maxOutputTokens}
-                  onChange={event => setMaxOutputTokens(Number(event.target.value))}
-                />
-                <span className="ct-ai-unit-label">tokens</span>
-              </div>
+            <div className="ct-ai-economy-options" role="radiogroup" aria-label="Economia de Tokens">
+              {(['standard', 'moderate', 'aggressive'] as const).map(mode => {
+                const option = TOKEN_ECONOMY_CONFIG[mode]
+                const selected = economyMode === mode
+                return (
+                  <label
+                    key={mode}
+                    className={`ct-ai-economy-card ${selected ? 'is-selected' : ''}`}
+                  >
+                    <input
+                      type="radio"
+                      name="user-token-economy"
+                      value={mode}
+                      checked={selected}
+                      onChange={() => setEconomyMode(mode)}
+                    />
+                    <div className="ct-ai-economy-card-header">
+                      <strong>{option.label}</strong>
+                      <span className="ct-radio-dot" aria-hidden="true">
+                        {selected && <ControlIcon name="check" size={10} />}
+                      </span>
+                    </div>
+                    <p>{option.description}</p>
+                  </label>
+                )
+              })}
             </div>
           </div>
 

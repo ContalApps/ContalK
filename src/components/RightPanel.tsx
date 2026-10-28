@@ -1,5 +1,6 @@
 import { useEffect, useState, type ReactNode } from 'react'
 import { useVoiceStore } from '../store/useVoiceStore'
+import { useSharedBrowserStore } from '../store/useSharedBrowserStore'
 import { ControlIcon } from './ControlIcon'
 import { VideoTrackView } from './VoiceStage'
 
@@ -21,6 +22,7 @@ export function useCallClock() {
 
 export function RightPanel({ onOpenChannel, members }: { onOpenChannel: (id: string) => void; members: ReactNode }) {
   const voice = useVoiceStore()
+  const sharedBrowser = useSharedBrowserStore()
   const shares = voice.participants.filter(p => p.isScreenShareEnabled && p.screenTrack)
   return <aside className="ct-right-panel" aria-label="Painel da chamada e participantes">
     {shares.length > 0 && <section className="ct-rp-section">
@@ -29,6 +31,22 @@ export function RightPanel({ onOpenChannel, members }: { onOpenChannel: (id: str
         <span className="ct-rp-thumb"><VideoTrackView track={p.screenTrack!} isLocal={p.isLocal} className="ct-rp-video"/><span className="ct-live-badge">LIVE</span></span>
         <strong>{p.isLocal ? 'Você' : p.serverNickname || p.name}</strong>
       </button>)}</div>
+    </section>}
+    {sharedBrowser.activeSession && <section className="ct-rp-section">
+      <h2><ControlIcon name="globe" size={14}/>Navegador Compartilhado</h2>
+      <div className="ct-rp-shares">
+        <button onClick={() => onOpenChannel(sharedBrowser.activeSession!.roomId)} title={`Abrir navegador de ${sharedBrowser.activeSession.hostName}`}>
+          <span className="ct-rp-thumb">
+            {sharedBrowser.activeSession.screenshot ? (
+              <img src={sharedBrowser.activeSession.screenshot} alt="" className="ct-rp-video" style={{ objectFit: 'cover' }} />
+            ) : (
+              <div className="ct-rp-video" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#000' }}><ControlIcon name="globe" size={16}/></div>
+            )}
+            <span className="ct-live-badge">WEB</span>
+          </span>
+          <strong>{sharedBrowser.activeSession.hostName}</strong>
+        </button>
+      </div>
     </section>}
     <section className="ct-rp-section ct-rp-members">{members}</section>
     <section className="ct-rp-section ct-rp-github-section">

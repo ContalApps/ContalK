@@ -1,9 +1,28 @@
 import { useState } from 'react'
 import { useDevStore, type KanbanColumn, type PriorityLevel } from '../store/useDevStore'
 import { ControlIcon } from './ControlIcon'
+import { DevProjectTabs, type DevProjectTabId } from './DevProjectTabs'
 
-export function DevKanbanModal({ onClose, onOpenAtlassian }: { onClose: () => void; onOpenAtlassian: () => void }) {
-  const { kanbanCards, addKanbanCard, moveKanbanCard, deleteKanbanCard, atlassian, syncAtlassianData, atlassianSyncing } = useDevStore()
+export function DevKanbanModal({
+  onClose,
+  onOpenAtlassian,
+  onSwitchTab
+}: {
+  onClose: () => void
+  onOpenAtlassian: () => void
+  onSwitchTab?: (tab: DevProjectTabId) => void
+}) {
+  const {
+    kanbanCards,
+    addKanbanCard,
+    moveKanbanCard,
+    reorderKanbanCard,
+    deleteKanbanCard,
+    atlassian,
+    syncAtlassianData,
+    atlassianSyncing
+  } = useDevStore()
+
   const [filterQuery, setFilterQuery] = useState('')
   const [isAdding, setIsAdding] = useState(false)
   const [newTitle, setNewTitle] = useState('')
@@ -11,6 +30,12 @@ export function DevKanbanModal({ onClose, onOpenAtlassian }: { onClose: () => vo
   const [newCol, setNewCol] = useState<KanbanColumn>('backlog')
   const [newPriority, setNewPriority] = useState<PriorityLevel>('medium')
   const [newTags, setNewTags] = useState('')
+
+  // Drag and Drop state
+  const [draggingCardId, setDraggingCardId] = useState<string | null>(null)
+  const [dragOverCol, setDragOverCol] = useState<KanbanColumn | null>(null)
+  const [dragOverCardId, setDragOverCardId] = useState<string | null>(null)
+  const [dropPosition, setDropPosition] = useState<'before' | 'after'>('before')
 
   const columns: { id: KanbanColumn; title: string; color: string; icon: string }[] = [
     { id: 'backlog', title: 'A Fazer / Backlog', color: '#8b949e', icon: 'tasks' },
@@ -66,8 +91,8 @@ export function DevKanbanModal({ onClose, onOpenAtlassian }: { onClose: () => vo
       <section className="ct-dev-modal-panel ct-kanban-dialog" role="dialog" aria-modal="true" onClick={e => e.stopPropagation()}>
         <header className="ct-dev-modal-header">
           <div>
-            <h2><ControlIcon name="overview" size={16}/> Visão Geral — Quadro Kanban do Projeto</h2>
-            <p>Gerencie o fluxo de trabalho e acompanhe o progresso das entregas.</p>
+            <h2><ControlIcon name="overview" size={16}/> Projetos — Quadro Kanban Interativo</h2>
+            <p>Arraste os cards entre as colunas para atualizar status ou reordenar prioridades.</p>
           </div>
           <div className="ct-dev-header-actions">
             {atlassian?.connected ? (
@@ -101,6 +126,9 @@ export function DevKanbanModal({ onClose, onOpenAtlassian }: { onClose: () => vo
           </div>
         </header>
 
+        {/* Tab navigation for Projects Hub */}
+        <DevProjectTabs activeTab="overview" onSwitchTab={onSwitchTab} />
+
         <div className="ct-kanban-toolbar">
           <input
             type="search"
@@ -111,6 +139,8 @@ export function DevKanbanModal({ onClose, onOpenAtlassian }: { onClose: () => vo
           />
           <div className="ct-kanban-metrics">
             <span>Total: <strong>{filteredCards.length}</strong></span>
+            <span>A Fazer: <strong>{filteredCards.filter(c => c.column === 'backlog').length}</strong></span>
+            <span>Em Andamento: <strong>{filteredCards.filter(c => c.column === 'in-progress').length}</strong></span>
             <span>Concluídos: <strong>{filteredCards.filter(c => c.column === 'done').length}</strong></span>
           </div>
         </div>
@@ -174,8 +204,32 @@ export function DevKanbanModal({ onClose, onOpenAtlassian }: { onClose: () => vo
         <div className="ct-kanban-board">
           {columns.map(col => {
             const colCards = filteredCards.filter(c => c.column === col.id)
+            const isColDragOver = dragOverCol === col.id
+
             return (
-              <div key={col.id} className="ct-kanban-column">
+              <div
+                key={col.id}
+                className={`ct-kanban-column ${isColDragOver ? 'is-drag-over' : ''}`}
+                onDragOver={e => {
+                  e.preventDefault()
+                  e.dataTransfer.dropEffect = 'move'
+                  if (dragOverCol !== col.id) setDragOverCol(col.id)
+                }}
+                onDragLeave={e => {
+                  if (e.currentTarget.contains(e.relatedTarget as Node)) return
+                  if (dragOverCol === col.id) setDragOverCol(null)
+                }}
+                onDrop={e => {
+                  e.preventDefault()
+                  const sourceId = e.dataTransfer.getData('text/plain') || draggingCardId
+                  if (sourceId) {
+                    moveKanbanCard(sourceId, col.id)
+                  }
+                  setDraggingCardId(null)
+                  setDragOverCol(null)
+                  setDragOverCardId(null)
+                }}
+              >
                 <header className="ct-kanban-column-header">
                   <div className="ct-kanban-column-title">
                     <span className="ct-kanban-dot" style={{ backgroundColor: col.color }}/>
@@ -185,70 +239,125 @@ export function DevKanbanModal({ onClose, onOpenAtlassian }: { onClose: () => vo
                 </header>
 
                 <div className="ct-kanban-cards">
-                  {colCards.map(card => (
-                    <article key={card.id} className="ct-kanban-card">
-                      <div className="ct-kanban-card-top">
-                        <span
-                          className="ct-priority-badge"
-                          style={{ backgroundColor: `${priorityLabels[card.priority].color}22`, color: priorityLabels[card.priority].color }}
-                        >
-                          {priorityLabels[card.priority].text}
-                        </span>
-                        {card.jiraKey && (
-                          <span className="ct-jira-badge" title="Importado do Jira">
-                            {card.jiraKey}
-                          </span>
-                        )}
-                        <button
-                          type="button"
-                          className="ct-card-delete"
-                          onClick={() => deleteKanbanCard(card.id)}
-                          title="Excluir card"
-                        >
-                          <ControlIcon name="delete" size={11}/>
-                        </button>
-                      </div>
+                  {colCards.map(card => {
+                    const isCardDragging = draggingCardId === card.id
+                    const isTargetBefore = dragOverCardId === card.id && dropPosition === 'before'
+                    const isTargetAfter = dragOverCardId === card.id && dropPosition === 'after'
 
-                      <h4>{card.title}</h4>
-                      {card.description && <p>{card.description}</p>}
-
-                      {card.tags.length > 0 && (
-                        <div className="ct-card-tags">
-                          {card.tags.map(tag => <span key={tag} className="ct-tag-pill">{tag}</span>)}
-                        </div>
-                      )}
-
-                      <div className="ct-kanban-card-footer">
-                        {card.assignee && (
-                          <span className="ct-card-assignee" title={`Responsável: ${card.assignee}`}>
-                            👤 {card.assignee}
-                          </span>
-                        )}
-                        <div className="ct-card-move-actions">
-                          {prevColMap[col.id] && (
-                            <button
-                              type="button"
-                              onClick={() => moveKanbanCard(card.id, prevColMap[col.id]!)}
-                              title="Mover para coluna anterior"
+                    return (
+                      <article
+                        key={card.id}
+                        className={`ct-kanban-card ${isCardDragging ? 'is-dragging' : ''} ${isTargetBefore ? 'is-drop-target-before' : ''} ${isTargetAfter ? 'is-drop-target-after' : ''}`}
+                        draggable
+                        onDragStart={e => {
+                          e.dataTransfer.setData('text/plain', card.id)
+                          e.dataTransfer.effectAllowed = 'move'
+                          setDraggingCardId(card.id)
+                        }}
+                        onDragEnd={() => {
+                          setDraggingCardId(null)
+                          setDragOverCol(null)
+                          setDragOverCardId(null)
+                        }}
+                        onDragOver={e => {
+                          e.preventDefault()
+                          e.stopPropagation()
+                          e.dataTransfer.dropEffect = 'move'
+                          const rect = e.currentTarget.getBoundingClientRect()
+                          const isBottom = e.clientY > rect.top + rect.height / 2
+                          const nextPos = isBottom ? 'after' : 'before'
+                          if (dragOverCardId !== card.id || dropPosition !== nextPos) {
+                            setDragOverCardId(card.id)
+                            setDropPosition(nextPos)
+                          }
+                          if (dragOverCol !== col.id) setDragOverCol(col.id)
+                        }}
+                        onDragLeave={e => {
+                          if (e.currentTarget.contains(e.relatedTarget as Node)) return
+                          if (dragOverCardId === card.id) setDragOverCardId(null)
+                        }}
+                        onDrop={e => {
+                          e.preventDefault()
+                          e.stopPropagation()
+                          const sourceId = e.dataTransfer.getData('text/plain') || draggingCardId
+                          if (sourceId && sourceId !== card.id) {
+                            reorderKanbanCard(sourceId, card.id, dropPosition)
+                          }
+                          setDraggingCardId(null)
+                          setDragOverCol(null)
+                          setDragOverCardId(null)
+                        }}
+                      >
+                        <div className="ct-kanban-card-top">
+                          <div className="ct-kanban-card-left-header">
+                            <span className="ct-card-drag-handle" title="Arraste para mover ou reordenar">
+                              <ControlIcon name="grip" size={12}/>
+                            </span>
+                            <span
+                              className="ct-priority-badge"
+                              style={{ backgroundColor: `${priorityLabels[card.priority].color}22`, color: priorityLabels[card.priority].color }}
                             >
-                              ←
-                            </button>
-                          )}
-                          {nextColMap[col.id] && (
-                            <button
-                              type="button"
-                              onClick={() => moveKanbanCard(card.id, nextColMap[col.id]!)}
-                              title="Avançar para próxima coluna"
-                            >
-                              →
-                            </button>
-                          )}
+                              {priorityLabels[card.priority].text}
+                            </span>
+                            {card.jiraKey && (
+                              <span className="ct-jira-badge" title="Importado do Jira">
+                                {card.jiraKey}
+                              </span>
+                            )}
+                          </div>
+                          <button
+                            type="button"
+                            className="ct-card-delete"
+                            onClick={() => deleteKanbanCard(card.id)}
+                            title="Excluir card"
+                          >
+                            <ControlIcon name="delete" size={11}/>
+                          </button>
                         </div>
-                      </div>
-                    </article>
-                  ))}
+
+                        <h4>{card.title}</h4>
+                        {card.description && <p>{card.description}</p>}
+
+                        {card.tags.length > 0 && (
+                          <div className="ct-card-tags">
+                            {card.tags.map(tag => <span key={tag} className="ct-tag-pill">{tag}</span>)}
+                          </div>
+                        )}
+
+                        <div className="ct-kanban-card-footer">
+                          {card.assignee && (
+                            <span className="ct-card-assignee" title={`Responsável: ${card.assignee}`}>
+                              👤 {card.assignee}
+                            </span>
+                          )}
+                          <div className="ct-card-move-actions">
+                            {prevColMap[col.id] && (
+                              <button
+                                type="button"
+                                onClick={() => moveKanbanCard(card.id, prevColMap[col.id]!)}
+                                title="Mover para coluna anterior"
+                              >
+                                ←
+                              </button>
+                            )}
+                            {nextColMap[col.id] && (
+                              <button
+                                type="button"
+                                onClick={() => moveKanbanCard(card.id, nextColMap[col.id]!)}
+                                title="Avançar para próxima coluna"
+                              >
+                                →
+                              </button>
+                            )}
+                          </div>
+                        </div>
+                      </article>
+                    )
+                  })}
                   {colCards.length === 0 && (
-                    <div className="ct-kanban-empty">Nenhum card nesta etapa</div>
+                    <div className="ct-kanban-empty">
+                      {isColDragOver ? 'Solte o card aqui' : 'Nenhum card nesta etapa'}
+                    </div>
                   )}
                 </div>
               </div>
