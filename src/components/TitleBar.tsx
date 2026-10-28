@@ -87,11 +87,12 @@ export function TitleBar({title = 'ConTALK', authenticated = false, disabled = f
 
       <div className="ct-help-section">
         <h4>Navegação e Layout</h4>
-        <div className="ct-shortcut-row"><kbd>Ctrl+K</kbd><span>Buscar na tela ou canal</span></div>
+        <div className="ct-shortcut-row"><kbd>Ctrl+K</kbd><span>Menu de comandos universal (Command Palette)</span></div>
+        <div className="ct-shortcut-row"><kbd>Ctrl+Alt+R</kbd><span>Painel de alterações e diffs (Review Panel)</span></div>
         <div className="ct-shortcut-row"><kbd>Alt+← / Alt+→</kbd><span>Voltar e avançar no histórico</span></div>
         <div className="ct-shortcut-row"><kbd>Ctrl+B</kbd><span>Alternar barra lateral</span></div>
         <div className="ct-shortcut-row"><kbd>Ctrl+Alt+B</kbd><span>Alternar painel direito (membros)</span></div>
-        <div className="ct-shortcut-row"><kbd>Ctrl+Alt+E</kbd><span>Alternar editor de código (Split)</span></div>
+        <div className="ct-shortcut-row"><kbd>Ctrl+Alt+E</kbd><span>Alternar editor de código colaborativo (Split)</span></div>
         <div className="ct-shortcut-row"><kbd>Ctrl+J</kbd> ou <kbd>Ctrl+`</kbd><span>Alternar terminal inferior</span></div>
         <div className="ct-shortcut-row"><kbd>F11</kbd><span>Alternar tela cheia</span></div>
         <div className="ct-shortcut-row"><kbd>Ctrl+,</kbd><span>Abrir Configurações</span></div>

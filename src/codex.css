@@ -166,6 +166,49 @@
   .ct-send-options button { background:var(--cx-hover); border:0; border-radius:8px; color:var(--cx-fg-2); }
   .ct-composer-hint { color:var(--cx-fg-3); font-size:11px; padding:2px 0 10px; }
 
+  /* botões e chips do composer estilo Codex */
+  .ct-composer-send-btn {
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    gap: 6px !important;
+    height: 32px !important;
+    border-radius: 16px !important;
+    padding: 0 14px !important;
+    font-size: 13px !important;
+    font-weight: 500 !important;
+    cursor: pointer !important;
+    transition: all 0.15s cubic-bezier(0.16, 1, 0.3, 1) !important;
+  }
+  .ct-composer-send-btn svg { flex-shrink: 0; }
+
+  .ct-pending-attachment, .ct-pending-expression {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    background: rgba(255, 255, 255, 0.07);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 10px;
+    padding: 6px 12px;
+    font-size: 12px;
+    color: var(--cx-fg);
+    margin-bottom: 6px;
+  }
+  .ct-pending-attachment button, .ct-pending-expression button {
+    background: rgba(255, 255, 255, 0.1);
+    border: none;
+    border-radius: 6px;
+    color: var(--cx-fg-2);
+    padding: 2px 8px;
+    font-size: 11px;
+    cursor: pointer;
+    transition: background 0.12s, color 0.12s;
+  }
+  .ct-pending-attachment button:hover, .ct-pending-expression button:hover {
+    background: rgba(239, 68, 68, 0.2);
+    color: #f87171;
+  }
+
   /* botões */
   .ct-primary, .ct-secondary { border:0; border-radius:999px; padding:8px 14px; font-size:13px!important; font-weight:500!important; }
   .ct-primary { background:#fff; color:#0d0d0d; }
