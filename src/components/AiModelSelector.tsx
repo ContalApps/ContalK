@@ -140,44 +140,74 @@ export function AiModelSelector({
         </div>
 
         {/* Model selector */}
-        <div className="ct-ai-picker-item ct-flex-grow">
-          <label htmlFor="ai-picker-model" className="sr-only">Modelo</label>
-          <select
-            id="ai-picker-model"
-            className="ct-ai-picker-select"
-            aria-label="Modelo de IA para este pedido"
-            value={combinedModels.some(item => item.id === model) ? model : ''}
-            onChange={event => {
-              const val = event.target.value
-              if (val) {
-                onChange(provider, val)
-                try {
-                  if (typeof localStorage !== 'undefined') {
-                    localStorage.setItem(`contalk:preferred-ai-model:${provider}`, val)
-                    localStorage.setItem('contalk:preferred-ai-model', val)
-                    localStorage.setItem('contalk:preferred-ai-provider', provider)
+        {combinedModels.length > 0 ? (
+          <div className="ct-ai-picker-item ct-flex-grow">
+            <label htmlFor="ai-picker-model" className="sr-only">Modelo</label>
+            <select
+              id="ai-picker-model"
+              className="ct-ai-picker-select"
+              aria-label="Modelo de IA para este pedido"
+              value={combinedModels.some(item => item.id === model) ? model : ''}
+              onChange={event => {
+                const val = event.target.value
+                if (val) {
+                  onChange(provider, val)
+                  try {
+                    if (typeof localStorage !== 'undefined') {
+                      localStorage.setItem(`contalk:preferred-ai-model:${provider}`, val)
+                      localStorage.setItem('contalk:preferred-ai-model', val)
+                      localStorage.setItem('contalk:preferred-ai-provider', provider)
+                    }
+                  } catch {
+                    /* ignore */
                   }
-                } catch {
-                  /* ignore */
                 }
-              }
-            }}
-            disabled={loading || !combinedModels.length}
-          >
-            <option value="">
-              {loading ? 'Consultando modelos da API…' : combinedModels.length ? 'Selecione um modelo…' : 'Nenhum modelo listado'}
-            </option>
-            {combinedModels.map(item => (
-              <option key={item.id} value={item.id}>
-                {/dall-e|imagen/i.test(item.id) && !item.name.includes('🎨')
-                  ? `🎨 ${item.name} (${item.id})`
-                  : item.name === item.id
-                  ? item.id
-                  : `${item.name} (${item.id})`}
+              }}
+              disabled={loading}
+            >
+              <option value="">
+                {loading ? 'Consultando modelos da API…' : 'Selecione um modelo…'}
               </option>
-            ))}
-          </select>
-        </div>
+              {combinedModels.map(item => {
+                const cleanName = item.name.replace(/\s*\([^)]*\)$/, '').trim()
+                const label = cleanName || item.id
+                return (
+                  <option key={item.id} value={item.id}>
+                    {label}
+                  </option>
+                )
+              })}
+            </select>
+          </div>
+        ) : (
+          /* Manual ID input fallback when API provides no models catalog */
+          <div className="ct-ai-picker-item ct-ai-manual-id ct-flex-grow">
+            <label htmlFor="ai-picker-manual-id" className="sr-only">ID do modelo</label>
+            <input
+              id="ai-picker-manual-id"
+              className="ct-ai-picker-input"
+              aria-label="Identificador do modelo"
+              value={model}
+              placeholder="Digite o ID do modelo (ex: gpt-4o, claude-3-5-sonnet)..."
+              maxLength={100}
+              onChange={event => {
+                const val = event.target.value.trim()
+                onChange(provider, val)
+                if (val) {
+                  try {
+                    if (typeof localStorage !== 'undefined') {
+                      localStorage.setItem(`contalk:preferred-ai-model:${provider}`, val)
+                      localStorage.setItem('contalk:preferred-ai-model', val)
+                      localStorage.setItem('contalk:preferred-ai-provider', provider)
+                    }
+                  } catch {
+                    /* ignore */
+                  }
+                }
+              }}
+            />
+          </div>
+        )}
 
         {/* Refresh button */}
         <button
@@ -190,34 +220,6 @@ export function AiModelSelector({
         >
           <ControlIcon name="refresh" size={12} />
         </button>
-
-        {/* Manual ID input fallback */}
-        <div className="ct-ai-picker-item ct-ai-manual-id">
-          <label htmlFor="ai-picker-manual-id" className="sr-only">ID manual</label>
-          <input
-            id="ai-picker-manual-id"
-            className="ct-ai-picker-input"
-            aria-label="Identificador manual do modelo"
-            value={model}
-            placeholder="Ou digite o ID..."
-            maxLength={100}
-            onChange={event => {
-              const val = event.target.value.trim()
-              onChange(provider, val)
-              if (val) {
-                try {
-                  if (typeof localStorage !== 'undefined') {
-                    localStorage.setItem(`contalk:preferred-ai-model:${provider}`, val)
-                    localStorage.setItem('contalk:preferred-ai-model', val)
-                    localStorage.setItem('contalk:preferred-ai-provider', provider)
-                  }
-                } catch {
-                  /* ignore */
-                }
-              }
-            }}
-          />
-        </div>
       </div>
 
       {error ? (
