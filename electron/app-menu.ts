@@ -1,6 +1,8 @@
 import { app, BrowserWindow, dialog, ipcMain } from 'electron'
 import fs from 'node:fs/promises'
+import fsSync from 'node:fs'
 import path from 'node:path'
+import { spawn } from 'node:child_process'
 
 const editCommands = ['undo', 'redo', 'cut', 'copy', 'paste', 'delete', 'selectAll'] as const
 
@@ -84,6 +86,29 @@ export function setupAppMenu(window: BrowserWindow, onQuit: () => void) {
     }
   })
 
+  ipcMain.handle('workspace-exec-command', async (event, command: unknown, cwd?: unknown) => {
+    trusted(event)
+    if (typeof command !== 'string' || !command.trim()) throw new Error('Comando inválido.')
+    const dir = typeof cwd === 'string' && cwd && path.isAbsolute(cwd) && fsSync.existsSync(cwd) ? cwd : process.cwd()
+    return new Promise<{ stdout: string; stderr: string; exitCode: number }>((resolve) => {
+      const child = spawn(command, { cwd: dir, shell: true })
+      let stdout = ''
+      let stderr = ''
+      child.stdout?.on('data', d => { stdout += d.toString('utf8'); if (stdout.length > 500000) child.kill() })
+      child.stderr?.on('data', d => { stderr += d.toString('utf8'); if (stderr.length > 500000) child.kill() })
+      child.on('close', code => {
+        resolve({ stdout: stdout.trim(), stderr: stderr.trim(), exitCode: code ?? 0 })
+      })
+      child.on('error', err => {
+        resolve({ stdout: stdout.trim(), stderr: (stderr + '\n' + err.message).trim(), exitCode: 1 })
+      })
+      setTimeout(() => {
+        try { child.kill() } catch { /* ignore */ }
+        resolve({ stdout: stdout.trim(), stderr: (stderr + '\n[Tempo limite de 30s excedido]').trim(), exitCode: 124 })
+      }, 30000)
+    })
+  })
+
   window.once('closed', () => {
     for (const channel of [
       'app-quit',
@@ -92,7 +117,8 @@ export function setupAppMenu(window: BrowserWindow, onQuit: () => void) {
       'dialog-open-folder',
       'workspace-list-files',
       'workspace-read-file',
-      'workspace-write-file'
+      'workspace-write-file',
+      'workspace-exec-command'
     ]) ipcMain.removeHandler(channel)
   })
 }

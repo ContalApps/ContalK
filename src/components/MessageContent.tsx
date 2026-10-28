@@ -6,6 +6,7 @@ import { canMutateThread } from '../roles/threads'
 import { PollEditor } from './PollEditor'
 import { PollCard } from './PollCard'
 import { ControlIcon } from './ControlIcon'
+import { parseAgentActions, AgentActionCard } from './AgentActionCard'
 import { AiModelSelector } from './AiModelSelector'
 import { aiModelId,validAiModel,type AiProviderId } from '../roles/ai'
 import { MessageTools } from './MessageTools'
@@ -66,12 +67,25 @@ function AiCodeBlock({language,code}:{language:string;code:string}){
   </div>
 }
 function AiText({content}:{content:string}){
-  return <>{content.split(/(```[\s\S]*?```)/g).map((part,index)=>{
-    if(!part.startsWith("```")||!part.endsWith("```"))return <MessageContent key={index} content={part} preview={false}/>
-    const text=part.slice(3,-3),breakAt=text.indexOf("\n"),language=breakAt>=0?text.slice(0,breakAt).trim():""
-    const code=breakAt>=0?text.slice(breakAt+1):text
-    return <AiCodeBlock key={index} language={language} code={code}/>
-  })}</>
+  const blocks = parseAgentActions(content)
+  return <>
+    {blocks.map((block, bIdx) => {
+      if (block.type === 'action' && block.action) {
+        return <AgentActionCard key={block.action.id || bIdx} action={block.action} />
+      }
+      const textContent = block.text || ''
+      return <span key={bIdx}>
+        {textContent.split(/(```[\s\S]*?```)/g).map((part, index) => {
+          if (!part.startsWith("```") || !part.endsWith("```")) {
+            return <MessageContent key={index} content={part} preview={false} />
+          }
+          const text = part.slice(3, -3), breakAt = text.indexOf("\n"), language = breakAt >= 0 ? text.slice(0, breakAt).trim() : ""
+          const code = breakAt >= 0 ? text.slice(breakAt + 1) : text
+          return <AiCodeBlock key={index} language={language} code={code} />
+        })}
+      </span>
+    })}
+  </>
 }
 export function ChatComposer({onSend,placeholder,disabled=false,channelId,ai}:{onSend:(text:string,attachment?:Attachment,options?:MessageOptions)=>Promise<void>;placeholder:string;disabled?:boolean;channelId?:string;ai?:{onPrompt:(text:string,fileIds:string[],limits:{contextTokens:number;maxOutputTokens:number},provider:AiProviderId,model:string)=>Promise<void>;active:boolean;endpoints:NonNullable<import('../store/useAppStore').Channel['aiEndpoints']>}}) {
   const [text,setText]=useState(''),[attachment,setAttachment]=useState<Attachment>(),[busy,setBusy]=useState(false),[error,setError]=useState('')

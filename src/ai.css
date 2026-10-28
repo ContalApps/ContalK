@@ -26,3 +26,235 @@
 .ct-ai-code-copy{display:inline-flex;align-items:center;gap:5px;background:none;border:0;color:var(--ct-muted,#acacac);font-size:11px;padding:2px 6px;border-radius:4px;cursor:pointer}
 .ct-ai-code-copy:hover{color:var(--ct-accent,#fff);background:#ffffff10}
 .ct-ai-code pre{margin:0;padding:12px;overflow:auto;max-height:440px;font:12px/1.5 "Cascadia Code",ui-monospace,Consolas,monospace;white-space:pre}
+
+
+/* Agent Harness Action Cards */
+.ct-agent-card {
+  margin: 10px 0;
+  border: 1px solid var(--cx-border, #2a2a2a);
+  border-radius: 8px;
+  background: var(--cx-surface, #141414);
+  overflow: hidden;
+  font-family: inherit;
+  transition: border-color 0.15s ease;
+}
+
+.ct-agent-card:hover {
+  border-color: var(--cx-border-light, #3d3d3d);
+}
+
+.ct-status-executed {
+  border-left: 3px solid #22c55e;
+}
+
+.ct-status-rejected {
+  border-left: 3px solid #ef4444;
+  opacity: 0.75;
+}
+
+.ct-status-running {
+  border-left: 3px solid #3b82f6;
+}
+
+.ct-status-pending {
+  border-left: 3px solid #eab308;
+}
+
+.ct-agent-card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 12px;
+  background: rgba(255, 255, 255, 0.03);
+  border-bottom: 1px solid var(--cx-border, #2a2a2a);
+  gap: 8px;
+}
+
+.ct-agent-card-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  color: var(--cx-fg, #ededed);
+}
+
+.ct-agent-card-title strong {
+  font-weight: 600;
+}
+
+.ct-agent-badge {
+  font-size: 10px;
+  font-weight: 600;
+  padding: 2px 8px;
+  border-radius: 999px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.ct-badge-pending {
+  background: rgba(234, 179, 8, 0.15);
+  color: #facc15;
+}
+
+.ct-badge-running {
+  background: rgba(59, 130, 246, 0.15);
+  color: #60a5fa;
+}
+
+.ct-badge-executed {
+  background: rgba(34, 197, 94, 0.15);
+  color: #4ade80;
+}
+
+.ct-badge-rejected {
+  background: rgba(239, 68, 68, 0.15);
+  color: #f87171;
+}
+
+.ct-agent-card-body {
+  padding: 10px 12px;
+}
+
+.ct-agent-code-box {
+  margin: 0;
+  padding: 8px 10px;
+  background: #080808;
+  border: 1px solid var(--cx-border, #222);
+  border-radius: 6px;
+  font-family: 'Cascadia Code', ui-monospace, Consolas, monospace;
+  font-size: 12px;
+  line-height: 1.5;
+  color: #4ade80;
+  overflow-x: auto;
+}
+
+.ct-agent-diff-preview {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-family: 'Cascadia Code', ui-monospace, Consolas, monospace;
+  font-size: 11.5px;
+  line-height: 1.4;
+  border-radius: 6px;
+  overflow: hidden;
+  border: 1px solid var(--cx-border, #222);
+}
+
+.ct-diff-del {
+  display: flex;
+  background: rgba(239, 68, 68, 0.12);
+  color: #fca5a5;
+  padding: 6px 10px;
+}
+
+.ct-diff-add {
+  display: flex;
+  background: rgba(34, 197, 94, 0.12);
+  color: #86efac;
+  padding: 6px 10px;
+}
+
+.ct-diff-sign {
+  width: 16px;
+  user-select: none;
+  font-weight: bold;
+}
+
+.ct-agent-diff-preview pre {
+  margin: 0;
+  white-space: pre-wrap;
+  word-break: break-all;
+}
+
+.ct-agent-card-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  background: rgba(0, 0, 0, 0.2);
+  border-top: 1px solid var(--cx-border, #2a2a2a);
+}
+
+.ct-agent-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 10px;
+  border-radius: 5px;
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  border: 1px solid transparent;
+  transition: all 0.12s ease;
+}
+
+.ct-btn-primary {
+  background: #2563eb;
+  color: #ffffff;
+}
+
+.ct-btn-primary:hover {
+  background: #1d4ed8;
+}
+
+.ct-btn-secondary {
+  background: var(--cx-surface-2, #262626);
+  border-color: var(--cx-border-light, #3d3d3d);
+  color: var(--cx-fg, #ededed);
+}
+
+.ct-btn-secondary:hover {
+  background: #333333;
+}
+
+.ct-btn-danger {
+  background: rgba(239, 68, 68, 0.12);
+  border-color: rgba(239, 68, 68, 0.3);
+  color: #f87171;
+}
+
+.ct-btn-danger:hover {
+  background: rgba(239, 68, 68, 0.25);
+}
+
+.ct-agent-card-error {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  background: rgba(239, 68, 68, 0.12);
+  color: #f87171;
+  font-size: 11px;
+}
+
+.ct-agent-card-output {
+  border-top: 1px solid var(--cx-border, #2a2a2a);
+}
+
+.ct-agent-output-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 6px 12px;
+  font-size: 11px;
+  color: var(--cx-fg-3, #888);
+  cursor: pointer;
+  background: rgba(0, 0, 0, 0.3);
+}
+
+.ct-agent-output-header:hover {
+  color: var(--cx-fg, #ededed);
+}
+
+.ct-agent-output-content {
+  margin: 0;
+  padding: 10px 12px;
+  background: #050505;
+  font-family: 'Cascadia Code', ui-monospace, Consolas, monospace;
+  font-size: 11px;
+  line-height: 1.45;
+  color: var(--cx-fg-2, #bbb);
+  max-height: 200px;
+  overflow-y: auto;
+  white-space: pre-wrap;
+}
