@@ -123,3 +123,20 @@ body {
 .ct-stream-overlay {width:auto;max-width:calc(100% - 24px);}.ct-stream-audio {display:flex;flex-direction:column;align-items:flex-start;gap:8px;opacity:0;transition:opacity .16s;}.group:hover>.ct-stream-overlay .ct-stream-audio,.ct-stream-audio:focus-within,.ct-stream-audio[data-open=true] {opacity:1;}.ct-stream-audio>.ct-stream-audio-toggle {display:inline-flex;align-items:center;gap:7px;padding:7px 10px;border:1px solid #575757;border-radius:8px;background:#141414e6;color:#dcdcdc;font-size:11px;}.ct-stream-audio .ct-stream-volume {width:260px;max-width:100%;}.ct-stream-audio>div {max-width:100%;}
 @media(hover:none){.ct-stream-audio{opacity:1;}}
 @media(prefers-reduced-motion:reduce){.ct-stream-audio{transition:none;}}
+
+/* Dark color-scheme and consistent popup styling for native select elements */
+select, option, optgroup {
+  color-scheme: dark !important;
+}
+select option, select optgroup {
+  background-color: #1c1c1c !important;
+  color: #ededed !important;
+}
+select optgroup {
+  background-color: #141414 !important;
+  color: #8b949e !important;
+}
+select option:hover, select option:checked {
+  background-color: #23374d !important;
+  color: #58a6ff !important;
+}

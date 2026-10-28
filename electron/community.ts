@@ -159,6 +159,43 @@ export function setupCommunity(window:BrowserWindow,getUsername:()=>string|null)
       for(const id of fileIds)selectedAiFiles.delete(id)
       return result
     },
+    'community-ai-generate-image':async(prompt:string,provider:AiProviderId='openai',model?:string)=>{
+      if(typeof prompt!=='string'||!prompt.trim())throw new Error('Informe a descrição para gerar a imagem.')
+      const settings=aiConfig()
+      if(!settings)throw new Error('Nenhuma chave de IA configurada nas Configurações.')
+      const chosenProvider:AiProviderId=settings.keys[provider]?provider:settings.keys.openai?'openai':settings.keys.gemini?'gemini':(Object.keys(settings.keys).find(k=>!!settings.keys[k as AiProviderId]) as AiProviderId)
+      const key=settings.keys[chosenProvider]
+      if(!key)throw new Error(`Configure sua chave pessoal de ${chosenProvider} nas Configurações.`)
+      if(chosenProvider==='openai'){
+        const imgModel=model&&/dall-e-2/i.test(model)?'dall-e-2':'dall-e-3'
+        const size=imgModel==='dall-e-2'?'512x512':'1024x1024'
+        const res=await fetch('https://api.openai.com/v1/images/generations',{
+          method:'POST',
+          headers:{Authorization:`Bearer ${key}`,'Content-Type':'application/json'},
+          body:JSON.stringify({model:imgModel,prompt:prompt.trim(),n:1,size,response_format:'b64_json'})
+        })
+        if(!res.ok)throw new Error(`A OpenAI não gerou a imagem (HTTP ${res.status}).`)
+        const data=await res.json()
+        const item=data.data?.[0]
+        const src=item?.b64_json?`data:image/png;base64,${item.b64_json}`:item?.url
+        if(!src)throw new Error('A OpenAI não retornou imagem válida.')
+        return {src,prompt:item?.revised_prompt||prompt.trim(),provider:'openai',model:imgModel}
+      }else if(chosenProvider==='gemini'){
+        const imgModel=model||'imagen-3.0-generate-002'
+        const res=await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(imgModel)}:predict`,{
+          method:'POST',
+          headers:{'x-goog-api-key':key,'Content-Type':'application/json'},
+          body:JSON.stringify({instances:[{prompt:prompt.trim()}],parameters:{sampleCount:1,aspectRatio:'1:1',outputMimeType:'image/jpeg'}})
+        })
+        if(!res.ok)throw new Error(`O Gemini não gerou a imagem (HTTP ${res.status}).`)
+        const data=await res.json()
+        const pred=data.predictions?.[0]
+        if(!pred?.bytesBase64Encoded)throw new Error('O Gemini não retornou imagem válida.')
+        const mime=pred.mimeType||'image/jpeg'
+        return {src:`data:${mime};base64,${pred.bytesBase64Encoded}`,prompt:prompt.trim(),provider:'gemini',model:imgModel}
+      }
+      throw new Error(`O provedor ${chosenProvider} não possui geração de imagens disponível.`)
+    },
     'community-ai-stop':(serverId:string,channelId:string,runId?:string)=>{if(!validId(serverId)||!validId(channelId)||(runId&&!validId(runId)))throw new Error('Execução inválida.');return request(`/servers/${serverId}/ai-runs/${channelId}/stop`,runId?{runId}:{})},
     'community-ai-subscribe':(serverId:string,channelId:string)=>{if(!validId(serverId)||!validId(channelId))throw new Error('Conversa inválida.');config();aiStream?.abort();aiStream=new AbortController();void subscribeAi(serverId,channelId,getUsername()!,aiStream)},
     'community-ai-unsubscribe':()=>{aiStream?.abort();aiStream=undefined},

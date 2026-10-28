@@ -35,6 +35,10 @@ import { BrandMark } from './BrandMark'
 import { ControlIcon, type ControlIconName } from './ControlIcon'
 import { TerminalPanel } from './TerminalPanel'
 import { DevCodeEditor, type DevEditorTab } from './DevCodeEditor'
+import { useDevCollaborationStore } from '../store/useDevCollaborationStore'
+import { CommandMenuModal } from './CommandMenuModal'
+import { ReviewPanel } from './ReviewPanel'
+import { ActiveCallCard } from './ActiveCallCard'
 import { McpManagerModal } from './McpManagerModal'
 import { RightPanel } from './RightPanel'
 import type { MenuGroup } from './TitleMenus'
@@ -49,6 +53,12 @@ import { useRoleStore } from '../store/useRoleStore'
 import { centralAllows } from '../roles/transport'
 import { assignedRoles } from '../roles/permissions'
 import { useNotificationStore } from '../store/useNotificationStore'
+import { useDevStore } from '../store/useDevStore'
+import { DevKanbanModal } from './DevKanbanModal'
+import { DevTasksModal } from './DevTasksModal'
+import { DevDocsModal } from './DevDocsModal'
+import { DevGitHubAccountsModal } from './DevGitHubAccountsModal'
+import { AtlassianConfigModal } from './AtlassianConfigModal'
 import '../themes.css'
 import '../ai.css'
 
@@ -61,6 +71,7 @@ export function ConTALKLayout() {
   const { user, logout } = useAuthStore()
   const preferences=usePreferencesStore()
   const activity=useNotificationStore()
+  const devStore=useDevStore()
   useLayoutEffect(()=>{
     const desktop=window.contalkDesktop
     if(desktop?.setInterfaceScale){desktop.setInterfaceScale(preferences.interfaceScale);return}
@@ -82,6 +93,15 @@ export function ConTALKLayout() {
   const [projectCreate,setProjectCreate]=useState<string|null>(null)
   const [activeDevModal, setActiveDevModal] = useState<string|null>(null)
   const [repoExplorerOpen, setRepoExplorerOpen] = useState(false)
+  const [devEditorOpen, setDevEditorOpen] = useState(false)
+  const [commandMenuOpen, setCommandMenuOpen] = useState(false)
+  const [reviewPanelOpen, setReviewPanelOpen] = useState(false)
+  const [showPromptSuggestions, setShowPromptSuggestions] = useState(true)
+  const [toastMessage, setToastMessage] = useState<string | null>(null)
+  const showToast = useCallback((msg: string) => {
+    setToastMessage(msg)
+    setTimeout(() => setToastMessage(null), 3500)
+  }, [])
   const [workspaceFiles, setWorkspaceFiles] = useState<import('../types/desktop').WorkspaceFileEntry[]>([])
   const [loadingWorkspaceFiles, setLoadingWorkspaceFiles] = useState(false)
   const [isSavingCode, setIsSavingCode] = useState(false)
@@ -155,11 +175,24 @@ export function initYjsProvider(room: string, doc: Y.Doc) {
 }`
   }
   const [tabCodes, setTabCodes] = useState<Record<string, string>>(initialCodes)
-  const devCursors = [
-    {id:'mariana',name:'Mariana',color:'#ff4081',line:15,ch:28},
-    {id:'rafael',name:'Rafael',color:'#00e5ff',line:17,ch:40},
-    {id:'lucas',name:'Lucas',color:'#7c4dff',line:24,ch:32}
-  ]
+  const devCollab = useDevCollaborationStore()
+  const liveRemoteCursors = Object.values(devCollab.remoteCursors).filter(
+    c => c.fileId === activeEditorTab && c.id !== user?.username
+  )
+
+  useEffect(() => {
+    const handleRemoteCodeUpdate = (e: Event) => {
+      const detail = (e as CustomEvent).detail
+      if (!detail || !detail.fileId || typeof detail.code !== 'string') return
+      if (detail.authorId === user?.username) return
+      setTabCodes(prev => ({
+        ...prev,
+        [detail.fileId]: detail.code
+      }))
+    }
+    window.addEventListener('contalk-remote-code-update', handleRemoteCodeUpdate)
+    return () => window.removeEventListener('contalk-remote-code-update', handleRemoteCodeUpdate)
+  }, [user?.username])
   const [pinnedChannel,setPinnedChannel]=useState<string|null>(null)
   const [channelSettings,setChannelSettings]=useState<Channel|null>(null)
   const { servers, activeServerId, activeChannelId, setActiveServer, setActiveChannel, messages } = useAppStore()
@@ -259,6 +292,7 @@ export function initYjsProvider(room: string, doc: Y.Doc) {
   const handleUpdateCode = (newCode: string) => {
     setTabCodes(prev => ({ ...prev, [activeEditorTab]: newCode }))
     setEditorTabs(tabs => tabs.map(tab => tab.id === activeEditorTab ? { ...tab, isDirty: true } : tab))
+    devCollab.broadcastCode(activeEditorTab, newCode)
   }
   const handleNewTab = () => {
     const num = editorTabs.length + 1
@@ -303,6 +337,7 @@ export function initYjsProvider(room: string, doc: Y.Doc) {
     const handleFileWritten = (event: Event) => {
       const detail = (event as CustomEvent<{ path: string; content: string }>).detail
       if (!detail?.path) return
+      setDevEditorOpen(true)
       setEditorTabs(tabs => {
         const found = tabs.find(t => t.path === detail.path || t.name === detail.path.split(/[/\\]/).pop())
         if (found) {
@@ -328,6 +363,7 @@ export function initYjsProvider(room: string, doc: Y.Doc) {
   }
   const handleOpenWorkspaceFile = async (file: import('../types/desktop').WorkspaceFileEntry) => {
     if (file.isDirectory) return
+    setDevEditorOpen(true)
     const existing = editorTabs.find(t => t.path === file.path)
     if (existing) {
       setActiveEditorTab(existing.id)
@@ -354,14 +390,52 @@ export function initYjsProvider(room: string, doc: Y.Doc) {
   const zoom=(step:number)=>preferences.update({interfaceScale:step===0?100:Math.min(120,Math.max(80,preferences.interfaceScale+step))})
   const desktopOnly='Disponível no aplicativo desktop'
   const edit=(command:'undo'|'redo'|'cut'|'copy'|'paste'|'delete'|'selectAll')=>()=>{void desktop?.editCommand?.(command)}
+  const handleCopyDiagnostics = useCallback(async () => {
+    try {
+      const diag = {
+        app: 'ConTALK',
+        version: '0.1.30',
+        timestamp: new Date().toISOString(),
+        view,
+        server: { id: server.id, name: server.name },
+        channel: { id: channel.id, name: channel.name, type: channel.type },
+        user: user ? { username: user.username, display_name: user.display_name } : null,
+        voice: {
+          activeChannelId: voice.activeChannelId,
+          activeChannelName: voice.activeChannelName,
+          connectionStatus: voice.connectionStatus,
+          participantsCount: voice.participants.length
+        },
+        layout: {
+          sidebarHidden: preferences.sidebarHidden,
+          sidebarCollapsed: preferences.sidebarCollapsed,
+          membersCollapsed: preferences.membersCollapsed,
+          bottomPanelOpen: preferences.bottomPanelOpen,
+          devEditorOpen,
+          theme: preferences.theme,
+          interfaceScale: preferences.interfaceScale
+        },
+        platform: typeof navigator !== 'undefined' ? navigator.userAgent : 'desktop'
+      }
+      const text = '```json\n' + JSON.stringify(diag, null, 2) + '\n```'
+      if (navigator?.clipboard?.writeText) {
+        await navigator.clipboard.writeText(text)
+      }
+      showToast('Diagnóstico copiado! Cole no chat com a equipe ou suporte.')
+    } catch {
+      showToast('Falha ao copiar diagnóstico.')
+    }
+  }, [view, server, channel, user, voice, preferences, devEditorOpen, showToast])
   const menus:MenuGroup[]=[
     {label:'Arquivo',items:[
+      {label:'Menu de comandos…',shortcut:'Ctrl+K',onSelect:()=>setCommandMenuOpen(true)},
       {label:'Nova janela',shortcut:'Ctrl+N',disabled:true,hint:'em breve'},
       {label:'Nova conversa',shortcut:'Ctrl+Shift+N',onSelect:()=>setView('messages')},
       {label:'Nova conversa temporária',disabled:true,hint:'em breve'},
       {label:'Novo projeto',disabled:true,hint:'em breve'},
       'separator',
       {label:'Abrir pasta…',shortcut:'Ctrl+O',onSelect:()=>void openFolder(),disabled:!desktop?.openFolder,hint:desktop?.openFolder?undefined:desktopOnly},
+      {label:'Copiar diagnóstico do sistema',onSelect:()=>void handleCopyDiagnostics()},
       'separator',
       {label:'Sair da conta',onSelect:signOut},
       {label:'Encerrar o ConTALK',onSelect:()=>void quit(),disabled:!desktop?.quitApp,hint:desktop?.quitApp?undefined:desktopOnly},
@@ -381,6 +455,8 @@ export function initYjsProvider(room: string, doc: Y.Doc) {
     {label:'Exibir',items:[
       {label:'Barra lateral',shortcut:'Ctrl+B',checked:!preferences.sidebarHidden,onSelect:()=>togglePanel('sidebarHidden')},
       {label:'Terminal',shortcut:'Ctrl+J',checked:preferences.bottomPanelOpen,onSelect:()=>togglePanel('bottomPanelOpen')},
+      {label:'Editor de código (Split)',shortcut:'Ctrl+Alt+E',checked:devEditorOpen,onSelect:()=>setDevEditorOpen(v=>!v)},
+      {label:'Painel de alterações (Review)',shortcut:'Ctrl+Alt+R',checked:reviewPanelOpen,onSelect:()=>setReviewPanelOpen(v=>!v)},
       {label:'Painel direito',shortcut:'Ctrl+Alt+B',checked:!preferences.membersCollapsed,onSelect:()=>togglePanel('membersCollapsed')},
       {label:'Barra de servidores',checked:!preferences.railHidden,onSelect:()=>togglePanel('railHidden')},
       {label:'Mensagens fixadas do canal',disabled:!(view==='server'&&channel.type==='text'&&!!channel.id),onSelect:()=>setPinnedChannel(channel.id)},
@@ -391,6 +467,15 @@ export function initYjsProvider(room: string, doc: Y.Doc) {
       {label:'Tamanho original',disabled:preferences.interfaceScale===100,onSelect:()=>zoom(0)},
       {label:'Tela cheia',shortcut:'F11',onSelect:()=>void desktop?.toggleFullScreen?.(),disabled:!desktop?.toggleFullScreen},
     ]},
+    {label:'Ajuda',items:[
+      {label:'Atalhos do teclado',shortcut:'F1',onSelect:()=>{
+        document.dispatchEvent(new KeyboardEvent('keydown', { key: 'F1', bubbles: true }))
+      }},
+      {label:'Copiar diagnóstico do sistema',onSelect:()=>void handleCopyDiagnostics()},
+      'separator',
+      {label:'Documentação do ConTALK',onSelect:()=>setActiveDevModal('docs')},
+      {label:'Sobre o ConTALK',onSelect:()=>setActiveDevModal('overview')},
+    ]},
   ]
   useEffect(()=>{
     const keys=(event:KeyboardEvent)=>{
@@ -399,6 +484,9 @@ export function initYjsProvider(room: string, doc: Y.Doc) {
       if(event.key==='F11'&&desktop?.toggleFullScreen){event.preventDefault();void desktop.toggleFullScreen();return}
       if(!ctrl)return
       if(key==='b'&&event.altKey){event.preventDefault();togglePanel('membersCollapsed')}
+      else if(key==='e'&&event.altKey){event.preventDefault();setDevEditorOpen(v=>!v)}
+      else if(key==='r'&&event.altKey){event.preventDefault();setReviewPanelOpen(v=>!v)}
+      else if(key==='k'&&!event.altKey){event.preventDefault();setCommandMenuOpen(true)}
       else if(key==='b'&&!event.shiftKey){event.preventDefault();togglePanel('sidebarHidden')}
       else if((key==='j'||event.key==='`')&&!event.shiftKey&&!event.altKey){event.preventDefault();togglePanel('bottomPanelOpen')}
       else if(key==='n'&&event.shiftKey){event.preventDefault();setView('messages')}
@@ -418,22 +506,59 @@ export function initYjsProvider(room: string, doc: Y.Doc) {
       const person=voice.participants.find(p=>p.identity===identity)
       setContext({participant:person||{identity,name:globalName(identity,target.dataset.profileName||identity),serverNickname:view==='server'&&roles.snapshot?.id===server.id?roles.snapshot.nicknames?.[identity]:undefined,isLocal:identity===user?.username,isSpeaking:false,isAudioEnabled:true,isVideoEnabled:false,isScreenShareEnabled:false},x:event.clientX,y:event.clientY})
     }}>
-    <TitleBar onOpenNotification={openNotice} authenticated disabled={settingsOpen} title={view==='server'?server.name+' · '+(channel.name||'Canais'):view==='friends'?'Amigos':view==='messages'?(selectedPeer?'Mensagens · '+(community.members.find(m=>m.username===selectedPeer)?.display_name||selectedPeer):'Mensagens diretas'):'ConTALK'} canBack={navigation.index>0} canForward={navigation.index<navigation.entries.length-1} onBack={()=>travel(-1)} onForward={()=>travel(1)} search={search} onSearch={setSearch} menus={menus} scope={view==='server'?server.name:'ConTALK'} sidebarOpen={!preferences.sidebarHidden} onToggleSidebar={()=>togglePanel('sidebarHidden')} rightPanelOpen={!preferences.membersCollapsed} onToggleRightPanel={()=>togglePanel('membersCollapsed')} onProfile={()=>setProfile(user?.display_name||'Você',user?.username)}/>
+    <TitleBar onOpenNotification={openNotice} authenticated disabled={settingsOpen} title={view==='server'?server.name+' · '+(channel.name||'Canais'):view==='friends'?'Amigos':view==='messages'?(selectedPeer?'Mensagens · '+(community.members.find(m=>m.username===selectedPeer)?.display_name||selectedPeer):'Mensagens diretas'):'ConTALK'} canBack={navigation.index>0} canForward={navigation.index<navigation.entries.length-1} onBack={()=>travel(-1)} onForward={()=>travel(1)} search={search} onSearch={setSearch} menus={menus} scope={view==='server'?server.name:'ConTALK'} sidebarOpen={!preferences.sidebarHidden} onToggleSidebar={()=>togglePanel('sidebarHidden')} rightPanelOpen={!preferences.membersCollapsed} onToggleRightPanel={()=>togglePanel('membersCollapsed')} onProfile={()=>setProfile(user?.display_name||'Você',user?.username)} onOpenCommandMenu={()=>setCommandMenuOpen(true)}/>
     <div className="ct-body" inert={settingsOpen}><aside className="ct-rail" hidden={preferences.railHidden}><button className={view==='home'?'selected':''} title="Início" onClick={()=>setView('home')}><Icon name="home"/></button><button className={view==='messages'?'selected':''} title="Mensagens diretas" onClick={()=>setView('messages')}><Icon name="chat"/></button><hr/>{servers.map(s=><button key={s.id} title={s.name} className={view==='server'&&s.id===server.id?'selected ct-server-logo':'ct-server-logo'} onClick={()=>{setActiveServer(s.id);setActiveChannel(s.channels[0]?.id || '');setView('server')}}><BrandMark/></button>)}<button title="Criar ou entrar em um servidor" aria-label="Criar ou entrar em um servidor" onClick={()=>setJoinOpen(true)}><Icon name="plus"/></button><div className="ct-rail-bottom"><button title="Meu perfil" onClick={()=>setProfile(user?.display_name||'Você',user?.username)}><Avatar name={user?.display_name||'Você'}/></button></div></aside>
     <>
     <nav className="ct-sidebar" data-collapsed={preferences.sidebarCollapsed} hidden={preferences.sidebarHidden}><button className="ct-sidebar-toggle" aria-label={preferences.sidebarCollapsed?'Expandir lista de canais':'Recolher lista de canais'} title={preferences.sidebarCollapsed?'Expandir canais':'Recolher canais'} onClick={()=>preferences.update({sidebarCollapsed:!preferences.sidebarCollapsed})}><ControlIcon name="chevron"/><span>Canais e conversas</span></button><div className="ct-sidebar-scroll">{view!=='server'?<><div className="ct-side-nav"><button className="ct-new-chat" onClick={()=>setView('messages')}><Icon name="chat"/>Nova conversa</button><button className={view==='home'?'active':''} onClick={()=>setView('home')}><Icon name="home"/>Início <span className="ct-nav-dot"/></button><button className={view==='friends'?'active':''} onClick={()=>setView('friends')}><Icon name="friends"/>Amigos</button></div><div className="ct-section-label">Mensagens diretas <button title="Abrir mensagens" onClick={()=>setView('messages')}>+</button></div><div className="ct-people">{visibleContacts.map(m=><button className="ct-person" data-profile-identity={m.username} data-profile-name={m.display_name} key={m.username} onClick={()=>openConversation(m.username)}><Avatar name={m.display_name} identity={m.username} live={voice.participants.some(p=>p.identity===m.username&&p.isScreenShareEnabled)||Object.values(voice.channelOccupants).some(list=>list.some(p=>p.identity===m.username&&p.isScreenShareEnabled))}/><span><strong><RoleName identity={m.username} name={m.display_name}/></strong><small>{statusText(m.username)}</small></span></button>)}{!visibleContacts.length&&<p className="ct-friend-hint">Suas amizades e conversas aparecerão aqui.</p>}</div></>:<><div className="ct-server-banner">{roles.snapshot?.id===server.id&&<button className="ct-server-events" title="Eventos do servidor" aria-label="Eventos do servidor" onClick={()=>{setEventTarget(undefined);setEventsOpen(true)}}><ControlIcon name="event"/></button>}<strong title={server.description||server.name}>{server.name}</strong>{(!roles.snapshot||centralAllows('VIEW_GUILD_INSIGHTS')||centralAllows('MANAGE_GUILD')||centralAllows('MANAGE_ROLES')||centralAllows('BAN_MEMBERS')||!!roles.snapshot.invites?.length||roles.snapshot.channels.some(item=>centralAllows('CREATE_INSTANT_INVITE',item.id)))&&<button className="ct-server-role-settings" title="Configurações do servidor" aria-label="Configurações do servidor" onClick={()=>setRolesOpen(true)}><ControlIcon name="settings"/></button>}<small><i className="ct-online-dot"/> {community.status==='online'?community.members.filter(m=>m.online).length+' membros online':'Presença indisponível'}</small></div>
-<div className="ct-section-label"><button className="ct-section-toggle" aria-expanded={!hiddenSections.projects} onClick={()=>toggleSection('projects')}><ControlIcon name="chevron" size={12}/>Projetos</button></div>
+<div className="ct-section-label"><button className="ct-section-toggle" aria-expanded={!hiddenSections.projects} onClick={()=>toggleSection('projects')}><ControlIcon name="chevron" size={12}/>Projetos</button><button title="Configurações Atlassian (Jira e Confluence)" aria-label="Configurações Atlassian" onClick={()=>setActiveDevModal('atlassian')}><ControlIcon name="settings" size={12}/></button></div>
 {!hiddenSections.projects&&<div className="ct-side-dev-group">
-  <button className="ct-side-dev-item" onClick={()=>setActiveDevModal('overview')} title="Visão geral do projeto"><div><ControlIcon name="overview" size={14}/><span>Visão geral</span></div></button>
-  <button className="ct-side-dev-item" onClick={()=>setActiveDevModal('tasks')} title="Tarefas ativas"><div><ControlIcon name="tasks" size={14}/><span>Tarefas</span></div></button>
-  <button className="ct-side-dev-item" onClick={()=>setActiveDevModal('docs')} title="Documentação técnica"><div><ControlIcon name="docs" size={14}/><span>Documentação</span></div></button>
+  <button className="ct-side-dev-item" onClick={()=>setActiveDevModal('overview')} title="Quadro Kanban de Entregas"><div><ControlIcon name="overview" size={14}/><span>Visão geral (Kanban)</span></div><span className="ct-side-dev-badge">{devStore.kanbanCards.length}</span></button>
+  <button className="ct-side-dev-item" onClick={()=>setActiveDevModal('tasks')} title="Lista de Tarefas"><div><ControlIcon name="tasks" size={14}/><span>Tarefas</span></div><span className="ct-side-dev-badge">{devStore.todoTasks.filter(t=>!t.completed).length}</span></button>
+  <button className="ct-side-dev-item" onClick={()=>setActiveDevModal('docs')} title="Central de Documentação"><div><ControlIcon name="docs" size={14}/><span>Documentação</span></div><span className="ct-side-dev-badge">{devStore.devDocs.length}</span></button>
   <button className="ct-side-dev-item" onClick={()=>setActiveDevModal('roadmap')} title="Roadmap do projeto"><div><ControlIcon name="roadmap" size={14}/><span>Roadmap</span></div></button>
 </div>}
 
 <div className="ct-section-label"><button className="ct-section-toggle" aria-expanded={!hiddenSections.text} onClick={()=>toggleSection('text')}><ControlIcon name="chevron" size={12}/>Canais</button><button title="Criar canal de texto" aria-label="Criar canal de texto" onClick={()=>setCreateType('text')}>+</button></div>{!hiddenSections.text&&server.channels.filter(c=>c.type==='text'&&!c.parentId).map(c=><Fragment key={c.id}><ChannelRow unread={activity.unreadByChannel[c.id]||0} channel={c} active={channel.id===c.id} onOpen={()=>openChannel(c.id)} onSettings={()=>setChannelSettings(c)}/>{server.channels.filter(child=>child.parentId===c.id&&(child.id===channel.id||roles.snapshot?.policy.projects?.[child.id]||roles.snapshot?.policy.threads?.[child.id]&&!threadArchived(roles.snapshot.policy.threads[child.id],roles.snapshot.serverNow))).map(child=><div className="ct-thread-sidebar" key={child.id}><ChannelRow unread={activity.unreadByChannel[child.id]||0} channel={child} active={channel.id===child.id} onOpen={()=>openChannel(child.id)} onSettings={()=>setChannelSettings(child)}/></div>)}</Fragment>)}
-<div className="ct-section-label"><button className="ct-section-toggle" aria-expanded={!hiddenSections.repos} onClick={()=>toggleSection('repos')}><ControlIcon name="chevron" size={12}/>Repositórios</button></div>
+<div className="ct-section-label"><button className="ct-section-toggle" aria-expanded={!hiddenSections.repos} onClick={()=>toggleSection('repos')}><ControlIcon name="chevron" size={12}/>Repositórios</button><button title="Gerenciar contas GitHub" aria-label="Gerenciar contas GitHub" onClick={()=>setActiveDevModal('github-accounts')}><ControlIcon name="git" size={13}/></button></div>
 {!hiddenSections.repos&&<div className="ct-side-dev-group">
-  <button className="ct-side-dev-item" onClick={()=>void openFolder()} title="github.com/ContalApps/ContalK"><div><ControlIcon name="git-branch" size={14}/><span>ContalApps/ContalK</span></div></button>
+  {devStore.githubAccounts.length === 0 ? (
+    <button className="ct-side-dev-item ct-gh-link-prompt" onClick={()=>setActiveDevModal('github-accounts')} title="Vincular contas GitHub (multi-conta)">
+      <div><ControlIcon name="git" size={14}/><span>Vincular conta GitHub…</span></div>
+      <span className="ct-side-dev-badge">+</span>
+    </button>
+  ) : (
+    <div className="ct-side-gh-account-bar">
+      <div className="ct-side-gh-acc-pill" onClick={()=>setActiveDevModal('github-accounts')} title="Alternar ou gerenciar contas GitHub">
+        {devStore.githubAccounts.find(a=>a.id===devStore.activeAccountId)?.avatarUrl ? (
+          <img src={devStore.githubAccounts.find(a=>a.id===devStore.activeAccountId)!.avatarUrl} alt="" className="ct-side-gh-avatar"/>
+        ) : (
+          <ControlIcon name="git" size={12}/>
+        )}
+        <span>@{devStore.githubAccounts.find(a=>a.id===devStore.activeAccountId)?.username || 'GitHub'}</span>
+      </div>
+      <button className="ct-side-gh-add-btn" onClick={()=>setActiveDevModal('github-accounts')} title="Adicionar outra conta GitHub">
+        <ControlIcon name="plus" size={11}/>
+      </button>
+    </div>
+  )}
+  {devStore.repositories.slice(0, 5).map(repo => (
+    <button
+      key={repo.id}
+      className="ct-side-dev-item"
+      onClick={()=>void openFolder()}
+      title={`${repo.fullName} (${repo.isPrivate ? 'Privado' : 'Público'})`}
+    >
+      <div>
+        <ControlIcon name={repo.isPrivate ? "lock" : "git-branch"} size={14}/>
+        <span className="ct-truncate">{repo.name}</span>
+      </div>
+    </button>
+  ))}
+  {devStore.repositories.length > 5 && (
+    <button className="ct-side-dev-item ct-side-more-repos" onClick={()=>setActiveDevModal('github-accounts')} title="Ver todas as contas e repositórios">
+      <div><ControlIcon name="chevron" size={12}/><span>+{devStore.repositories.length - 5} outros repositórios…</span></div>
+    </button>
+  )}
   <button className={`ct-side-dev-item ${repoExplorerOpen?'active':''}`} onClick={()=>void toggleRepoExplorer()} title="Código do repositório"><div><ControlIcon name="git-code" size={14}/><span>Código</span></div><ControlIcon name="chevron" size={12}/></button>
   {repoExplorerOpen&&<div className="ct-side-explorer">
     {preferences.workspaceFolder?(
@@ -464,7 +589,16 @@ export function initYjsProvider(room: string, doc: Y.Doc) {
   <button className="ct-side-dev-item" onClick={()=>setActiveDevModal('wiki')} title="Wiki do projeto"><div><ControlIcon name="git-wiki" size={14}/><span>Wiki</span></div></button>
 </div>}
 
-<div className="ct-section-label"><button className="ct-section-toggle" aria-expanded={!hiddenSections.voice} onClick={()=>toggleSection('voice')}><ControlIcon name="chevron" size={12}/>Chamadas</button><button title="Criar canal de voz" aria-label="Criar canal de voz" onClick={()=>setCreateType('voice')}>+</button></div>{!hiddenSections.voice&&voiceChannels.map(c=><div className={`ct-voice-group ${voice.activeChannelId===c.id?'connected':''}`} key={c.id}><ChannelRow channel={c} active={channel.id===c.id} connected={voice.activeChannelId===c.id} count={voice.channelOccupants[c.id]?.length} onOpen={()=>void join(c.id,c.name)} onSettings={()=>setChannelSettings(c)}/><div className="ct-channel-occupants">{(voice.activeChannelId===c.id?voice.participants:voice.channelOccupants[c.id]||[]).map(p=><button className="ct-occupant" title={p.name} key={p.identity} onClick={()=>setProfile(p.name,p.identity)} onContextMenu={e=>{e.preventDefault();setContext({participant:p,x:e.clientX,y:e.clientY})}}><Avatar name={p.name} identity={p.identity} live={p.isScreenShareEnabled}/><span className="ct-occupant-name"><RoleName serverId={server.id} identity={p.identity} name={p.name}/></span><span className="ct-occupant-status">{p.isPrioritySpeaker&&<span className="ct-priority-indicator" role="img" aria-label="Prioridade de fala ativa" title="Prioridade de fala ativa"><ControlIcon name="priority"/></span>}{p.isScreenShareEnabled?<span className="ct-live-badge">LIVE</span>:<ControlIcon name="mic" slashed={!p.isAudioEnabled}/>}</span></button>)}</div></div>)}</>}
+<div className="ct-section-label"><button className="ct-section-toggle" aria-expanded={!hiddenSections.voice} onClick={()=>toggleSection('voice')}><ControlIcon name="chevron" size={12}/>Chamadas</button><button title="Criar canal de voz" aria-label="Criar canal de voz" onClick={()=>setCreateType('voice')}>+</button></div>{!hiddenSections.voice&&(<>
+  {voice.activeChannelId&&!voiceChannels.some(c=>c.id===voice.activeChannelId)&&<ActiveCallCard channelId={voice.activeChannelId} channelName={voice.activeChannelName||'Chamada'} onOpenChannel={openVoiceChannel} onProfile={(name,identity)=>setProfile(name,identity)} onParticipantContextMenu={(p,e)=>setContext({participant:p,x:e.clientX,y:e.clientY})}/>}
+  {voiceChannels.map(c=>{
+    const isConnected=voice.activeChannelId===c.id
+    if(isConnected){
+      return <ActiveCallCard key={c.id} channelId={c.id} channelName={c.name} onOpenChannel={openVoiceChannel} onProfile={(name,identity)=>setProfile(name,identity)} onParticipantContextMenu={(p,e)=>setContext({participant:p,x:e.clientX,y:e.clientY})}/>
+    }
+    return <div className="ct-voice-group" key={c.id}><ChannelRow channel={c} active={channel.id===c.id} connected={false} count={voice.channelOccupants[c.id]?.length} onOpen={()=>void join(c.id,c.name)} onSettings={()=>setChannelSettings(c)}/><div className="ct-channel-occupants">{(voice.channelOccupants[c.id]||[]).map(p=><button className="ct-occupant" title={p.name} key={p.identity} onClick={()=>setProfile(p.name,p.identity)} onContextMenu={e=>{e.preventDefault();setContext({participant:p,x:e.clientX,y:e.clientY})}}><Avatar name={p.name} identity={p.identity} live={p.isScreenShareEnabled}/><span className="ct-occupant-name"><RoleName serverId={server.id} identity={p.identity} name={p.name}/></span><span className="ct-occupant-status">{p.isPrioritySpeaker&&<span className="ct-priority-indicator" role="img" aria-label="Prioridade de fala ativa" title="Prioridade de fala ativa"><ControlIcon name="priority"/></span>}{p.isScreenShareEnabled?<span className="ct-live-badge">LIVE</span>:<ControlIcon name="mic" slashed={!p.isAudioEnabled}/>}</span></button>)}</div></div>
+  })}
+</>)}</>}
     </div><UserDock onProfile={()=>setProfile(user?.display_name||'Você',user?.username)} onOpenChannel={openChannel}/></nav>
     <div className="ct-center"><main className="ct-main">{roles.configured&&roles.error&&<div className="ct-mic-alert" role="status">{roles.error}</div>}{(voice.profileError||community.profileError)&&<div className="ct-mic-alert" role="status">{voice.profileError||community.profileError}</div>}{voice.microphoneError&&<div className="ct-mic-alert" role="alert"><span>{voice.microphoneError}</span><button onClick={()=>setAudioSettings('input')}>Escolher microfone</button></div>}{view==='friends'||view==='messages'?<HomeView key={view} mode={view} searchQuery={search} selected={selectedPeer} onConversation={openConversation} onProfile={setProfile}/>:view==='home'?<div className="ct-dashboard"><div className="ct-home">{!servers.length&&<section className="ct-card ct-no-server"><h2>Comece por aqui</h2><p>Você ainda não está em nenhum servidor. Crie o seu e chame os amigos, ou entre no servidor de um amigo com um convite.</p><button className="ct-primary" onClick={()=>setJoinOpen(true)}>Criar ou entrar em um servidor</button></section>}
     <section className="ct-home-hero"><div className="ct-home-greeting"><h1>{greeting}, <em>{user?.display_name || 'amigo'}</em></h1><p>Boas conversas tornam os dias mais leves.</p></div>
@@ -472,19 +606,22 @@ export function initYjsProvider(room: string, doc: Y.Doc) {
     <section className="ct-home-section"><header><h2>Canais de voz</h2><button className="ct-home-link" onClick={()=>setCreateType('voice')}><Icon name="plus"/>Criar canal</button></header><div className="ct-home-voice">{voiceChannels.map(c=>{const occupants=voice.activeChannelId===c.id?voice.participants:voice.channelOccupants[c.id]||[];const here=voice.activeChannelId===c.id&&voice.connectionStatus==='connected';return <article className="ct-home-voice-card" key={c.id}><div className="ct-home-voice-title"><span className="ct-home-tile"><Icon name="voice"/></span><span><strong>{c.name}</strong><small>{server.name}</small></span></div><div className="ct-home-voice-foot">{occupants.length?<span className="ct-home-presence"><span className="ct-avatar-stack">{occupants.slice(0,3).map(p=><Avatar key={p.identity} name={p.name} identity={p.identity}/>)}</span><small>{occupants.length} em voz</small></span>:<small>Seja o primeiro a entrar</small>}<button className={here?'ct-primary':'ct-secondary'} onClick={()=>join(c.id,c.name)}>{here?'Abrir':'Entrar'}</button></div></article>})}</div>{!voiceChannels.length&&<p className="ct-muted">Nenhum canal de voz por aqui ainda.</p>}</section>
     <section className="ct-home-section"><header><h2>Conversas recentes</h2></header><ul className="ct-home-recent">{recent.filter(m=>(m.content+' '+m.userName).toLowerCase().includes(search.toLowerCase())).slice(0,6).map(m=><li key={m.id}><button onClick={()=>openChannel(m.channelId)}><Avatar name={m.userName} identity={m.userId}/><span><strong>{m.userName}</strong><small>{m.once?'Mensagem de visualização única':m.content||m.attachment?.name}</small></span>{m.webhook&&<small className="ct-integration-badge">Integração</small>}<time>{new Date(m.timestamp).toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'})}</time></button></li>)}</ul>{!recent.length&&<p className="ct-muted">Suas conversas recentes aparecem aqui.</p>}</section>
     {!!servers.length&&<section className="ct-home-section"><header><h2>Suas comunidades</h2><span className="ct-pill">{servers.length}</span></header><div className="ct-home-communities">{servers.map(s=><button key={s.id} onClick={()=>{setActiveServer(s.id);openChannel(s.channels[0]?.id || '')}}><span className="ct-home-tile"><BrandMark/></span><span><strong>{s.name}</strong><small>{s.channels.length} canais</small></span></button>)}</div></section>}
-    </div></div>:!channel.id?<section className="ct-empty-channels"><span className="ct-eyebrow">Um novo começo</span><h1>Nenhum canal por aqui ainda</h1><p>Crie um canal de texto ou voz para começar.</p><div><button className="ct-primary" onClick={()=>setCreateType('text')}>Criar canal de texto</button><button className="ct-secondary" onClick={()=>setCreateType('voice')}>Criar canal de voz</button></div></section>:<><header className="ct-channel-header"><div>{channel.type==='voice'?<span className="ct-channel-type"><ControlIcon name="mic"/></span>:<Icon name="#"/>}<span><h2>{channel.name}</h2><small title={channel.type==='voice'?channel.voiceStatus||undefined:undefined}>{channel.type==='voice'?(channel.voiceStatus||'Seu espaço para conversar e transmitir conteúdos'):'Compartilhe ideias e boas conversas com a comunidade.'}</small></span></div><div className="ct-channel-header-actions">{aiEnabled&&<button aria-label="Configurar minha IA" title="Configurar minha IA" onClick={()=>{setSettingsTab('ai');setSettingsOpen(true)}}><ControlIcon name="ai"/></button>}{channel.type==='text'&&!channel.parentId&&aiEnabled&&roles.snapshot?.id===server.id&&centralAllows('CREATE_PRIVATE_THREADS',channel.id)&&<button aria-label="Criar projeto de IA" title="Criar projeto privado" onClick={()=>setProjectCreate(channel.id)}><Icon name="plus"/></button>}{channel.type==='text'&&roles.snapshot?.id===server.id&&<button aria-label="Tópicos do canal" title="Tópicos do canal" onClick={()=>setThreadList(channel.parentId||channel.id)}><ControlIcon name="thread"/></button>}{channel.type==='text'&&roles.snapshot?.id===server.id&&centralAllows('READ_MESSAGE_HISTORY',channel.id)&&<button aria-label="Mensagens fixadas" title="Mensagens fixadas" onClick={()=>setPinnedChannel(channel.id)}><ControlIcon name="pin"/></button>}<button className="ct-channel-header-settings" aria-label={`Configurações de ${channel.name}`} title="Configurações do canal" onClick={()=>setChannelSettings(channel)}><Icon name="settings"/></button><button className="ct-secondary" onClick={()=>preferences.update({membersCollapsed:!preferences.membersCollapsed})} aria-expanded={!preferences.membersCollapsed} title="Recolher ou expandir membros"><Icon name="members"/></button></div></header>{channel.type==='voice'?<div className="ct-stage"><VoiceStage onProfile={person=>setProfile(person.name,person.identity)} onParticipantMenu={(participant,event)=>setContext({participant,x:event.clientX,y:event.clientY})} showMemberList={!preferences.membersCollapsed} onToggleMemberList={()=>preferences.update({membersCollapsed:!preferences.membersCollapsed})}/></div>:<><>{channel.parentId&&(channel.project?<div className="ct-thread-header"><button onClick={()=>openChannel(channel.parentId!)}><ControlIcon name="back"/> Canal principal</button><span>Projeto privado · {project?.members[roles.snapshot?.actor||'']||'leitor'}{project?.archived?' · Arquivado':''}</span></div>:<ThreadHeader id={channel.id} onParent={()=>openChannel(channel.parentId!)}/>)}<div className="ct-channel-split-workspace">
+    </div></div>:!channel.id?<section className="ct-empty-channels"><span className="ct-eyebrow">Um novo começo</span><h1>Nenhum canal por aqui ainda</h1><p>Crie um canal de texto ou voz para começar.</p><div><button className="ct-primary" onClick={()=>setCreateType('text')}>Criar canal de texto</button><button className="ct-secondary" onClick={()=>setCreateType('voice')}>Criar canal de voz</button></div></section>:<><header className="ct-channel-header"><div>{channel.type==='voice'?<span className="ct-channel-type"><ControlIcon name="mic"/></span>:<Icon name="#"/>}<span><h2>{channel.name}</h2><small title={channel.type==='voice'?channel.voiceStatus||undefined:undefined}>{channel.type==='voice'?(channel.voiceStatus||'Seu espaço para conversar e transmitir conteúdos'):'Compartilhe ideias e boas conversas com a comunidade.'}</small></span></div><div className="ct-channel-header-actions">{aiEnabled&&<button aria-label="Configurar minha IA" title="Configurar minha IA" onClick={()=>{setSettingsTab('ai');setSettingsOpen(true)}}><ControlIcon name="ai"/></button>}{channel.type==='text'&&!channel.parentId&&aiEnabled&&roles.snapshot?.id===server.id&&centralAllows('CREATE_PRIVATE_THREADS',channel.id)&&<button aria-label="Criar projeto de IA" title="Criar projeto privado" onClick={()=>setProjectCreate(channel.id)}><Icon name="plus"/></button>}{channel.type==='text'&&roles.snapshot?.id===server.id&&<button aria-label="Tópicos do canal" title="Tópicos do canal" onClick={()=>setThreadList(channel.parentId||channel.id)}><ControlIcon name="thread"/></button>}{channel.type==='text'&&roles.snapshot?.id===server.id&&centralAllows('READ_MESSAGE_HISTORY',channel.id)&&<button aria-label="Mensagens fixadas" title="Mensagens fixadas" onClick={()=>setPinnedChannel(channel.id)}><ControlIcon name="pin"/></button>}{channel.type==='text'&&<button className={`ct-channel-header-dev-toggle ${devEditorOpen?'active':''}`} aria-label={devEditorOpen?'Ocultar editor de código (Ctrl+Alt+E)':'Exibir editor de código (Ctrl+Alt+E)'} title={devEditorOpen?'Ocultar editor de código (Ctrl+Alt+E)':'Exibir editor de código (Ctrl+Alt+E)'} onClick={()=>setDevEditorOpen(v=>!v)}><ControlIcon name="git-code"/></button>}<button className="ct-channel-header-settings" aria-label={`Configurações de ${channel.name}`} title="Configurações do canal" onClick={()=>setChannelSettings(channel)}><Icon name="settings"/></button><button className="ct-secondary" onClick={()=>preferences.update({membersCollapsed:!preferences.membersCollapsed})} aria-expanded={!preferences.membersCollapsed} title="Recolher ou expandir membros"><Icon name="members"/></button></div></header>{channel.type==='voice'?<div className="ct-stage"><VoiceStage onProfile={person=>setProfile(person.name,person.identity)} onParticipantMenu={(participant,event)=>setContext({participant,x:event.clientX,y:event.clientY})} showMemberList={!preferences.membersCollapsed} onToggleMemberList={()=>preferences.update({membersCollapsed:!preferences.membersCollapsed})}/></div>:<><>{channel.parentId&&(channel.project?<div className="ct-thread-header"><button onClick={()=>openChannel(channel.parentId!)}><ControlIcon name="back"/> Canal principal</button><span>Projeto privado · {project?.members[roles.snapshot?.actor||'']||'leitor'}{project?.archived?' · Arquivado':''}</span></div>:<ThreadHeader id={channel.id} onParent={()=>openChannel(channel.parentId!)}/>)}<div className={`ct-channel-split-workspace ${devEditorOpen?'has-editor':'chat-only'}`}>
   <div className="ct-chat-pane">
-    <div className="ct-messages"><div className="ct-chat-welcome"><span>#</span><h1>Este é o #{channel.name}</h1><p>O começo de muitas boas conversas.</p></div><div className="ct-date-divider">Hoje</div>{(roles.historyMore[channel.id]??roles.snapshot?.hasOlder?.[channel.id])&&<button className="ct-history-more" disabled={roles.historyBusy} onClick={()=>void roles.loadHistory(channel.id).catch(()=>{})}>{roles.historyBusy?'Carregando…':'Carregar mensagens anteriores'}</button>}{(messages[channel.id]||[]).filter(m=>m.content.toLowerCase().includes(search.toLowerCase())||serverName(m.userId,m.userName).toLowerCase().includes(search.toLowerCase())).map(m=><article className="ct-message" data-message-id={m.id} key={m.id}><button disabled={!!m.webhook} data-profile-identity={m.webhook?undefined:m.userId} data-profile-name={m.userName} onClick={()=>setProfile(m.userName,m.userId)}><Avatar name={m.userName} identity={m.userId}/></button><div><header><button disabled={!!m.webhook} data-profile-identity={m.webhook?undefined:m.userId} data-profile-name={m.userName} onClick={()=>setProfile(m.userName,m.userId)}><RoleName serverId={server.id} identity={m.userId} name={m.userName}/></button>{m.webhook&&<small className="ct-integration-badge">Integração</small>}<time>{new Date(m.timestamp).toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'})}</time></header><ChatMessage message={m} onOpenChannel={openChannel} aiPartial={m.ai?aiEvents.partials[m.ai.id]:undefined} onAiCancel={m.ai?.status==='queued'&&(m.ai.actor===user?.username||project?.members[user?.username||'']==='manager'||!project&&centralAllows('MANAGE_CHANNELS',channel.id))?async()=>{if(!window.contalkDesktop)throw new Error('Abra no aplicativo desktop.');await window.contalkDesktop.communityAiStop(server.id,channel.id,m.ai!.id)}:undefined} onAiRetry={m.ai?.promptId&&!m.ai.files?.length&&aiEnabled&&centralAllows('SEND_MESSAGES',channel.id)?async()=>{const original=(messages[channel.id]||[]).find(item=>item.id===m.ai?.promptId);if(!original)throw new Error('Carregue a mensagem original no histórico para tentar novamente.');if(!window.contalkDesktop)throw new Error('Abra no aplicativo desktop.');await window.contalkDesktop.communityAiStart(server.id,channel.id,original.content,[],undefined,m.ai?.provider||aiParsed?.provider,m.ai?.model)}:undefined}/></div></article>)}<div ref={end}/></div>{aiEnabled&&activeAi&&<div className="ct-ai-run-bar"><span>IA respondendo em {activeAi.ai?.model||aiParsed?.model||aiModel}</span>{canStopAi&&<button aria-label="Interromper resposta da IA" onClick={()=>{setAiActionError('');void window.contalkDesktop?.communityAiStop(server.id,channel.id).catch(error=>setAiActionError(error.message))}}>Interromper</button>}</div>}{aiEvents.streamError&&<small role="status">{aiEvents.streamError}</small>}{aiActionError&&<small role="alert">{aiActionError}</small>}<div className="ct-prompt-suggestions">
+    <div className="ct-messages"><div className="ct-chat-welcome"><span>#</span><h1>Este é o #{channel.name}</h1><p>O começo de muitas boas conversas.</p></div><div className="ct-date-divider">Hoje</div>{(roles.historyMore[channel.id]??roles.snapshot?.hasOlder?.[channel.id])&&<button className="ct-history-more" disabled={roles.historyBusy} onClick={()=>void roles.loadHistory(channel.id).catch(()=>{})}>{roles.historyBusy?'Carregando…':'Carregar mensagens anteriores'}</button>}{(messages[channel.id]||[]).filter(m=>m.content.toLowerCase().includes(search.toLowerCase())||serverName(m.userId,m.userName).toLowerCase().includes(search.toLowerCase())).map(m=><article className="ct-message" data-message-id={m.id} key={m.id}><button disabled={!!m.webhook} data-profile-identity={m.webhook?undefined:m.userId} data-profile-name={m.userName} onClick={()=>setProfile(m.userName,m.userId)}><Avatar name={m.userName} identity={m.userId}/></button><div><header><button disabled={!!m.webhook} data-profile-identity={m.webhook?undefined:m.userId} data-profile-name={m.userName} onClick={()=>setProfile(m.userName,m.userId)}><RoleName serverId={server.id} identity={m.userId} name={m.userName}/></button>{m.webhook&&<small className="ct-integration-badge">Integração</small>}<time>{new Date(m.timestamp).toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'})}</time></header><ChatMessage message={m} onOpenChannel={openChannel} aiPartial={m.ai?aiEvents.partials[m.ai.id]:undefined} onAiCancel={m.ai?.status==='queued'&&(m.ai.actor===user?.username||project?.members[user?.username||'']==='manager'||!project&&centralAllows('MANAGE_CHANNELS',channel.id))?async()=>{if(!window.contalkDesktop)throw new Error('Abra no aplicativo desktop.');await window.contalkDesktop.communityAiStop(server.id,channel.id,m.ai!.id)}:undefined} onAiRetry={m.ai?.promptId&&!m.ai.files?.length&&aiEnabled&&centralAllows('SEND_MESSAGES',channel.id)?async()=>{const original=(messages[channel.id]||[]).find(item=>item.id===m.ai?.promptId);if(!original)throw new Error('Carregue a mensagem original no histórico para tentar novamente.');if(!window.contalkDesktop)throw new Error('Abra no aplicativo desktop.');await window.contalkDesktop.communityAiStart(server.id,channel.id,original.content,[],undefined,m.ai?.provider||aiParsed?.provider,m.ai?.model)}:undefined}/></div></article>)}<div ref={end}/></div>{aiEnabled&&activeAi&&<div className="ct-ai-run-bar"><span>IA respondendo em {activeAi.ai?.model||aiParsed?.model||aiModel}</span>{canStopAi&&<button aria-label="Interromper resposta da IA" onClick={()=>{setAiActionError('');void window.contalkDesktop?.communityAiStop(server.id,channel.id).catch(error=>setAiActionError(error.message))}}>Interromper</button>}</div>}{aiEvents.streamError&&<small role="status">{aiEvents.streamError}</small>}{aiActionError&&<small role="alert">{aiActionError}</small>}{showPromptSuggestions&&<div className="ct-prompt-suggestions">
   <button type="button" className="ct-prompt-suggestion-pill" onClick={()=>community.sendMessage(channel.id,"Sim, mostra um exemplo completo")}>
     <span>Sim, mostra um exemplo completo</span>
   </button>
   <button type="button" className="ct-prompt-suggestion-pill" onClick={()=>community.sendMessage(channel.id,"Como exibir os avatares dos usuários?")}>
     <span>Como exibir os avatares dos usuários?</span>
   </button>
-</div>
+  <button type="button" className="ct-dismiss-suggestions" aria-label="Ocultar sugestões" title="Ocultar sugestões" onClick={()=>setShowPromptSuggestions(false)}>
+    <ControlIcon name="close" size={12}/>
+  </button>
+</div>}
 <ChatComposer channelId={channel.id} disabled={!centralAllows('SEND_MESSAGES',channel.id)} key={channel.id} placeholder={`Conversar em #${channel.name}`} onSend={(text,attachment,options)=>community.sendMessage(channel.id,text,undefined,attachment,options)} ai={aiEnabled?{endpoints:aiEndpoints,active:!!activeAi,onPrompt:async(text,fileIds,limits,provider,model)=>{if(!window.contalkDesktop)throw new Error('Abra no aplicativo desktop.');await window.contalkDesktop.communityAiStart(server.id,channel.id,text,fileIds,limits,provider,model)}}:undefined}/>
 </div>
-<DevCodeEditor
+{devEditorOpen&&<DevCodeEditor
   tabs={editorTabs}
   activeTabId={activeEditorTab}
   onSelectTab={setActiveEditorTab}
@@ -495,6 +632,7 @@ export function initYjsProvider(room: string, doc: Y.Doc) {
       if(remaining.length)setActiveEditorTab(remaining[0].id)
     }
   }}
+  onCloseEditor={()=>setDevEditorOpen(false)}
   branch="feature/realtime-cursors"
   fileName={editorTabs.find(t=>t.id===activeEditorTab)?.name || 'page.tsx'}
   filePath={editorTabs.find(t=>t.id===activeEditorTab)?.path || 'projeto-atlas/apps/web/src/components/editor/page.tsx'}
@@ -502,9 +640,13 @@ export function initYjsProvider(room: string, doc: Y.Doc) {
   onChangeCode={handleUpdateCode}
   onSave={handleSaveActiveCode}
   isSaving={isSavingCode}
-  cursors={devCursors}
+  cursors={liveRemoteCursors}
+  onCursorChange={pos => {
+    const activeTab = editorTabs.find(t => t.id === activeEditorTab)
+    devCollab.broadcastCursor(activeEditorTab, activeTab?.path || activeEditorTab, pos.line, pos.ch)
+  }}
   onNewTab={handleNewTab}
-/>
+/>}
 </div></></>}</> }</main>{preferences.bottomPanelOpen&&<TerminalPanel request={terminalRequest} onClose={()=>preferences.update({bottomPanelOpen:false})}/>}</div>
     {(view==='server'||!!voice.activeChannelId)&&!preferences.membersCollapsed&&<RightPanel onOpenChannel={openVoiceChannel} members={<><div className="ct-heading"><h2>{view==='server'?'Membros':'Seus amigos'}</h2><span className="ct-online-dot"/></div><div className="ct-section-label">{community.status==='online'?(view==='server'?'Membros':'Amigos'):'Presença indisponível'} — {activityMembers.length}</div>{groupedMembers.map((m,index)=><Fragment key={m.username}>{groupRole(m.username)&&groupRole(m.username)?.id!==groupRole(groupedMembers[index-1]?.username||'')?.id&&<div className="ct-section-label ct-role-group-label">{groupRole(m.username)?.name}</div>}<button className="ct-person ct-activity-person" data-profile-identity={m.username} data-profile-name={m.display_name} title={serverName(m.username,m.display_name)} key={m.username} onClick={()=>setProfile(m.display_name,m.username)}><Avatar name={m.display_name} identity={m.username} live={liveIdentities.has(m.username)}/><span><strong><RoleName serverId={view==='server'?server.id:undefined} identity={m.username} name={m.display_name}/></strong><small className={voice.participants.some(p=>p.identity===m.username&&p.isScreenShareEnabled)?'ct-member-live':''}>{voice.participants.some(p=>p.identity===m.username&&p.isScreenShareEnabled)?'Ao vivo na '+voice.activeChannelName:statusText(m.username)}</small></span><i className={m.online?"ct-online-dot":"ct-offline-dot"}/></button></Fragment>)}{!activityMembers.length&&<p className="ct-muted">{view==='server'?'Nenhuma pessoa encontrada.':'Adicione alguém da call ou do servidor para aparecer aqui.'}</p>}</>}/>}
     </></div>
@@ -523,7 +665,12 @@ export function initYjsProvider(room: string, doc: Y.Doc) {
     {editProfile&&<EditProfile onClose={()=>setEditProfile(false)}/>}
     {createType&&<CreateChannel type={createType} serverId={server.id} onClose={()=>setCreateType(null)}/>}
     {activeDevModal==='mcp'&&<McpManagerModal onClose={()=>setActiveDevModal(null)}/>}
-    {activeDevModal&&activeDevModal!=='mcp'&&(
+    {activeDevModal==='overview'&&<DevKanbanModal onClose={()=>setActiveDevModal(null)} onOpenAtlassian={()=>setActiveDevModal('atlassian')}/>}
+    {activeDevModal==='tasks'&&<DevTasksModal onClose={()=>setActiveDevModal(null)} onOpenAtlassian={()=>setActiveDevModal('atlassian')}/>}
+    {activeDevModal==='docs'&&<DevDocsModal onClose={()=>setActiveDevModal(null)} onOpenAtlassian={()=>setActiveDevModal('atlassian')}/>}
+    {activeDevModal==='github-accounts'&&<DevGitHubAccountsModal onClose={()=>setActiveDevModal(null)}/>}
+    {activeDevModal==='atlassian'&&<AtlassianConfigModal onClose={()=>setActiveDevModal(null)}/>}
+    {activeDevModal&&!['mcp','overview','tasks','docs','github-accounts','atlassian'].includes(activeDevModal)&&(
   <div className="ct-modal-backdrop" onClick={()=>setActiveDevModal(null)}>
     <section className="ct-edit-dialog" role="dialog" aria-modal="true" onClick={e=>e.stopPropagation()}>
       {activeDevModal==='prs'&&(
@@ -597,36 +744,6 @@ export function initYjsProvider(room: string, doc: Y.Doc) {
           </div>
         </>
       )}
-      {activeDevModal==='overview'&&(
-        <>
-          <h2>Visão Geral — ConTALK HQ</h2>
-          <div style={{fontSize:'13px',lineHeight:'1.6',color:'var(--cx-fg-2)',margin:'14px 0'}}>
-            <p><strong>Projeto:</strong> ConTALK Development Hub</p>
-            <p><strong>Repositório:</strong> ContalApps/ContalK</p>
-            <p><strong>Branch de Trabalho:</strong> dev/caliari</p>
-            <p><strong>Coproprietários:</strong> Caliari, VG, Mariana, Rafael, Lucas</p>
-          </div>
-        </>
-      )}
-      {activeDevModal==='tasks'&&(
-        <>
-          <h2>Tarefas Ativas</h2>
-          <div style={{display:'flex',flexDirection:'column',gap:'8px',margin:'14px 0'}}>
-            <div style={{padding:'8px 12px',background:'var(--cx-surface)',borderRadius:'6px'}}>✓ Layout do Codex com TitleBar de 44px e menus nativos</div>
-            <div style={{padding:'8px 12px',background:'var(--cx-surface)',borderRadius:'6px'}}>✓ DevCodeEditor multi-abas com cursores remotos e minimap</div>
-            <div style={{padding:'8px 12px',background:'var(--cx-surface)',borderRadius:'6px'}}>✓ Terminal integrado node-pty com abas de categoria</div>
-            <div style={{padding:'8px 12px',background:'var(--cx-surface)',borderRadius:'6px'}}>✓ Integração com sistema de arquivos real (leitura/gravação IPC)</div>
-          </div>
-        </>
-      )}
-      {activeDevModal==='docs'&&(
-        <>
-          <h2>Documentação</h2>
-          <div style={{fontSize:'13px',lineHeight:'1.6',color:'var(--cx-fg-2)',margin:'14px 0'}}>
-            <p>Consulte <code>docs/codex-shell.md</code> e <code>docs/LLM_HANDOFF.md</code> para documentação de arquitetura do ConTALK Codex Shell.</p>
-          </div>
-        </>
-      )}
       {activeDevModal==='roadmap'&&(
         <>
           <h2>Roadmap</h2>
@@ -642,6 +759,31 @@ export function initYjsProvider(room: string, doc: Y.Doc) {
   </div>
 )}
     {context&&<ParticipantMenu onNickname={view==='server'&&roles.snapshot?.id===server.id&&canSetNickname(roles.snapshot.policy,roles.snapshot.actor,context.participant.identity)?()=>{setNicknameFirst(true);setMemberRoles(context.participant.identity)}:undefined} onRoles={roles.snapshot&&roles.snapshot.policy.members.includes(context.participant.identity)&&(centralAllows('MANAGE_ROLES')||centralAllows('MODERATE_MEMBERS')||centralAllows('KICK_MEMBERS')||centralAllows('BAN_MEMBERS')||roles.snapshot.channels.some(channel=>channel.type==='voice'&&['MUTE_MEMBERS','DEAFEN_MEMBERS','MOVE_MEMBERS'].some(permission=>centralAllows(permission as 'MUTE_MEMBERS'|'DEAFEN_MEMBERS'|'MOVE_MEMBERS',channel.id))))?()=>{setNicknameFirst(false);setMemberRoles(context.participant.identity)}:undefined} onLogout={()=>void (async()=>{await voice.leaveChannel();await logout()})()} onSettings={()=>setSettingsOpen(true)} onEditProfile={()=>setEditProfile(true)} onAudioSettings={setAudioSettings} participant={context.participant} position={{x:context.x,y:context.y}} onClose={()=>setContext(null)} onProfile={()=>{setProfile(context.participant.name,context.participant.identity);setContext(null)}}/>}
+    {commandMenuOpen && (
+      <CommandMenuModal
+        onClose={() => setCommandMenuOpen(false)}
+        onToggleDevEditor={() => setDevEditorOpen(v => !v)}
+        onToggleReviewPanel={() => setReviewPanelOpen(v => !v)}
+        onOpenSettings={tab => {
+          if (tab) setSettingsTab(tab)
+          setSettingsOpen(true)
+        }}
+        onOpenHelp={() => document.dispatchEvent(new KeyboardEvent('keydown', { key: 'F1', bubbles: true }))}
+        onOpenFolder={() => void openFolder()}
+      />
+    )}
+    {reviewPanelOpen && (
+      <ReviewPanel
+        onClose={() => setReviewPanelOpen(false)}
+        branch="dev/caliari"
+      />
+    )}
+    {toastMessage && (
+      <div className="ct-toast-notification" role="status">
+        <ControlIcon name="check" size={14} />
+        <span>{toastMessage}</span>
+      </div>
+    )}
 
   </div>
 }

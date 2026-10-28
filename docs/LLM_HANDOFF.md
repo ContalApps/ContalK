@@ -1,5 +1,16 @@
 # Retomada do ConTALK
 
+## Entrega 0.1.30: REA do Codex Desktop, Cursores Reais e Review Panel
+
+Em `dev/caliari`, foram concluídas a engenharia reversa do OpenAI Codex Desktop e a fidelização completa do design system e colaboração:
+- **Colaboração em Tempo Real e Cursores Dinâmicos:** `useDevCollaborationStore` rastreia usuários ativos reais, transmitindo cursores via WebSocket (`contalk-cursor-v1`) e `BroadcastChannel`, substituindo cursores sintéticos estáticos por colaboradores reais com cores determinísticas (`getCollaboratorColor`).
+- **Command Palette Universal (`Ctrl+K`):** Modal de busca rápida categorizado entre Ações Rápidas, Canais, Desenvolvimento/IA e Ajuda.
+- **Review Panel (`Ctrl+Alt+R`):** Painel lateral de diff de código e revisão de alterações do git com visualizador colorido linha a linha e preparação de commit.
+- **Chat Composer Estilo Codex:** Composer em card flutuante com tokens de elevação (`--elevation-composer`), chips integrados no topo e botão de envio circular com ícone `↑`.
+- **Geração de Imagens por IA:** Ativação de `/image` para DALL-E e Imagen com visualização inline e modal de zoom.
+- **Central de Atalhos:** Atualização do modal de ajuda (`?`) com todos os atalhos do teclado.
+- **Validação:** Tipos TypeScript sem erros, 314 testes unitários e de integração aprovados, e build de produção Vite e Electron concluídos.
+
 ## Entrega 0.1.29: Harness de IA para Desenvolvimento e Protocolo MCP
 
 Em `dev/caliari`, foram implementadas todas as capacidades para transformar o ConTALK em um harness autônomo e completo de IA para desenvolvimento, eliminando a necessidade de ferramentas externas (Claude Code, Codex CLI, ChatGPT web):
