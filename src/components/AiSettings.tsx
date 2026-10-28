@@ -14,8 +14,12 @@ export function AiSettings() {
 
   useEffect(() => {
     void window.contalkDesktop?.communityAiStatus().then(value => {
-      setConfigured(value.providers || [])
+      const provs = value.providers || []
+      setConfigured(provs)
       setEconomyMode(getEconomyMode(value.contextTokens, value.maxOutputTokens))
+      if (!provs.includes('openai') && provs.length > 0) {
+        setProvider(provs[0])
+      }
     }).catch(() => {
       setStatus('Não foi possível ler as configurações de IA.')
       setIsSuccess(false)

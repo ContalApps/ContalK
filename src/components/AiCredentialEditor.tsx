@@ -21,8 +21,12 @@ export function AiCredentialEditor({
 
   useEffect(() => {
     void window.contalkDesktop?.communityAiStatus().then(value => {
-      setConfigured(value.providers)
+      const provs = value.providers || []
+      setConfigured(provs)
       setLimits({ contextTokens: value.contextTokens, maxOutputTokens: value.maxOutputTokens })
+      if (!provs.includes('openai') && provs.length > 0) {
+        setProvider(provs[0])
+      }
     }).catch(() => {
       setStatus('Não foi possível ler as credenciais de IA deste dispositivo.')
       setIsSuccess(false)
@@ -223,6 +227,33 @@ export function AiCredentialEditor({
                 : 'Salvar Chave & Consultar Modelos'}
             </span>
           </button>
+
+          {isCurrentConfigured && (
+            <button
+              type="button"
+              className="ct-danger-btn"
+              disabled={busy || !window.contalkDesktop}
+              onClick={async () => {
+                setBusy(true)
+                setStatus('')
+                setIsSuccess(false)
+                try {
+                  await window.contalkDesktop!.communityAiRemove(provider)
+                  setConfigured(current => current.filter(item => item !== provider))
+                  setKey('')
+                  setIsSuccess(true)
+                  setStatus(`Chave de ${aiProviderName[provider]} removida deste dispositivo.`)
+                } catch (error) {
+                  setIsSuccess(false)
+                  setStatus(error instanceof Error ? error.message : 'Falha ao remover.')
+                } finally {
+                  setBusy(false)
+                }
+              }}
+            >
+              Remover Chave
+            </button>
+          )}
         </div>
 
         {status && (
