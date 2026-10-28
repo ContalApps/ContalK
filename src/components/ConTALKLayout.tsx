@@ -50,6 +50,12 @@ import { useRoleStore } from '../store/useRoleStore'
 import { centralAllows } from '../roles/transport'
 import { assignedRoles } from '../roles/permissions'
 import { useNotificationStore } from '../store/useNotificationStore'
+import { useDevStore } from '../store/useDevStore'
+import { DevKanbanModal } from './DevKanbanModal'
+import { DevTasksModal } from './DevTasksModal'
+import { DevDocsModal } from './DevDocsModal'
+import { DevGitHubAccountsModal } from './DevGitHubAccountsModal'
+import { AtlassianConfigModal } from './AtlassianConfigModal'
 import '../themes.css'
 import '../ai.css'
 
@@ -62,6 +68,7 @@ export function ConTALKLayout() {
   const { user, logout } = useAuthStore()
   const preferences=usePreferencesStore()
   const activity=useNotificationStore()
+  const devStore=useDevStore()
   useLayoutEffect(()=>{
     const desktop=window.contalkDesktop
     if(desktop?.setInterfaceScale){desktop.setInterfaceScale(preferences.interfaceScale);return}
@@ -480,18 +487,55 @@ export function initYjsProvider(room: string, doc: Y.Doc) {
     <div className="ct-body" inert={settingsOpen}><aside className="ct-rail" hidden={preferences.railHidden}><button className={view==='home'?'selected':''} title="Início" onClick={()=>setView('home')}><Icon name="home"/></button><button className={view==='messages'?'selected':''} title="Mensagens diretas" onClick={()=>setView('messages')}><Icon name="chat"/></button><hr/>{servers.map(s=><button key={s.id} title={s.name} className={view==='server'&&s.id===server.id?'selected ct-server-logo':'ct-server-logo'} onClick={()=>{setActiveServer(s.id);setActiveChannel(s.channels[0]?.id || '');setView('server')}}><BrandMark/></button>)}<button title="Criar ou entrar em um servidor" aria-label="Criar ou entrar em um servidor" onClick={()=>setJoinOpen(true)}><Icon name="plus"/></button><div className="ct-rail-bottom"><button title="Meu perfil" onClick={()=>setProfile(user?.display_name||'Você',user?.username)}><Avatar name={user?.display_name||'Você'}/></button></div></aside>
     <>
     <nav className="ct-sidebar" data-collapsed={preferences.sidebarCollapsed} hidden={preferences.sidebarHidden}><button className="ct-sidebar-toggle" aria-label={preferences.sidebarCollapsed?'Expandir lista de canais':'Recolher lista de canais'} title={preferences.sidebarCollapsed?'Expandir canais':'Recolher canais'} onClick={()=>preferences.update({sidebarCollapsed:!preferences.sidebarCollapsed})}><ControlIcon name="chevron"/><span>Canais e conversas</span></button><div className="ct-sidebar-scroll">{view!=='server'?<><div className="ct-side-nav"><button className="ct-new-chat" onClick={()=>setView('messages')}><Icon name="chat"/>Nova conversa</button><button className={view==='home'?'active':''} onClick={()=>setView('home')}><Icon name="home"/>Início <span className="ct-nav-dot"/></button><button className={view==='friends'?'active':''} onClick={()=>setView('friends')}><Icon name="friends"/>Amigos</button></div><div className="ct-section-label">Mensagens diretas <button title="Abrir mensagens" onClick={()=>setView('messages')}>+</button></div><div className="ct-people">{visibleContacts.map(m=><button className="ct-person" data-profile-identity={m.username} data-profile-name={m.display_name} key={m.username} onClick={()=>openConversation(m.username)}><Avatar name={m.display_name} identity={m.username} live={voice.participants.some(p=>p.identity===m.username&&p.isScreenShareEnabled)||Object.values(voice.channelOccupants).some(list=>list.some(p=>p.identity===m.username&&p.isScreenShareEnabled))}/><span><strong><RoleName identity={m.username} name={m.display_name}/></strong><small>{statusText(m.username)}</small></span></button>)}{!visibleContacts.length&&<p className="ct-friend-hint">Suas amizades e conversas aparecerão aqui.</p>}</div></>:<><div className="ct-server-banner">{roles.snapshot?.id===server.id&&<button className="ct-server-events" title="Eventos do servidor" aria-label="Eventos do servidor" onClick={()=>{setEventTarget(undefined);setEventsOpen(true)}}><ControlIcon name="event"/></button>}<strong title={server.description||server.name}>{server.name}</strong>{(!roles.snapshot||centralAllows('VIEW_GUILD_INSIGHTS')||centralAllows('MANAGE_GUILD')||centralAllows('MANAGE_ROLES')||centralAllows('BAN_MEMBERS')||!!roles.snapshot.invites?.length||roles.snapshot.channels.some(item=>centralAllows('CREATE_INSTANT_INVITE',item.id)))&&<button className="ct-server-role-settings" title="Configurações do servidor" aria-label="Configurações do servidor" onClick={()=>setRolesOpen(true)}><ControlIcon name="settings"/></button>}<small><i className="ct-online-dot"/> {community.status==='online'?community.members.filter(m=>m.online).length+' membros online':'Presença indisponível'}</small></div>
-<div className="ct-section-label"><button className="ct-section-toggle" aria-expanded={!hiddenSections.projects} onClick={()=>toggleSection('projects')}><ControlIcon name="chevron" size={12}/>Projetos</button></div>
+<div className="ct-section-label"><button className="ct-section-toggle" aria-expanded={!hiddenSections.projects} onClick={()=>toggleSection('projects')}><ControlIcon name="chevron" size={12}/>Projetos</button><button title="Configurações Atlassian (Jira e Confluence)" aria-label="Configurações Atlassian" onClick={()=>setActiveDevModal('atlassian')}><ControlIcon name="settings" size={12}/></button></div>
 {!hiddenSections.projects&&<div className="ct-side-dev-group">
-  <button className="ct-side-dev-item" onClick={()=>setActiveDevModal('overview')} title="Visão geral do projeto"><div><ControlIcon name="overview" size={14}/><span>Visão geral</span></div></button>
-  <button className="ct-side-dev-item" onClick={()=>setActiveDevModal('tasks')} title="Tarefas ativas"><div><ControlIcon name="tasks" size={14}/><span>Tarefas</span></div></button>
-  <button className="ct-side-dev-item" onClick={()=>setActiveDevModal('docs')} title="Documentação técnica"><div><ControlIcon name="docs" size={14}/><span>Documentação</span></div></button>
+  <button className="ct-side-dev-item" onClick={()=>setActiveDevModal('overview')} title="Quadro Kanban de Entregas"><div><ControlIcon name="overview" size={14}/><span>Visão geral (Kanban)</span></div><span className="ct-side-dev-badge">{devStore.kanbanCards.length}</span></button>
+  <button className="ct-side-dev-item" onClick={()=>setActiveDevModal('tasks')} title="Lista de Tarefas"><div><ControlIcon name="tasks" size={14}/><span>Tarefas</span></div><span className="ct-side-dev-badge">{devStore.todoTasks.filter(t=>!t.completed).length}</span></button>
+  <button className="ct-side-dev-item" onClick={()=>setActiveDevModal('docs')} title="Central de Documentação"><div><ControlIcon name="docs" size={14}/><span>Documentação</span></div><span className="ct-side-dev-badge">{devStore.devDocs.length}</span></button>
   <button className="ct-side-dev-item" onClick={()=>setActiveDevModal('roadmap')} title="Roadmap do projeto"><div><ControlIcon name="roadmap" size={14}/><span>Roadmap</span></div></button>
 </div>}
 
 <div className="ct-section-label"><button className="ct-section-toggle" aria-expanded={!hiddenSections.text} onClick={()=>toggleSection('text')}><ControlIcon name="chevron" size={12}/>Canais</button><button title="Criar canal de texto" aria-label="Criar canal de texto" onClick={()=>setCreateType('text')}>+</button></div>{!hiddenSections.text&&server.channels.filter(c=>c.type==='text'&&!c.parentId).map(c=><Fragment key={c.id}><ChannelRow unread={activity.unreadByChannel[c.id]||0} channel={c} active={channel.id===c.id} onOpen={()=>openChannel(c.id)} onSettings={()=>setChannelSettings(c)}/>{server.channels.filter(child=>child.parentId===c.id&&(child.id===channel.id||roles.snapshot?.policy.projects?.[child.id]||roles.snapshot?.policy.threads?.[child.id]&&!threadArchived(roles.snapshot.policy.threads[child.id],roles.snapshot.serverNow))).map(child=><div className="ct-thread-sidebar" key={child.id}><ChannelRow unread={activity.unreadByChannel[child.id]||0} channel={child} active={channel.id===child.id} onOpen={()=>openChannel(child.id)} onSettings={()=>setChannelSettings(child)}/></div>)}</Fragment>)}
-<div className="ct-section-label"><button className="ct-section-toggle" aria-expanded={!hiddenSections.repos} onClick={()=>toggleSection('repos')}><ControlIcon name="chevron" size={12}/>Repositórios</button></div>
+<div className="ct-section-label"><button className="ct-section-toggle" aria-expanded={!hiddenSections.repos} onClick={()=>toggleSection('repos')}><ControlIcon name="chevron" size={12}/>Repositórios</button><button title="Gerenciar contas GitHub" aria-label="Gerenciar contas GitHub" onClick={()=>setActiveDevModal('github-accounts')}><ControlIcon name="git" size={13}/></button></div>
 {!hiddenSections.repos&&<div className="ct-side-dev-group">
-  <button className="ct-side-dev-item" onClick={()=>void openFolder()} title="github.com/ContalApps/ContalK"><div><ControlIcon name="git-branch" size={14}/><span>ContalApps/ContalK</span></div></button>
+  {devStore.githubAccounts.length === 0 ? (
+    <button className="ct-side-dev-item ct-gh-link-prompt" onClick={()=>setActiveDevModal('github-accounts')} title="Vincular contas GitHub (multi-conta)">
+      <div><ControlIcon name="git" size={14}/><span>Vincular conta GitHub…</span></div>
+      <span className="ct-side-dev-badge">+</span>
+    </button>
+  ) : (
+    <div className="ct-side-gh-account-bar">
+      <div className="ct-side-gh-acc-pill" onClick={()=>setActiveDevModal('github-accounts')} title="Alternar ou gerenciar contas GitHub">
+        {devStore.githubAccounts.find(a=>a.id===devStore.activeAccountId)?.avatarUrl ? (
+          <img src={devStore.githubAccounts.find(a=>a.id===devStore.activeAccountId)!.avatarUrl} alt="" className="ct-side-gh-avatar"/>
+        ) : (
+          <ControlIcon name="git" size={12}/>
+        )}
+        <span>@{devStore.githubAccounts.find(a=>a.id===devStore.activeAccountId)?.username || 'GitHub'}</span>
+      </div>
+      <button className="ct-side-gh-add-btn" onClick={()=>setActiveDevModal('github-accounts')} title="Adicionar outra conta GitHub">
+        <ControlIcon name="plus" size={11}/>
+      </button>
+    </div>
+  )}
+  {devStore.repositories.slice(0, 5).map(repo => (
+    <button
+      key={repo.id}
+      className="ct-side-dev-item"
+      onClick={()=>void openFolder()}
+      title={`${repo.fullName} (${repo.isPrivate ? 'Privado' : 'Público'})`}
+    >
+      <div>
+        <ControlIcon name={repo.isPrivate ? "lock" : "git-branch"} size={14}/>
+        <span className="ct-truncate">{repo.name}</span>
+      </div>
+    </button>
+  ))}
+  {devStore.repositories.length > 5 && (
+    <button className="ct-side-dev-item ct-side-more-repos" onClick={()=>setActiveDevModal('github-accounts')} title="Ver todas as contas e repositórios">
+      <div><ControlIcon name="chevron" size={12}/><span>+{devStore.repositories.length - 5} outros repositórios…</span></div>
+    </button>
+  )}
   <button className={`ct-side-dev-item ${repoExplorerOpen?'active':''}`} onClick={()=>void toggleRepoExplorer()} title="Código do repositório"><div><ControlIcon name="git-code" size={14}/><span>Código</span></div><ControlIcon name="chevron" size={12}/></button>
   {repoExplorerOpen&&<div className="ct-side-explorer">
     {preferences.workspaceFolder?(
@@ -594,7 +638,12 @@ export function initYjsProvider(room: string, doc: Y.Doc) {
     {editProfile&&<EditProfile onClose={()=>setEditProfile(false)}/>}
     {createType&&<CreateChannel type={createType} serverId={server.id} onClose={()=>setCreateType(null)}/>}
     {activeDevModal==='mcp'&&<McpManagerModal onClose={()=>setActiveDevModal(null)}/>}
-    {activeDevModal&&activeDevModal!=='mcp'&&(
+    {activeDevModal==='overview'&&<DevKanbanModal onClose={()=>setActiveDevModal(null)} onOpenAtlassian={()=>setActiveDevModal('atlassian')}/>}
+    {activeDevModal==='tasks'&&<DevTasksModal onClose={()=>setActiveDevModal(null)} onOpenAtlassian={()=>setActiveDevModal('atlassian')}/>}
+    {activeDevModal==='docs'&&<DevDocsModal onClose={()=>setActiveDevModal(null)} onOpenAtlassian={()=>setActiveDevModal('atlassian')}/>}
+    {activeDevModal==='github-accounts'&&<DevGitHubAccountsModal onClose={()=>setActiveDevModal(null)}/>}
+    {activeDevModal==='atlassian'&&<AtlassianConfigModal onClose={()=>setActiveDevModal(null)}/>}
+    {activeDevModal&&!['mcp','overview','tasks','docs','github-accounts','atlassian'].includes(activeDevModal)&&(
   <div className="ct-modal-backdrop" onClick={()=>setActiveDevModal(null)}>
     <section className="ct-edit-dialog" role="dialog" aria-modal="true" onClick={e=>e.stopPropagation()}>
       {activeDevModal==='prs'&&(
@@ -665,36 +714,6 @@ export function initYjsProvider(room: string, doc: Y.Doc) {
               <li><code>Ctrl + `</code>: Alternar terminal inferior</li>
               <li><code>Ctrl + K</code>: Busca unificada</li>
             </ul>
-          </div>
-        </>
-      )}
-      {activeDevModal==='overview'&&(
-        <>
-          <h2>Visão Geral — ConTALK HQ</h2>
-          <div style={{fontSize:'13px',lineHeight:'1.6',color:'var(--cx-fg-2)',margin:'14px 0'}}>
-            <p><strong>Projeto:</strong> ConTALK Development Hub</p>
-            <p><strong>Repositório:</strong> ContalApps/ContalK</p>
-            <p><strong>Branch de Trabalho:</strong> dev/caliari</p>
-            <p><strong>Coproprietários:</strong> Caliari, VG, Mariana, Rafael, Lucas</p>
-          </div>
-        </>
-      )}
-      {activeDevModal==='tasks'&&(
-        <>
-          <h2>Tarefas Ativas</h2>
-          <div style={{display:'flex',flexDirection:'column',gap:'8px',margin:'14px 0'}}>
-            <div style={{padding:'8px 12px',background:'var(--cx-surface)',borderRadius:'6px'}}>✓ Layout do Codex com TitleBar de 44px e menus nativos</div>
-            <div style={{padding:'8px 12px',background:'var(--cx-surface)',borderRadius:'6px'}}>✓ DevCodeEditor multi-abas com cursores remotos e minimap</div>
-            <div style={{padding:'8px 12px',background:'var(--cx-surface)',borderRadius:'6px'}}>✓ Terminal integrado node-pty com abas de categoria</div>
-            <div style={{padding:'8px 12px',background:'var(--cx-surface)',borderRadius:'6px'}}>✓ Integração com sistema de arquivos real (leitura/gravação IPC)</div>
-          </div>
-        </>
-      )}
-      {activeDevModal==='docs'&&(
-        <>
-          <h2>Documentação</h2>
-          <div style={{fontSize:'13px',lineHeight:'1.6',color:'var(--cx-fg-2)',margin:'14px 0'}}>
-            <p>Consulte <code>docs/codex-shell.md</code> e <code>docs/LLM_HANDOFF.md</code> para documentação de arquitetura do ConTALK Codex Shell.</p>
           </div>
         </>
       )}
