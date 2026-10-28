@@ -10,9 +10,23 @@ export function DevRoadmapModal({
 }) {
   const milestones = [
     {
-      version: 'v0.1.30 (Atual)',
+      version: 'v0.1.31 (Atual)',
       status: 'released',
       statusText: 'Versão Ativa',
+      title: 'Navegador Compartilhado, Blindagem de Senhas e Hub de Apps',
+      items: [
+        'Navegador web compartilhado no palco com cursores ao vivo e modo colaborativo',
+        'Blindagem zero-leak com mascaramento automático de campos de senha',
+        'Integração Google Workspace (Gmail, YouTube, Agenda, Drive) no chat com IA',
+        'Navegador interno com automação web completa para agentes de IA',
+        'Login social federado (Google, LinkedIn, Instagram) e vínculo de contas',
+        'Eliminação de falsos-positivos e verificação ativa de modelos de IA'
+      ]
+    },
+    {
+      version: 'v0.1.30',
+      status: 'completed',
+      statusText: 'Concluído',
       title: 'Dev Hub Completo & Drag-and-Drop de Projetos',
       items: [
         'Cards de Kanban com drag-and-drop e movimentação entre colunas',

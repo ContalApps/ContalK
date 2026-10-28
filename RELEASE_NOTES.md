@@ -1,3 +1,17 @@
+# ConTALK 0.1.31
+
+Navegador Web Compartilhado no Palco de Chamadas, Blindagem Zero-Leak Contra Vazamento de Senhas, Integrações com Google Workspace e Navegador Interno com Automação por IA.
+
+- **Navegador Web Compartilhado (Co-browsing ao Vivo):** Permite aos participantes da chamada abrir e navegar em sites diretamente no palco de voz sem streaming pesado de tela. Suporte a modo colaborativo (multi-user interaction) onde todos podem navegar e clicar juntos, com cursores ao vivo, nomes de identificação e indicadores visuais de clique.
+- **Blindagem Contra Vazamento de Senhas (Zero-Leak Privacy Shield):** Qualquer campo sensível (`input[type="password"]` e credenciais) é automaticamente mascarado com desfoque profundo (`blur(14px)`), fundo preto sólido e texto transparente antes da captura e transmissão. Garantia absoluta de privacidade onde nenhum caractere de senha é enviado aos espectadores ou acessível por terceiros.
+- **Integração de Aplicativos e Google Workspace:** Hub 1-Clique em Configurações para vincular Gmail, YouTube, Google Agenda e Google Drive, permitindo solicitar resumos inteligentes, listas de e-mails, vídeos inscritos e compromissos diretamente no chat com IA.
+- **Navegador Interno com Automação Web para IA:** Navegador web integrado com capacidades completas de automação: navegação, cliques inteligentes, preenchimento de campos, leitura estruturada de conteúdo e captura de tela acionáveis pelos agentes de IA.
+- **Login Social e Vínculo de Contas:** Vínculo de contas do Google, LinkedIn e Instagram na tela de perfil com suporte a login federado direto.
+- **Verificação Ativa de Modelos de IA:** Validação de modelos no Gemini e provedores de IA, filtrando modelos obsoletos ou inativos e eliminando conexões falso-positivas.
+- **Prévias Ricas de Links e Imagens:** Pré-visualização OpenGraph para links compartilhados e miniaturas de imagens inline renderizadas em qualidade original sem necessidade de download prévio.
+
+Validação: tipos verificados sem erros (`npm run typecheck`), 326 testes unitários e de integração aprovados (`npm test`), inspeção ao vivo com simulação de usuário real via CDP (100% de sucesso) e build de produção Vite e Electron concluídos com sucesso.
+
 # ConTALK 0.1.30
 
 Engenharia Reversa (REA) do OpenAI Codex Desktop, Colaboração com Cursores em Tempo Real e Design System Fiel.

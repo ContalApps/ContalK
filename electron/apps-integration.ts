@@ -341,7 +341,7 @@ async function handleGoogleTool(
         {
           id: 'msg_gm_02',
           from: 'Coolify Cloud <alerts@coolify.io>',
-          subject: 'Deploy automático finalizado: ConTALK Community v0.1.30',
+          subject: 'Deploy automático finalizado: ConTALK Community v0.1.31',
           date: d2,
           snippet: 'O serviço community.contalk.app foi atualizado e está respondendo com status 200 OK em 48ms.'
         },
