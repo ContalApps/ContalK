@@ -188,7 +188,7 @@ export function ChannelSettings({ channel, onClose }: { channel: Channel; onClos
                 <strong>Excluir canal</strong>
                 <p>Remove o canal e seu histórico. Será necessário confirmar.</p>
               </div>
-              <button onClick={() => setConfirm(true)} disabled={busy || !manage}>
+              <button className="ct-danger" onClick={() => setConfirm(true)} disabled={busy || !manage}>
                 Excluir canal…
               </button>
             </section>
