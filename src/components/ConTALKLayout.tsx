@@ -35,6 +35,7 @@ import { BrandMark } from './BrandMark'
 import { ControlIcon, type ControlIconName } from './ControlIcon'
 import { TerminalPanel } from './TerminalPanel'
 import { DevCodeEditor, type DevEditorTab } from './DevCodeEditor'
+import { useDevCollaborationStore } from '../store/useDevCollaborationStore'
 import { ActiveCallCard } from './ActiveCallCard'
 import { McpManagerModal } from './McpManagerModal'
 import { RightPanel } from './RightPanel'
@@ -170,11 +171,24 @@ export function initYjsProvider(room: string, doc: Y.Doc) {
 }`
   }
   const [tabCodes, setTabCodes] = useState<Record<string, string>>(initialCodes)
-  const devCursors = [
-    {id:'mariana',name:'Mariana',color:'#ff4081',line:15,ch:28},
-    {id:'rafael',name:'Rafael',color:'#00e5ff',line:17,ch:40},
-    {id:'lucas',name:'Lucas',color:'#7c4dff',line:24,ch:32}
-  ]
+  const devCollab = useDevCollaborationStore()
+  const liveRemoteCursors = Object.values(devCollab.remoteCursors).filter(
+    c => c.fileId === activeEditorTab && c.id !== user?.username
+  )
+
+  useEffect(() => {
+    const handleRemoteCodeUpdate = (e: Event) => {
+      const detail = (e as CustomEvent).detail
+      if (!detail || !detail.fileId || typeof detail.code !== 'string') return
+      if (detail.authorId === user?.username) return
+      setTabCodes(prev => ({
+        ...prev,
+        [detail.fileId]: detail.code
+      }))
+    }
+    window.addEventListener('contalk-remote-code-update', handleRemoteCodeUpdate)
+    return () => window.removeEventListener('contalk-remote-code-update', handleRemoteCodeUpdate)
+  }, [user?.username])
   const [pinnedChannel,setPinnedChannel]=useState<string|null>(null)
   const [channelSettings,setChannelSettings]=useState<Channel|null>(null)
   const { servers, activeServerId, activeChannelId, setActiveServer, setActiveChannel, messages } = useAppStore()
@@ -274,6 +288,7 @@ export function initYjsProvider(room: string, doc: Y.Doc) {
   const handleUpdateCode = (newCode: string) => {
     setTabCodes(prev => ({ ...prev, [activeEditorTab]: newCode }))
     setEditorTabs(tabs => tabs.map(tab => tab.id === activeEditorTab ? { ...tab, isDirty: true } : tab))
+    devCollab.broadcastCode(activeEditorTab, newCode)
   }
   const handleNewTab = () => {
     const num = editorTabs.length + 1
@@ -617,7 +632,11 @@ export function initYjsProvider(room: string, doc: Y.Doc) {
   onChangeCode={handleUpdateCode}
   onSave={handleSaveActiveCode}
   isSaving={isSavingCode}
-  cursors={devCursors}
+  cursors={liveRemoteCursors}
+  onCursorChange={pos => {
+    const activeTab = editorTabs.find(t => t.id === activeEditorTab)
+    devCollab.broadcastCursor(activeEditorTab, activeTab?.path || activeEditorTab, pos.line, pos.ch)
+  }}
   onNewTab={handleNewTab}
 />}
 </div></></>}</> }</main>{preferences.bottomPanelOpen&&<TerminalPanel request={terminalRequest} onClose={()=>preferences.update({bottomPanelOpen:false})}/>}</div>

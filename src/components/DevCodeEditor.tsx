@@ -30,6 +30,7 @@ interface DevEditorProps {
   onChangeCode?: (newCode: string) => void
   onSave?: () => Promise<void> | void
   cursors?: RemoteCursor[]
+  onCursorChange?: (pos: { line: number; ch: number }) => void
   isSaving?: boolean
   onCloseEditor?: () => void
 }
@@ -71,12 +72,14 @@ export function DevCodeEditor({
   onChangeCode,
   onSave,
   cursors = [],
+  onCursorChange,
   isSaving = false,
   onCloseEditor
 }: DevEditorProps) {
   const [copied, setCopied] = useState(false)
   const [saveToast, setSaveToast] = useState(false)
   const [cursorPos, setCursorPos] = useState({ line: 1, col: 1 })
+  const [scrollOffset, setScrollOffset] = useState({ top: 0, left: 0 })
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const gutterRef = useRef<HTMLDivElement>(null)
 
@@ -109,11 +112,18 @@ export function DevCodeEditor({
     const currentLine = textLines.length
     const currentCol = (textLines[textLines.length - 1]?.length || 0) + 1
     setCursorPos({ line: currentLine, col: currentCol })
+    onCursorChange?.({ line: currentLine, ch: currentCol })
   }
 
   const handleScroll = () => {
-    if (textareaRef.current && gutterRef.current) {
-      gutterRef.current.scrollTop = textareaRef.current.scrollTop
+    if (textareaRef.current) {
+      if (gutterRef.current) {
+        gutterRef.current.scrollTop = textareaRef.current.scrollTop
+      }
+      setScrollOffset({
+        top: textareaRef.current.scrollTop,
+        left: textareaRef.current.scrollLeft
+      })
     }
   }
 
@@ -195,6 +205,26 @@ export function DevCodeEditor({
           ))}
         </div>
         <div className="ct-dev-editor-actions">
+          {/* Indicador de cursores e presença real */}
+          <div className="ct-dev-collab-group">
+            {cursors.length > 0 ? (
+              <div className="ct-dev-collab-list" title="Usuários com cursores ativos neste arquivo">
+                {cursors.map(c => (
+                  <div key={c.id} className="ct-dev-collab-pill" style={{ borderColor: c.color }}>
+                    <span className="ct-dev-collab-dot" style={{ backgroundColor: c.color }} />
+                    <span className="ct-dev-collab-name">{c.name}</span>
+                    <span className="ct-dev-collab-pos">L{c.line}:C{c.ch}</span>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="ct-dev-collab-idle" title="Colaboração em tempo real conectada">
+                <span className="ct-dev-collab-dot idle" />
+                <span className="ct-dev-collab-text">Ao vivo</span>
+              </div>
+            )}
+          </div>
+
           <div className="ct-dev-branch-tag" title="Branch ativa">
             <ControlIcon name="git-branch" size={12} />
             <span>{branch}</span>
@@ -253,8 +283,9 @@ export function DevCodeEditor({
           <div className="ct-dev-cursors-overlay" aria-hidden="true">
             {cursors.map(cursor => {
               if (cursor.line > lineCount) return null
-              const topPx = (cursor.line - 1) * 20 + 12
-              const leftPx = Math.min(cursor.ch * 7.4 + 16, 750)
+              const topPx = (cursor.line - 1) * 20 + 12 - scrollOffset.top
+              const leftPx = Math.max(16, cursor.ch * 7.4 + 16 - scrollOffset.left)
+              if (topPx < -20 || topPx > 1500) return null
               return (
                 <div
                   key={cursor.id}
@@ -322,6 +353,10 @@ export function DevCodeEditor({
           </span>
           <span className="ct-dev-status-item">
             {lineCount} linhas
+          </span>
+          <span className="ct-dev-status-item ct-dev-sync-badge">
+            <span className="ct-dev-sync-dot" />
+            {cursors.length > 0 ? `${cursors.length} pessoa(s) online` : 'Colaboração sincronizada'}
           </span>
         </div>
         <div className="ct-dev-status-group">

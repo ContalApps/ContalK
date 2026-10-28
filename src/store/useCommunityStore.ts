@@ -20,7 +20,7 @@ function safeMember(identity: string, name: string, metadata?: string): Member {
     avatar: typeof profile.avatar === 'string' && profile.avatar.length < 50000 && /^data:image\/jpeg;base64,[A-Za-z0-9+/=]+$/.test(profile.avatar) ? profile.avatar : undefined,
     bio: typeof profile.bio === 'string' ? profile.bio.slice(0,240) : '', online: true }
 }
-export const useCommunityStore = create<{ members: Member[]; status: string; profileError: string | null; connect: (user: User) => Promise<void>; disconnect: () => void; updateProfile: (user: User) => Promise<void>; broadcastChannels: () => Promise<void>; renameChannel:(serverId:string,channelId:string,name:string)=>Promise<void>; deleteChannel: (serverId: string, channelId: string) => Promise<void>; sendMessage: (channelId: string, content: string, destination?: string, attachment?: Attachment, options?: MessageOptions) => Promise<void>; changeMessage:(channelId:string,id:string,content?:string)=>Promise<void> }>((set,get) => ({
+export const useCommunityStore = create<{ members: Member[]; status: string; profileError: string | null; connect: (user: User) => Promise<void>; disconnect: () => void; updateProfile: (user: User) => Promise<void>; broadcastChannels: () => Promise<void>; renameChannel:(serverId:string,channelId:string,name:string)=>Promise<void>; deleteChannel: (serverId: string, channelId: string) => Promise<void>; sendMessage: (channelId: string, content: string, destination?: string, attachment?: Attachment, options?: MessageOptions) => Promise<void>; changeMessage:(channelId:string,id:string,content?:string)=>Promise<void>; broadcastDevCursor: (fileId: string, filePath: string, line: number, ch: number) => Promise<void>; broadcastDevCode: (fileId: string, code: string) => Promise<void> }>((set,get) => ({
   members: cachedMembers(), status: 'offline', profileError: null,
   disconnect: () => { generation++; clearInterval(friendRetry); useFriendStore.getState().activate(null); const previous = room; room = null; void previous?.disconnect(); set({ members: get().members.map(m=>({...m,online:false})), status:'offline' }) },
   connect: async user => {
@@ -45,6 +45,37 @@ export const useCommunityStore = create<{ members: Member[]; status: string; pro
     const receive = (payload: Uint8Array, _participant: unknown, _kind: unknown, topic?: string) => {
       if (room !== connection) return
       if(centralEnabled()&&['community-channels','community-channel-deletions-v1'].includes(topic||''))return
+      if(topic === 'contalk-cursor-v1') {
+        const participant = _participant as {identity?: string; name?: string}
+        if (!participant?.identity || payload.byteLength > 2000) return
+        try {
+          const data = JSON.parse(new TextDecoder().decode(payload))
+          void import('./useDevCollaborationStore').then(({ useDevCollaborationStore, getCollaboratorColor }) => {
+            useDevCollaborationStore.getState().handleRemoteCursor({
+              id: participant.identity!,
+              name: participant.name || participant.identity!,
+              color: getCollaboratorColor(participant.identity!),
+              fileId: data.fileId,
+              filePath: data.filePath,
+              line: data.line,
+              ch: data.ch,
+              lastSeen: Date.now()
+            })
+          })
+        } catch { /* Invalid cursor packet */ }
+        return
+      }
+      if(topic === 'contalk-code-sync-v1') {
+        const participant = _participant as {identity?: string; name?: string}
+        if (!participant?.identity || payload.byteLength > 500000) return
+        try {
+          const data = JSON.parse(new TextDecoder().decode(payload))
+          void import('./useDevCollaborationStore').then(({ useDevCollaborationStore }) => {
+            useDevCollaborationStore.getState().handleRemoteCode(data.fileId, data.code, data.timestamp || Date.now(), participant.identity!)
+          })
+        } catch { /* Invalid code sync packet */ }
+        return
+      }
       if(topic === 'contalk-friendship-v1') {
         const participant = _participant as {identity?: string; name?: string}
         if (!participant?.identity || !connection.remoteParticipants.has(participant.identity) || payload.byteLength > 2000) return
@@ -210,5 +241,19 @@ export const useCommunityStore = create<{ members: Member[]; status: string; pro
     }
     await sendRecords(Object.entries(useAppStore.getState().deletedChannels || {}).map(([id,serverId])=>({id,serverId})), 'community-channel-deletions-v1')
     await sendRecords(useAppStore.getState().servers.flatMap(s=>s.channels), 'community-channels')
+  },
+  broadcastDevCursor: async (fileId: string, filePath: string, line: number, ch: number) => {
+    if (!room || room.state !== 'connected') return
+    try {
+      const data = JSON.stringify({ fileId, filePath, line, ch, timestamp: Date.now() })
+      await room.localParticipant.publishData(encoder.encode(data), { reliable: false, topic: 'contalk-cursor-v1' })
+    } catch { /* ignore network blips */ }
+  },
+  broadcastDevCode: async (fileId: string, code: string) => {
+    if (!room || room.state !== 'connected') return
+    try {
+      const data = JSON.stringify({ fileId, code, timestamp: Date.now() })
+      await room.localParticipant.publishData(encoder.encode(data), { reliable: true, topic: 'contalk-code-sync-v1' })
+    } catch { /* ignore network blips */ }
   },
 }))
