@@ -112,8 +112,19 @@ export function InternalBrowserModal({ onClose }: { onClose: () => void }) {
     }
   }
 
-  const handleOpenDesktopWindow = () => {
-    desktop?.browserShow?.()
+  const [isDetached, setIsDetached] = useState(false)
+
+  const handleToggleDetach = async () => {
+    if (!desktop) return
+    if (isDetached) {
+      await desktop.browserHide?.()
+      setIsDetached(false)
+      setStatusMessage('Navegador fixado no ConTALK.')
+    } else {
+      await desktop.browserShow?.()
+      setIsDetached(true)
+      setStatusMessage('Navegador destacado em janela separada do Windows.')
+    }
   }
 
   return (
@@ -132,11 +143,11 @@ export function InternalBrowserModal({ onClose }: { onClose: () => void }) {
               <button
                 type="button"
                 className="ct-browser-btn-secondary"
-                onClick={handleOpenDesktopWindow}
-                title="Abrir navegador em janela dedicada separada"
+                onClick={handleToggleDetach}
+                title={isDetached ? 'Fixar navegador de volta dentro do ConTALK' : 'Destacar navegador em janela separada do Windows'}
               >
-                <ControlIcon name="expand" size={13} />
-                <span>Janela Dedicada</span>
+                <ControlIcon name={isDetached ? 'shrink' : 'expand'} size={13} />
+                <span>{isDetached ? 'Fixar no ConTALK' : 'Destacar Navegador'}</span>
               </button>
               <button
                 type="button"

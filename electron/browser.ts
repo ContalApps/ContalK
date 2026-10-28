@@ -8,6 +8,7 @@ export interface BrowserActionStatus {
   isLoading: boolean
   canGoBack: boolean
   canGoForward: boolean
+  isDetached?: boolean
   lastAction?: string
 }
 
@@ -30,8 +31,10 @@ function notifyStatus(actionDesc?: string) {
     currentStatus.title = browserWindow.webContents.getTitle() || 'Página Web'
     currentStatus.canGoBack = browserWindow.webContents.canGoBack()
     currentStatus.canGoForward = browserWindow.webContents.canGoForward()
+    currentStatus.isDetached = (typeof browserWindow.isVisible === 'function' ? browserWindow.isVisible() : false)
   } else {
     currentStatus.isOpen = false
+    currentStatus.isDetached = false
   }
 
   if (mainWindowRef && !mainWindowRef.isDestroyed()) {
@@ -41,7 +44,7 @@ function notifyStatus(actionDesc?: string) {
   }
 }
 
-export function createBrowserWindow(initialUrl = 'https://www.google.com', show = true): BrowserWindow {
+export function createBrowserWindow(initialUrl = 'https://www.google.com', show = false): BrowserWindow {
   if (browserWindow && !browserWindow.isDestroyed()) {
     if (initialUrl && initialUrl !== 'about:blank' && browserWindow.webContents.getURL() !== initialUrl) {
       void browserWindow.loadURL(initialUrl)
@@ -70,7 +73,8 @@ export function createBrowserWindow(initialUrl = 'https://www.google.com', show 
       nodeIntegration: false,
       contextIsolation: true,
       sandbox: true,
-      javascript: true
+      javascript: true,
+      backgroundThrottling: false
     }
   })
 
@@ -112,7 +116,7 @@ export const browserManager = {
     return { ...currentStatus }
   },
 
-  async open(url = 'https://www.google.com', show = true): Promise<BrowserActionStatus> {
+  async open(url = 'https://www.google.com', show = false): Promise<BrowserActionStatus> {
     const formattedUrl = url.startsWith('http://') || url.startsWith('https://') || url.startsWith('about:')
       ? url
       : `https://${url}`
@@ -124,7 +128,8 @@ export const browserManager = {
     const formattedUrl = url.startsWith('http://') || url.startsWith('https://') || url.startsWith('about:')
       ? url
       : `https://${url}`
-    const win = createBrowserWindow(formattedUrl, true)
+    const isDetached = Boolean(browserWindow && !browserWindow.isDestroyed() && (typeof browserWindow.isVisible === 'function' ? browserWindow.isVisible() : false))
+    const win = createBrowserWindow(formattedUrl, isDetached)
     
     await new Promise<void>((resolve) => {
       const onFinish = () => {
@@ -424,7 +429,14 @@ export const browserManager = {
     let src = ''
     try {
       const image = await win.webContents.capturePage()
-      src = image.toDataURL()
+      if (typeof (image as any).toJPEG === 'function') {
+        const size = typeof image.getSize === 'function' ? image.getSize() : { width: 0, height: 0 }
+        const targetImage = size.width > 1280 && typeof image.resize === 'function' ? image.resize({ width: 1280 }) : image
+        const jpeg = (targetImage as any).toJPEG(68)
+        src = `data:image/jpeg;base64,${jpeg.toString('base64')}`
+      } else {
+        src = image.toDataURL()
+      }
     } catch {
       src = ''
     }
@@ -515,6 +527,16 @@ export const browserManager = {
         }
       })()
     `
+    try {
+      if (typeof (win.webContents as any).sendInputEvent === 'function') {
+        const bounds = typeof win.getContentBounds === 'function' ? win.getContentBounds() : { width: 1080, height: 720 };
+        const pixelX = Math.round((bounds.width * Math.max(0, Math.min(100, xPercent))) / 100);
+        const pixelY = Math.round((bounds.height * Math.max(0, Math.min(100, yPercent))) / 100);
+        (win.webContents as any).sendInputEvent({ type: 'mouseDown', x: pixelX, y: pixelY, button: 'left', clickCount: 1 });
+        (win.webContents as any).sendInputEvent({ type: 'mouseUp', x: pixelX, y: pixelY, button: 'left', clickCount: 1 });
+      }
+    } catch {}
+
     const res = await win.webContents.executeJavaScript(jsCode)
     notifyStatus(`Clique colaborativo em (${xPercent.toFixed(1)}%, ${yPercent.toFixed(1)}%)`)
     return res
@@ -545,6 +567,51 @@ export const browserManager = {
       return true
     }
     return false
+  },
+
+  async insertText(text: string): Promise<{ success: boolean; message?: string }> {
+    if (!browserWindow || browserWindow.isDestroyed()) {
+      return { success: false, message: 'Navegador não está aberto.' }
+    }
+    const win = browserWindow
+    if (typeof (win.webContents as any).insertText === 'function') {
+      (win.webContents as any).insertText(text)
+      notifyStatus(`Digitou "${text.slice(0, 30)}"`)
+      return { success: true }
+    }
+    return { success: false }
+  },
+
+  setAudioMuted(muted: boolean): boolean {
+    if (browserWindow && !browserWindow.isDestroyed()) {
+      browserWindow.webContents.setAudioMuted(muted)
+      notifyStatus(muted ? 'Áudio do navegador silenciado' : 'Áudio do navegador ativado')
+      return true
+    }
+    return false
+  },
+
+  isAudioMuted(): boolean {
+    if (browserWindow && !browserWindow.isDestroyed()) {
+      return browserWindow.webContents.isAudioMuted()
+    }
+    return false
+  },
+
+  async sendKey(key: string): Promise<{ success: boolean }> {
+    if (!browserWindow || browserWindow.isDestroyed()) {
+      return { success: false }
+    }
+    const win = browserWindow
+    if (typeof (win.webContents as any).sendInputEvent === 'function') {
+      const keyCode = key === 'Enter' ? 'Return' : key
+      ;(win.webContents as any).sendInputEvent({ type: 'keyDown', keyCode })
+      ;(win.webContents as any).sendInputEvent({ type: 'char', keyCode })
+      ;(win.webContents as any).sendInputEvent({ type: 'keyUp', keyCode })
+      notifyStatus(`Tecla "${key}" acionada`)
+      return { success: true }
+    }
+    return { success: false }
   },
 
   async scroll(direction: 'up' | 'down' = 'down', amount = 400): Promise<{ success: boolean; direction: string }> {
@@ -602,7 +669,7 @@ export function setupInternalBrowser(mainWindow: BrowserWindow) {
 
   ipcMain.handle('browser-open', async (event, url?: unknown, show?: unknown) => {
     trusted(event)
-    return browserManager.open(typeof url === 'string' ? url : undefined, show !== false)
+    return browserManager.open(typeof url === 'string' ? url : undefined, Boolean(show))
   })
 
   ipcMain.handle('browser-navigate', async (event, url: unknown) => {
@@ -638,6 +705,26 @@ export function setupInternalBrowser(mainWindow: BrowserWindow) {
   ipcMain.handle('browser-click-at', async (event, xPercent: unknown, yPercent: unknown) => {
     trusted(event)
     return browserManager.clickAt(Number(xPercent), Number(yPercent))
+  })
+
+  ipcMain.handle('browser-insert-text', async (event, text: unknown) => {
+    trusted(event)
+    return browserManager.insertText(String(text || ''))
+  })
+
+  ipcMain.handle('browser-set-audio-muted', async (event, muted: unknown) => {
+    trusted(event)
+    return browserManager.setAudioMuted(Boolean(muted))
+  })
+
+  ipcMain.handle('browser-is-audio-muted', async (event) => {
+    trusted(event)
+    return browserManager.isAudioMuted()
+  })
+
+  ipcMain.handle('browser-send-key', async (event, key: unknown) => {
+    trusted(event)
+    return browserManager.sendKey(String(key || ''))
   })
 
   ipcMain.handle('browser-go-back', async (event) => {

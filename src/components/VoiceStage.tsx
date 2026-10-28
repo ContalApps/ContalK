@@ -261,6 +261,10 @@ export function VoiceStage({
     sharedBrowser.activeSession && (!activeChannelId || sharedBrowser.activeSession.roomId === activeChannelId)
   )
 
+  useEffect(() => {
+    sharedBrowser.requestSync()
+  }, [activeChannelId])
+
   // Modo de exibição: 'grid' (grade lado a lado) ou 'spotlight' (foco em 1 tela)
   const [stageViewMode, setStageViewMode] = useState<'grid' | 'spotlight'>('grid')
   const [spotlightScreenId, setSpotlightScreenId] = useState<string | null>(null)

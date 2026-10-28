@@ -21,6 +21,11 @@ test('Shared Browser Manager supports sanitized screenshot and password privacy 
     capturePage: async () => {
       capturedPage = true
       return {
+        getSize: () => ({ width: 800, height: 600 }),
+        resize: () => ({
+          toJPEG: () => Buffer.from('test-jpeg')
+        }),
+        toJPEG: () => Buffer.from('test-jpeg'),
         toDataURL: () => 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg=='
       }
     },
@@ -38,8 +43,10 @@ test('Shared Browser Manager supports sanitized screenshot and password privacy 
     isDestroyed: () => false,
     webContents: mockWebContents,
     show() {},
+    hide() {},
     focus() {},
     close() {},
+    isVisible: () => false,
     loadURL: async () => {},
     on() {}
   }
@@ -75,7 +82,7 @@ test('Shared Browser Manager supports sanitized screenshot and password privacy 
   // 3. Sanitized Screenshot for Co-Browsing
   const shot = await browserManager.sanitizedScreenshot()
   assert.ok(capturedPage, 'Page must be captured')
-  assert.ok(shot.src.startsWith('data:image/png'), 'Screenshot must return valid base64 data URL')
+  assert.ok(shot.src.startsWith('data:image/'), 'Screenshot must return valid base64 data URL')
   assert.equal(shot.hasPasswordField, true, 'Sensitive password field must be detected')
   assert.ok(
     executedScripts.some((s) => s.includes('.ct-pwd-shielded')),
@@ -107,7 +114,7 @@ test('Shared Browser Store structures session and collaborative interactions', a
     hostName: 'VG',
     url: 'https://contalk.app',
     title: 'ConTALK · Chat & Collab',
-    screenshot: 'data:image/png;base64,...',
+    screenshot: 'data:image/jpeg;base64,abc12345',
     hasPasswordField: false,
     allowCollaboration: true,
     lastUpdated: Date.now()

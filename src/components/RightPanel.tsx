@@ -1,6 +1,7 @@
 import { useEffect, useState, type ReactNode } from 'react'
 import { useVoiceStore } from '../store/useVoiceStore'
 import { useSharedBrowserStore } from '../store/useSharedBrowserStore'
+import { useDevStore } from '../store/useDevStore'
 import { ControlIcon } from './ControlIcon'
 import { VideoTrackView } from './VoiceStage'
 
@@ -20,9 +21,12 @@ export function useCallClock() {
   return (h ? h + ':' + String(m).padStart(2, '0') : String(m)) + ':' + String(s).padStart(2, '0')
 }
 
-export function RightPanel({ onOpenChannel, members }: { onOpenChannel: (id: string) => void; members: ReactNode }) {
+export function RightPanel({ onOpenChannel, members, activeChannelId }: { onOpenChannel: (id: string) => void; members: ReactNode; activeChannelId?: string }) {
   const voice = useVoiceStore()
   const sharedBrowser = useSharedBrowserStore()
+  const devStore = useDevStore()
+  const boundRepo = activeChannelId ? devStore.getChannelRepo(activeChannelId) : null
+  const currentRepo = boundRepo || devStore.repositories[0] || null
   const shares = voice.participants.filter(p => p.isScreenShareEnabled && p.screenTrack)
   return <aside className="ct-right-panel" aria-label="Painel da chamada e participantes">
     {shares.length > 0 && <section className="ct-rp-section">
@@ -54,29 +58,35 @@ export function RightPanel({ onOpenChannel, members }: { onOpenChannel: (id: str
         <header className="ct-rp-github-header">
           <div className="ct-rp-github-title">
             <ControlIcon name="git-branch" size={14}/>
-            <span>GitHub</span>
+            <span>{boundRepo ? 'Repositório do Canal' : 'GitHub'}</span>
           </div>
-          <a href="https://github.com/ContalApps/ContalK" target="_blank" rel="noopener noreferrer" className="ct-rp-github-link">
-            Abrir no GitHub
-          </a>
+          {currentRepo && (
+            <a href={currentRepo.htmlUrl} target="_blank" rel="noopener noreferrer" className="ct-rp-github-link">
+              Abrir no GitHub
+            </a>
+          )}
         </header>
-        <div className="ct-rp-github-repo">github.com/ContalApps/ContalK</div>
-        <div className="ct-rp-github-branch">
-          <small>Branch atual</small>
-          <div className="ct-rp-branch-pill">
-            <ControlIcon name="git-branch" size={12}/>
-            <span>dev/caliari</span>
+        <div className="ct-rp-github-repo">{currentRepo ? currentRepo.fullName : 'github.com/ContalApps/ContalK'}</div>
+        {currentRepo && (
+          <div className="ct-rp-github-branch">
+            <small>Branch padrão</small>
+            <div className="ct-rp-branch-pill">
+              <ControlIcon name="git-branch" size={12}/>
+              <span>{currentRepo.defaultBranch || 'main'}</span>
+            </div>
           </div>
-        </div>
+        )}
         <div className="ct-rp-github-commit">
           <div className="ct-rp-commit-header">
-            <ControlIcon name="git-commit" size={12}/>
-            <span>feature/collaborative-dev</span>
+            <ControlIcon name={boundRepo ? 'ai' : 'git-commit'} size={12}/>
+            <span>{boundRepo ? 'IA Conectada ao Repositório' : 'Central Colaborativa'}</span>
           </div>
-          <p className="ct-rp-commit-msg">Central colaborativa de desenvolvimento</p>
+          <p className="ct-rp-commit-msg">
+            {boundRepo?.description || 'Trabalhe e converse diretamente sobre este repositório.'}
+          </p>
           <div className="ct-rp-commit-meta">
-            <small>Por Caliari · agora</small>
-            <code>a3f9c2d</code>
+            <small>{boundRepo ? (boundRepo.isPrivate ? 'Privado' : 'Público') : 'Branch dev/caliari'}</small>
+            {currentRepo?.language && <code>{currentRepo.language}</code>}
           </div>
         </div>
       </div>
