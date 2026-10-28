@@ -8,7 +8,7 @@ import { parseAiModel } from '../roles/ai'
 import { threadArchived } from '../roles/permissions'
 import { PinnedMessages } from './PinnedMessages'
 import { ChatComposer, ChatMessage } from './MessageContent'
-import { Fragment, useEffect, useLayoutEffect, useRef, useState } from 'react'
+import { Fragment, useEffect, useLayoutEffect, useRef, useState, useCallback } from 'react'
 import { useAuthStore } from '../store/useAuthStore'
 import { useAppStore } from '../store/useAppStore'
 import { useVoiceStore } from '../store/useVoiceStore'
@@ -79,13 +79,19 @@ export function ConTALKLayout() {
   const roles=useRoleStore()
   const [threadCreate,setThreadCreate]=useState<string|null>(null),[threadList,setThreadList]=useState<string|null>(null)
   const [projectCreate,setProjectCreate]=useState<string|null>(null)
+  const [activeDevModal, setActiveDevModal] = useState<string|null>(null)
+  const [repoExplorerOpen, setRepoExplorerOpen] = useState(false)
+  const [workspaceFiles, setWorkspaceFiles] = useState<import('../types/desktop').WorkspaceFileEntry[]>([])
+  const [loadingWorkspaceFiles, setLoadingWorkspaceFiles] = useState(false)
+  const [isSavingCode, setIsSavingCode] = useState(false)
   const [editorTabs,setEditorTabs]=useState<DevEditorTab[]>([
     {id:'page',name:'page.tsx',path:'projeto-atlas/apps/web/src/components/editor/page.tsx'},
     {id:'cursor',name:'CursorPresence.tsx',path:'projeto-atlas/apps/web/src/components/editor/CursorPresence.tsx'},
     {id:'yjs',name:'yjs-provider.ts',path:'projeto-atlas/apps/web/src/components/editor/yjs-provider.ts'}
   ])
   const [activeEditorTab,setActiveEditorTab]=useState('page')
-  const sampleEditorCode = `'use client'
+  const initialCodes: Record<string, string> = {
+    page: `'use client'
 
 import { useEffect, useRef, useState } from 'react'
 import * as Y from 'yjs'
@@ -113,7 +119,41 @@ export default function EditorPage() {
     })
     setEditor(newEditor)
   }, [])
+}`,
+    cursor: `import React from 'react'
+
+export interface RemoteCursorProps {
+  id: string
+  name: string
+  color: string
+  line: number
+  ch: number
+}
+
+export function CursorPresence({ name, color, line, ch }: RemoteCursorProps) {
+  return (
+    <div
+      className="ct-remote-cursor-indicator"
+      style={{
+        top: \`\${(line - 1) * 20}px\`,
+        left: \`\${ch * 7.8}px\`,
+        borderColor: color
+      }}
+    >
+      <span className="ct-remote-cursor-badge" style={{ backgroundColor: color }}>
+        {name}
+      </span>
+    </div>
+  )
+}`,
+    yjs: `import * as Y from 'yjs'
+import { WebsocketProvider } from 'y-websocket'
+
+export function initYjsProvider(room: string, doc: Y.Doc) {
+  return new WebsocketProvider('wss://con-talk.app/yjs', room, doc)
 }`
+  }
+  const [tabCodes, setTabCodes] = useState<Record<string, string>>(initialCodes)
   const devCursors = [
     {id:'mariana',name:'Mariana',color:'#ff4081',line:15,ch:28},
     {id:'rafael',name:'Rafael',color:'#00e5ff',line:17,ch:40},
@@ -215,6 +255,70 @@ export default function EditorPage() {
   const togglePanel=(key:'sidebarHidden'|'railHidden'|'bottomPanelOpen'|'membersCollapsed')=>preferences.update({[key]:!preferences[key]})
   const openVoiceChannel=(id:string)=>{const destination=servers.find(item=>item.channels.some(c=>c.id===id));if(destination)setActiveServer(destination.id);openChannel(id)}
   const openFolder=async()=>{const folder=await desktop?.openFolder?.();if(!folder)return;preferences.update({workspaceFolder:folder,bottomPanelOpen:true});setTerminalRequest(n=>n+1)}
+  const handleUpdateCode = (newCode: string) => {
+    setTabCodes(prev => ({ ...prev, [activeEditorTab]: newCode }))
+    setEditorTabs(tabs => tabs.map(tab => tab.id === activeEditorTab ? { ...tab, isDirty: true } : tab))
+  }
+  const handleSaveActiveCode = async () => {
+    const currentTab = editorTabs.find(t => t.id === activeEditorTab)
+    if (!currentTab) return
+    setIsSavingCode(true)
+    try {
+      const currentCode = tabCodes[activeEditorTab] ?? ''
+      if (desktop?.workspaceWriteFile && (currentTab.path.includes(':') || currentTab.path.startsWith('/') || currentTab.path.startsWith('\\'))) {
+        await desktop.workspaceWriteFile(currentTab.path, currentCode)
+      }
+      setEditorTabs(tabs => tabs.map(tab => tab.id === activeEditorTab ? { ...tab, isDirty: false } : tab))
+    } finally {
+      setIsSavingCode(false)
+    }
+  }
+  const loadWorkspaceFiles = useCallback(async () => {
+    if (!preferences.workspaceFolder || !desktop?.workspaceListFiles) return
+    setLoadingWorkspaceFiles(true)
+    try {
+      const files = await desktop.workspaceListFiles(preferences.workspaceFolder)
+      setWorkspaceFiles(files)
+    } catch {
+      setWorkspaceFiles([])
+    } finally {
+      setLoadingWorkspaceFiles(false)
+    }
+  }, [preferences.workspaceFolder, desktop])
+  const toggleRepoExplorer = async () => {
+    if (!preferences.workspaceFolder) {
+      await openFolder()
+      return
+    }
+    const next = !repoExplorerOpen
+    setRepoExplorerOpen(next)
+    if (next) {
+      await loadWorkspaceFiles()
+    }
+  }
+  const handleOpenWorkspaceFile = async (file: import('../types/desktop').WorkspaceFileEntry) => {
+    if (file.isDirectory) return
+    const existing = editorTabs.find(t => t.path === file.path)
+    if (existing) {
+      setActiveEditorTab(existing.id)
+      return
+    }
+    if (!desktop?.workspaceReadFile) return
+    try {
+      const fileContent = await desktop.workspaceReadFile(file.path)
+      const newTab: DevEditorTab = {
+        id: file.path,
+        name: file.name,
+        path: file.path,
+        isDirty: false
+      }
+      setEditorTabs(tabs => [...tabs, newTab])
+      setTabCodes(codes => ({ ...codes, [file.path]: fileContent }))
+      setActiveEditorTab(file.path)
+    } catch (e) {
+      console.error('Falha ao abrir arquivo:', e)
+    }
+  }
   const quit=async()=>{await voice.leaveChannel().catch(()=>{});await desktop?.quitApp?.()}
   const signOut=()=>void (async()=>{await voice.leaveChannel();await logout()})()
   const zoom=(step:number)=>preferences.update({interfaceScale:step===0?100:Math.min(120,Math.max(80,preferences.interfaceScale+step))})
@@ -289,21 +393,43 @@ export default function EditorPage() {
     <nav className="ct-sidebar" data-collapsed={preferences.sidebarCollapsed} hidden={preferences.sidebarHidden}><button className="ct-sidebar-toggle" aria-label={preferences.sidebarCollapsed?'Expandir lista de canais':'Recolher lista de canais'} title={preferences.sidebarCollapsed?'Expandir canais':'Recolher canais'} onClick={()=>preferences.update({sidebarCollapsed:!preferences.sidebarCollapsed})}><ControlIcon name="chevron"/><span>Canais e conversas</span></button><div className="ct-sidebar-scroll">{view!=='server'?<><div className="ct-side-nav"><button className="ct-new-chat" onClick={()=>setView('messages')}><Icon name="chat"/>Nova conversa</button><button className={view==='home'?'active':''} onClick={()=>setView('home')}><Icon name="home"/>Início <span className="ct-nav-dot"/></button><button className={view==='friends'?'active':''} onClick={()=>setView('friends')}><Icon name="friends"/>Amigos</button></div><div className="ct-section-label">Mensagens diretas <button title="Abrir mensagens" onClick={()=>setView('messages')}>+</button></div><div className="ct-people">{visibleContacts.map(m=><button className="ct-person" data-profile-identity={m.username} data-profile-name={m.display_name} key={m.username} onClick={()=>openConversation(m.username)}><Avatar name={m.display_name} identity={m.username} live={voice.participants.some(p=>p.identity===m.username&&p.isScreenShareEnabled)||Object.values(voice.channelOccupants).some(list=>list.some(p=>p.identity===m.username&&p.isScreenShareEnabled))}/><span><strong><RoleName identity={m.username} name={m.display_name}/></strong><small>{statusText(m.username)}</small></span></button>)}{!visibleContacts.length&&<p className="ct-friend-hint">Suas amizades e conversas aparecerão aqui.</p>}</div></>:<><div className="ct-server-banner">{roles.snapshot?.id===server.id&&<button className="ct-server-events" title="Eventos do servidor" aria-label="Eventos do servidor" onClick={()=>{setEventTarget(undefined);setEventsOpen(true)}}><ControlIcon name="event"/></button>}<strong title={server.description||server.name}>{server.name}</strong>{(!roles.snapshot||centralAllows('VIEW_GUILD_INSIGHTS')||centralAllows('MANAGE_GUILD')||centralAllows('MANAGE_ROLES')||centralAllows('BAN_MEMBERS')||!!roles.snapshot.invites?.length||roles.snapshot.channels.some(item=>centralAllows('CREATE_INSTANT_INVITE',item.id)))&&<button className="ct-server-role-settings" title="Configurações do servidor" aria-label="Configurações do servidor" onClick={()=>setRolesOpen(true)}><ControlIcon name="settings"/></button>}<small><i className="ct-online-dot"/> {community.status==='online'?community.members.filter(m=>m.online).length+' membros online':'Presença indisponível'}</small></div>
 <div className="ct-section-label"><button className="ct-section-toggle" aria-expanded={!hiddenSections.projects} onClick={()=>toggleSection('projects')}><ControlIcon name="chevron" size={12}/>Projetos</button></div>
 {!hiddenSections.projects&&<div className="ct-side-dev-group">
-  <button className="ct-side-dev-item" onClick={()=>{}} title="Visão geral do projeto"><div><ControlIcon name="overview" size={14}/><span>Visão geral</span></div></button>
-  <button className="ct-side-dev-item" onClick={()=>{}} title="Tarefas ativas"><div><ControlIcon name="tasks" size={14}/><span>Tarefas</span></div></button>
-  <button className="ct-side-dev-item" onClick={()=>{}} title="Documentação técnica"><div><ControlIcon name="docs" size={14}/><span>Documentação</span></div></button>
-  <button className="ct-side-dev-item" onClick={()=>{}} title="Roadmap do projeto"><div><ControlIcon name="roadmap" size={14}/><span>Roadmap</span></div></button>
+  <button className="ct-side-dev-item" onClick={()=>setActiveDevModal('overview')} title="Visão geral do projeto"><div><ControlIcon name="overview" size={14}/><span>Visão geral</span></div></button>
+  <button className="ct-side-dev-item" onClick={()=>setActiveDevModal('tasks')} title="Tarefas ativas"><div><ControlIcon name="tasks" size={14}/><span>Tarefas</span></div></button>
+  <button className="ct-side-dev-item" onClick={()=>setActiveDevModal('docs')} title="Documentação técnica"><div><ControlIcon name="docs" size={14}/><span>Documentação</span></div></button>
+  <button className="ct-side-dev-item" onClick={()=>setActiveDevModal('roadmap')} title="Roadmap do projeto"><div><ControlIcon name="roadmap" size={14}/><span>Roadmap</span></div></button>
 </div>}
 
 <div className="ct-section-label"><button className="ct-section-toggle" aria-expanded={!hiddenSections.text} onClick={()=>toggleSection('text')}><ControlIcon name="chevron" size={12}/>Canais</button><button title="Criar canal de texto" aria-label="Criar canal de texto" onClick={()=>setCreateType('text')}>+</button></div>{!hiddenSections.text&&server.channels.filter(c=>c.type==='text'&&!c.parentId).map(c=><Fragment key={c.id}><ChannelRow unread={activity.unreadByChannel[c.id]||0} channel={c} active={channel.id===c.id} onOpen={()=>openChannel(c.id)} onSettings={()=>setChannelSettings(c)}/>{server.channels.filter(child=>child.parentId===c.id&&(child.id===channel.id||roles.snapshot?.policy.projects?.[child.id]||roles.snapshot?.policy.threads?.[child.id]&&!threadArchived(roles.snapshot.policy.threads[child.id],roles.snapshot.serverNow))).map(child=><div className="ct-thread-sidebar" key={child.id}><ChannelRow unread={activity.unreadByChannel[child.id]||0} channel={child} active={channel.id===child.id} onOpen={()=>openChannel(child.id)} onSettings={()=>setChannelSettings(child)}/></div>)}</Fragment>)}
 <div className="ct-section-label"><button className="ct-section-toggle" aria-expanded={!hiddenSections.repos} onClick={()=>toggleSection('repos')}><ControlIcon name="chevron" size={12}/>Repositórios</button></div>
 {!hiddenSections.repos&&<div className="ct-side-dev-group">
-  <button className="ct-side-dev-item" onClick={()=>{}} title="github.com/ContalApps/ContalK"><div><ControlIcon name="git-branch" size={14}/><span>ContalApps/ContalK</span></div></button>
-  <button className="ct-side-dev-item" onClick={()=>{}} title="Código do repositório"><div><ControlIcon name="git-code" size={14}/><span>Código</span></div></button>
-  <button className="ct-side-dev-item" onClick={()=>{}} title="Pull requests abertos"><div><ControlIcon name="git-pr" size={14}/><span>Pull requests</span></div><span className="ct-side-dev-badge">2</span></button>
-  <button className="ct-side-dev-item" onClick={()=>{}} title="Issues abertas"><div><ControlIcon name="git-issue" size={14}/><span>Issues</span></div><span className="ct-side-dev-badge">4</span></button>
-  <button className="ct-side-dev-item" onClick={()=>{}} title="Actions"><div><ControlIcon name="rocket" size={14}/><span>Actions</span></div></button>
-  <button className="ct-side-dev-item" onClick={()=>{}} title="Wiki do projeto"><div><ControlIcon name="git-wiki" size={14}/><span>Wiki</span></div></button>
+  <button className="ct-side-dev-item" onClick={()=>void openFolder()} title="github.com/ContalApps/ContalK"><div><ControlIcon name="git-branch" size={14}/><span>ContalApps/ContalK</span></div></button>
+  <button className={`ct-side-dev-item ${repoExplorerOpen?'active':''}`} onClick={()=>void toggleRepoExplorer()} title="Código do repositório"><div><ControlIcon name="git-code" size={14}/><span>Código</span></div><ControlIcon name="chevron" size={12}/></button>
+  {repoExplorerOpen&&<div className="ct-side-explorer">
+    {preferences.workspaceFolder?(
+      loadingWorkspaceFiles ? <span className="ct-side-explorer-empty">Carregando arquivos…</span> :
+      workspaceFiles.length === 0 ? <span className="ct-side-explorer-empty">Nenhum arquivo encontrado</span> :
+      workspaceFiles.map(file=>(
+        <button
+          key={file.path}
+          className={`ct-side-explorer-file ${activeEditorTab===file.path?'active':''}`}
+          onClick={()=>void handleOpenWorkspaceFile(file)}
+          title={file.path}
+        >
+          <ControlIcon name={file.isDirectory?'chevron':'git-code'} size={12}/>
+          <span>{file.name}</span>
+        </button>
+      ))
+    ):(
+      <button className="ct-side-explorer-btn" onClick={()=>void openFolder()}>
+        <ControlIcon name="plus" size={12}/>
+        <span>Abrir pasta do repositório…</span>
+      </button>
+    )}
+  </div>}
+  <button className="ct-side-dev-item" onClick={()=>setActiveDevModal('prs')} title="Pull requests abertos"><div><ControlIcon name="git-pr" size={14}/><span>Pull requests</span></div><span className="ct-side-dev-badge">2</span></button>
+  <button className="ct-side-dev-item" onClick={()=>setActiveDevModal('issues')} title="Issues abertas"><div><ControlIcon name="git-issue" size={14}/><span>Issues</span></div><span className="ct-side-dev-badge">4</span></button>
+  <button className="ct-side-dev-item" onClick={()=>setActiveDevModal('actions')} title="Actions"><div><ControlIcon name="rocket" size={14}/><span>Actions</span></div></button>
+  <button className="ct-side-dev-item" onClick={()=>setActiveDevModal('wiki')} title="Wiki do projeto"><div><ControlIcon name="git-wiki" size={14}/><span>Wiki</span></div></button>
 </div>}
 
 <div className="ct-section-label"><button className="ct-section-toggle" aria-expanded={!hiddenSections.voice} onClick={()=>toggleSection('voice')}><ControlIcon name="chevron" size={12}/>Chamadas</button><button title="Criar canal de voz" aria-label="Criar canal de voz" onClick={()=>setCreateType('voice')}>+</button></div>{!hiddenSections.voice&&voiceChannels.map(c=><div className={`ct-voice-group ${voice.activeChannelId===c.id?'connected':''}`} key={c.id}><ChannelRow channel={c} active={channel.id===c.id} connected={voice.activeChannelId===c.id} count={voice.channelOccupants[c.id]?.length} onOpen={()=>void join(c.id,c.name)} onSettings={()=>setChannelSettings(c)}/><div className="ct-channel-occupants">{(voice.activeChannelId===c.id?voice.participants:voice.channelOccupants[c.id]||[]).map(p=><button className="ct-occupant" title={p.name} key={p.identity} onClick={()=>setProfile(p.name,p.identity)} onContextMenu={e=>{e.preventDefault();setContext({participant:p,x:e.clientX,y:e.clientY})}}><Avatar name={p.name} identity={p.identity} live={p.isScreenShareEnabled}/><span className="ct-occupant-name"><RoleName serverId={server.id} identity={p.identity} name={p.name}/></span><span className="ct-occupant-status">{p.isPrioritySpeaker&&<span className="ct-priority-indicator" role="img" aria-label="Prioridade de fala ativa" title="Prioridade de fala ativa"><ControlIcon name="priority"/></span>}{p.isScreenShareEnabled?<span className="ct-live-badge">LIVE</span>:<ControlIcon name="mic" slashed={!p.isAudioEnabled}/>}</span></button>)}</div></div>)}</>}
@@ -330,11 +456,20 @@ export default function EditorPage() {
   tabs={editorTabs}
   activeTabId={activeEditorTab}
   onSelectTab={setActiveEditorTab}
-  onCloseTab={id=>setEditorTabs(t=>t.filter(tab=>tab.id!==id))}
+  onCloseTab={id=>{
+    setEditorTabs(t=>t.filter(tab=>tab.id!==id))
+    if(activeEditorTab===id){
+      const remaining=editorTabs.filter(tab=>tab.id!==id)
+      if(remaining.length)setActiveEditorTab(remaining[0].id)
+    }
+  }}
   branch="feature/realtime-cursors"
   fileName={editorTabs.find(t=>t.id===activeEditorTab)?.name || 'page.tsx'}
   filePath={editorTabs.find(t=>t.id===activeEditorTab)?.path || 'projeto-atlas/apps/web/src/components/editor/page.tsx'}
-  code={sampleEditorCode}
+  code={tabCodes[activeEditorTab] ?? ''}
+  onChangeCode={handleUpdateCode}
+  onSave={handleSaveActiveCode}
+  isSaving={isSavingCode}
   cursors={devCursors}
 />
 </div></></>}</> }</main>{preferences.bottomPanelOpen&&<TerminalPanel request={terminalRequest} onClose={()=>preferences.update({bottomPanelOpen:false})}/>}</div>
@@ -354,6 +489,124 @@ export default function EditorPage() {
     {audioSettings&&<AudioSettings initialMode={audioSettings} onClose={()=>setAudioSettings(null)}/>}
     {editProfile&&<EditProfile onClose={()=>setEditProfile(false)}/>}
     {createType&&<CreateChannel type={createType} serverId={server.id} onClose={()=>setCreateType(null)}/>}
+    {activeDevModal&&(
+  <div className="ct-modal-backdrop" onClick={()=>setActiveDevModal(null)}>
+    <section className="ct-edit-dialog" role="dialog" aria-modal="true" onClick={e=>e.stopPropagation()}>
+      {activeDevModal==='prs'&&(
+        <>
+          <h2>Pull Requests — ContalApps/ContalK</h2>
+          <div style={{display:'flex',flexDirection:'column',gap:'8px',margin:'14px 0'}}>
+            <div style={{padding:'10px',background:'var(--cx-surface)',borderRadius:'6px',border:'1px solid var(--cx-border-light)'}}>
+              <strong>#182 feat(realtime): Yjs collaborative cursors</strong>
+              <div style={{fontSize:'12px',color:'var(--cx-fg-3)',marginTop:'4px'}}>Mariana abriu há 2 horas · dev/caliari · 3 arquivos alterados</div>
+            </div>
+            <div style={{padding:'10px',background:'var(--cx-surface)',borderRadius:'6px',border:'1px solid var(--cx-border-light)'}}>
+              <strong>#181 fix(audio): voice capture stream resampler</strong>
+              <div style={{fontSize:'12px',color:'var(--cx-fg-3)',marginTop:'4px'}}>Rafael abriu ontem · dev/vg · 1 arquivo alterado</div>
+            </div>
+          </div>
+        </>
+      )}
+      {activeDevModal==='issues'&&(
+        <>
+          <h2>Issues — ContalApps/ContalK</h2>
+          <div style={{display:'flex',flexDirection:'column',gap:'8px',margin:'14px 0'}}>
+            <div style={{padding:'10px',background:'var(--cx-surface)',borderRadius:'6px',border:'1px solid var(--cx-border-light)'}}>
+              <strong>#42 Suporte a provedores customizados via MCP</strong>
+              <div style={{fontSize:'12px',color:'var(--cx-fg-3)',marginTop:'4px'}}>Aberto por Lucas · Prioridade Alta · dev/caliari</div>
+            </div>
+            <div style={{padding:'10px',background:'var(--cx-surface)',borderRadius:'6px',border:'1px solid var(--cx-border-light)'}}>
+              <strong>#41 Minimap viewport slider em monitores ultra-wide</strong>
+              <div style={{fontSize:'12px',color:'var(--cx-fg-3)',marginTop:'4px'}}>Aberto por Mariana · UI/UX</div>
+            </div>
+            <div style={{padding:'10px',background:'var(--cx-surface)',borderRadius:'6px',border:'1px solid var(--cx-border-light)'}}>
+              <strong>#40 Taxa de bits dinâmica nos canais de voz</strong>
+              <div style={{fontSize:'12px',color:'var(--cx-fg-3)',marginTop:'4px'}}>Aberto por Caliari · Voice / WebRTC</div>
+            </div>
+          </div>
+        </>
+      )}
+      {activeDevModal==='actions'&&(
+        <>
+          <h2>Actions — CI/CD ConTALK</h2>
+          <div style={{display:'flex',flexDirection:'column',gap:'8px',margin:'14px 0'}}>
+            <div style={{padding:'10px',background:'var(--cx-surface)',borderRadius:'6px',border:'1px solid var(--cx-border-light)',display:'flex',justifyContent:'space-between'}}>
+              <div>
+                <strong>CI & Verificação Automática</strong>
+                <div style={{fontSize:'12px',color:'var(--cx-fg-3)'}}>Branch dev/caliari · Testes & Lint</div>
+              </div>
+              <span style={{color:'#4ade80',fontWeight:600}}>Passando ✓</span>
+            </div>
+            <div style={{padding:'10px',background:'var(--cx-surface)',borderRadius:'6px',border:'1px solid var(--cx-border-light)',display:'flex',justifyContent:'space-between'}}>
+              <div>
+                <strong>Deploy no Coolify</strong>
+                <div style={{fontSize:'12px',color:'var(--cx-fg-3)'}}>Serviço da comunidade · main</div>
+              </div>
+              <span style={{color:'#60a5fa',fontWeight:600}}>Ativo 🚀</span>
+            </div>
+          </div>
+        </>
+      )}
+      {activeDevModal==='wiki'&&(
+        <>
+          <h2>Wiki — Guia do Desenvolvedor ConTALK</h2>
+          <div style={{fontSize:'13px',lineHeight:'1.6',color:'var(--cx-fg-2)',margin:'14px 0'}}>
+            <p><strong>Arquitetura ConTALK Codex Studio:</strong></p>
+            <p>ConTALK integra chat de desenvolvedores, canais de voz WebRTC de baixa latência e um Code Studio em tempo real com suporte a múltiplos cursores (Yjs) e terminal integrado.</p>
+            <p><strong>Atalhos úteis:</strong></p>
+            <ul>
+              <li><code>Ctrl + S</code>: Salvar arquivo ativo</li>
+              <li><code>Ctrl + O</code>: Abrir pasta do projeto</li>
+              <li><code>Ctrl + `</code>: Alternar terminal inferior</li>
+              <li><code>Ctrl + K</code>: Busca unificada</li>
+            </ul>
+          </div>
+        </>
+      )}
+      {activeDevModal==='overview'&&(
+        <>
+          <h2>Visão Geral — ConTALK HQ</h2>
+          <div style={{fontSize:'13px',lineHeight:'1.6',color:'var(--cx-fg-2)',margin:'14px 0'}}>
+            <p><strong>Projeto:</strong> ConTALK Development Hub</p>
+            <p><strong>Repositório:</strong> ContalApps/ContalK</p>
+            <p><strong>Branch de Trabalho:</strong> dev/caliari</p>
+            <p><strong>Coproprietários:</strong> Caliari, VG, Mariana, Rafael, Lucas</p>
+          </div>
+        </>
+      )}
+      {activeDevModal==='tasks'&&(
+        <>
+          <h2>Tarefas Ativas</h2>
+          <div style={{display:'flex',flexDirection:'column',gap:'8px',margin:'14px 0'}}>
+            <div style={{padding:'8px 12px',background:'var(--cx-surface)',borderRadius:'6px'}}>✓ Layout do Codex com TitleBar de 44px e menus nativos</div>
+            <div style={{padding:'8px 12px',background:'var(--cx-surface)',borderRadius:'6px'}}>✓ DevCodeEditor multi-abas com cursores remotos e minimap</div>
+            <div style={{padding:'8px 12px',background:'var(--cx-surface)',borderRadius:'6px'}}>✓ Terminal integrado node-pty com abas de categoria</div>
+            <div style={{padding:'8px 12px',background:'var(--cx-surface)',borderRadius:'6px'}}>✓ Integração com sistema de arquivos real (leitura/gravação IPC)</div>
+          </div>
+        </>
+      )}
+      {activeDevModal==='docs'&&(
+        <>
+          <h2>Documentação</h2>
+          <div style={{fontSize:'13px',lineHeight:'1.6',color:'var(--cx-fg-2)',margin:'14px 0'}}>
+            <p>Consulte <code>docs/codex-shell.md</code> e <code>docs/LLM_HANDOFF.md</code> para documentação de arquitetura do ConTALK Codex Shell.</p>
+          </div>
+        </>
+      )}
+      {activeDevModal==='roadmap'&&(
+        <>
+          <h2>Roadmap</h2>
+          <div style={{display:'flex',flexDirection:'column',gap:'8px',margin:'14px 0'}}>
+            <div style={{padding:'8px 12px',background:'var(--cx-surface)',borderRadius:'6px'}}><strong>v2.5:</strong> Dev Studio integrado com IA generativa e terminal interativo</div>
+            <div style={{padding:'8px 12px',background:'var(--cx-surface)',borderRadius:'6px'}}><strong>v2.6:</strong> Colaboração P2P com CRDTs e compartilhamento de telas multi-display</div>
+            <div style={{padding:'8px 12px',background:'var(--cx-surface)',borderRadius:'6px'}}><strong>v3.0:</strong> Plugins MCP integrados para automação de CI/CD e deployment</div>
+          </div>
+        </>
+      )}
+      <footer><button type="button" onClick={()=>setActiveDevModal(null)}>Fechar</button></footer>
+    </section>
+  </div>
+)}
     {context&&<ParticipantMenu onNickname={view==='server'&&roles.snapshot?.id===server.id&&canSetNickname(roles.snapshot.policy,roles.snapshot.actor,context.participant.identity)?()=>{setNicknameFirst(true);setMemberRoles(context.participant.identity)}:undefined} onRoles={roles.snapshot&&roles.snapshot.policy.members.includes(context.participant.identity)&&(centralAllows('MANAGE_ROLES')||centralAllows('MODERATE_MEMBERS')||centralAllows('KICK_MEMBERS')||centralAllows('BAN_MEMBERS')||roles.snapshot.channels.some(channel=>channel.type==='voice'&&['MUTE_MEMBERS','DEAFEN_MEMBERS','MOVE_MEMBERS'].some(permission=>centralAllows(permission as 'MUTE_MEMBERS'|'DEAFEN_MEMBERS'|'MOVE_MEMBERS',channel.id))))?()=>{setNicknameFirst(false);setMemberRoles(context.participant.identity)}:undefined} onLogout={()=>void (async()=>{await voice.leaveChannel();await logout()})()} onSettings={()=>setSettingsOpen(true)} onEditProfile={()=>setEditProfile(true)} onAudioSettings={setAudioSettings} participant={context.participant} position={{x:context.x,y:context.y}} onClose={()=>setContext(null)} onProfile={()=>{setProfile(context.participant.name,context.participant.identity);setContext(null)}}/>}
 
   </div>
