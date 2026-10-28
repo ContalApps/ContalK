@@ -9,6 +9,7 @@ import { Avatar } from './Avatar'
 import { DensityControl } from './DensityControl'
 import { AiSettings } from './AiSettings'
 import { CoastalScene } from './CoastalScene'
+import { SocialAccountsManager } from './SocialAccountsManager'
 
 export function SettingsView({ onClose, onEditProfile, initialTab='appearance' }: { onClose: () => void; onEditProfile: () => void; initialTab?:'appearance'|'ai' }) {
   const preferences = usePreferencesStore()
@@ -165,9 +166,13 @@ export function SettingsView({ onClose, onEditProfile, initialTab='appearance' }
             </p>
           </div>
         </div>
+        <SocialAccountsManager />
       </section>
     )}
-    {tab==='account'&&<section className="ct-settings-profile"><Avatar name={user.display_name} identity={user.username} large/><h2>{user.display_name}</h2><p>@{user.username}</p><dl><div><dt>E-mail</dt><dd>{user.email}</dd></div><div><dt>Sobre mim</dt><dd>{user.bio||'Você ainda não adicionou uma descrição.'}</dd></div></dl><button className="ct-primary" onClick={onEditProfile}>Editar perfil e foto</button></section>}
+    {tab==='account'&&<>
+      <section className="ct-settings-profile"><Avatar name={user.display_name} identity={user.username} large/><h2>{user.display_name}</h2><p>@{user.username}</p><dl><div><dt>E-mail</dt><dd>{user.email}</dd></div><div><dt>Sobre mim</dt><dd>{user.bio||'Você ainda não adicionou uma descrição.'}</dd></div></dl><button className="ct-primary" onClick={onEditProfile}>Editar perfil e foto</button></section>
+      <SocialAccountsManager />
+    </>}
     {tab==='about'&&<section className="ct-settings-about"><BrandMark/><h2>ConTALK</h2><span className="ct-pill">Versão {import.meta.env.VITE_APP_VERSION}</span><p>Seu espaço para conversar, jogar e ficar perto de quem importa.</p>{window.contalkDesktop?.checkForUpdates&&<button className="ct-primary" disabled={checking} onClick={async()=>{setChecking(true);try{const state=await window.contalkDesktop!.checkForUpdates();setUpdateMessage(state.status==='available'?`A versão ${state.version} está disponível no aviso de atualização.`:state.status==='error'?state.error||'Não foi possível verificar.':state.status==='idle'?'Você está na versão mais recente.':'Verificação iniciada. Acompanhe o aviso de atualização.')}catch{setUpdateMessage('Não foi possível verificar. Tente novamente.')}finally{setChecking(false)}}}>{checking?'Verificando...':'Verificar atualizações'}</button>}<p role="status">{updateMessage}</p></section>}
     {error&&<p className="ct-settings-error" role="alert">{error}</p>}
     </div>

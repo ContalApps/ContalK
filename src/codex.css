@@ -2405,3 +2405,253 @@ select option:hover, select option:focus, select option:checked {
 .ct-repo-action-btn.ct-primary-action:hover {
   background: rgba(56, 189, 248, 0.25);
 }
+
+/* Divisor de login social */
+.ct-auth-divider {
+  display: flex;
+  align-items: center;
+  margin: 10px 0 4px;
+  color: var(--cx-fg-3, #777);
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+.ct-auth-divider::before,
+.ct-auth-divider::after {
+  content: '';
+  flex: 1;
+  border-bottom: 1px solid var(--cx-border-light, #2e2e2e);
+}
+.ct-auth-divider span {
+  padding: 0 10px;
+}
+
+/* Botões de login social */
+.ct-auth-social-buttons {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+  margin-bottom: 6px;
+}
+.ct-social-btn {
+  display: inline-flex !important;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  padding: 9px 8px !important;
+  border-radius: 6px !important;
+  background: var(--cx-surface, #181818) !important;
+  border: 1px solid var(--cx-border-light, #2e2e2e) !important;
+  color: var(--cx-fg, #ededed) !important;
+  font-size: 12px !important;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+.ct-social-btn:hover {
+  background: var(--cx-hover, #242424) !important;
+  border-color: rgba(255, 255, 255, 0.25) !important;
+  color: #fff !important;
+}
+.ct-social-btn svg {
+  flex-shrink: 0;
+}
+
+/* Gerenciador de Contas Vinculadas nas Configurações */
+.ct-social-accounts-manager {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-top: 18px;
+}
+.ct-social-cards-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.ct-social-card {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  padding: 12px 14px;
+  background: var(--cx-surface, #141414);
+  border: 1px solid var(--cx-border-light, #2a2a2a);
+  border-radius: 8px;
+  transition: all 0.15s ease;
+}
+.ct-social-card.is-connected {
+  border-color: rgba(35, 134, 54, 0.35);
+  background: rgba(35, 134, 54, 0.03);
+}
+.ct-social-card-left {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+}
+.ct-social-card-icon {
+  width: 36px;
+  height: 36px;
+  display: grid;
+  place-items: center;
+  border-radius: 8px;
+  background: var(--cx-elevated, #1c1c1c);
+  border: 1px solid var(--cx-border-light, #2e2e2e);
+  flex-shrink: 0;
+}
+.ct-social-card-details {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+.ct-social-card-title-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.ct-social-card-title-row strong {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--cx-fg, #ededed);
+}
+.ct-social-badge {
+  font-size: 10px;
+  font-weight: 500;
+  padding: 1px 6px;
+  border-radius: 4px;
+}
+.ct-social-badge.is-linked {
+  background: rgba(46, 160, 67, 0.18);
+  color: #3fb950;
+  border: 1px solid rgba(46, 160, 67, 0.3);
+}
+.ct-social-badge.is-unlinked {
+  background: rgba(255, 255, 255, 0.05);
+  color: var(--cx-fg-3, #777);
+}
+.ct-social-card-status {
+  font-size: 11px;
+  color: var(--cx-fg-3, #888);
+  margin: 0;
+  line-height: 1.35;
+}
+.ct-social-linked-info code {
+  color: #58a6ff;
+  font-size: 11px;
+  background: rgba(88, 166, 255, 0.08);
+  padding: 1px 4px;
+  border-radius: 3px;
+}
+.ct-social-card-actions {
+  flex-shrink: 0;
+}
+.ct-social-link-btn, .ct-social-unlink-btn {
+  padding: 6px 12px;
+  font-size: 12px;
+  font-weight: 500;
+}
+.ct-social-unlink-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  color: #f87171;
+  border-color: rgba(239, 68, 68, 0.25);
+  background: rgba(239, 68, 68, 0.06);
+}
+.ct-social-unlink-btn:hover {
+  background: rgba(239, 68, 68, 0.16);
+}
+.ct-social-alert {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 12px;
+  border-radius: 6px;
+  font-size: 12px;
+}
+.ct-social-alert.is-success {
+  background: rgba(46, 160, 67, 0.12);
+  border: 1px solid rgba(46, 160, 67, 0.3);
+  color: #3fb950;
+}
+.ct-social-alert.is-error {
+  background: rgba(239, 68, 68, 0.12);
+  border: 1px solid rgba(239, 68, 68, 0.3);
+  color: #f87171;
+}
+
+/* Modal de vinculação social */
+.ct-social-modal {
+  width: min(420px, 94vw);
+  background: #161616;
+  border: 1px solid #333;
+  border-radius: 12px;
+  box-shadow: 0 16px 48px rgba(0, 0, 0, 0.8);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  animation: ct-enter 0.15s ease-out;
+}
+.ct-social-modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 16px;
+  border-bottom: 1px solid #282828;
+  background: #1a1a1a;
+}
+.ct-social-modal-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  color: #ededed;
+}
+.ct-social-modal-close {
+  background: none;
+  border: 0;
+  color: #888;
+  cursor: pointer;
+  display: grid;
+  place-items: center;
+  border-radius: 4px;
+  padding: 4px;
+}
+.ct-social-modal-close:hover {
+  color: #fff;
+  background: #2a2a2a;
+}
+.ct-social-modal-body {
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.ct-social-modal-desc {
+  font-size: 12px;
+  color: #aaa;
+  margin: 0;
+  line-height: 1.4;
+}
+.ct-social-field {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  font-size: 11px;
+  color: #bbb;
+}
+.ct-social-field small {
+  color: #777;
+  font-size: 10px;
+}
+.ct-social-modal-footer {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+  padding: 12px 16px;
+  border-top: 1px solid #282828;
+  background: #141414;
+}

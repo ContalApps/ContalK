@@ -1,6 +1,18 @@
 import { create } from 'zustand'
 import { invoke, isTauri } from '@tauri-apps/api/core'
 
+export type SocialProvider = 'google' | 'instagram' | 'linkedin'
+
+export interface LinkedSocialAccount {
+  provider: SocialProvider
+  accountId: string
+  email?: string
+  username?: string
+  displayName?: string
+  avatarUrl?: string
+  linkedAt: string
+}
+
 export interface User {
   id: string
   username: string
@@ -9,6 +21,7 @@ export interface User {
   avatar?: string
   bio?: string
   created_at: string
+  linkedAccounts?: Record<string, LinkedSocialAccount>
 }
 
 interface AuthState {
@@ -25,6 +38,9 @@ interface AuthState {
   logout: () => Promise<void>
   checkSession: () => Promise<boolean>
   clearError: () => void
+  linkSocialAccount: (provider: SocialProvider, accountData: Partial<LinkedSocialAccount>) => Promise<void>
+  unlinkSocialAccount: (provider: SocialProvider) => Promise<void>
+  loginWithSocial: (provider: SocialProvider, accountData?: Partial<LinkedSocialAccount>) => Promise<boolean>
 }
 
 export const useAuthStore = create<AuthState>((set, get) => ({
@@ -305,4 +321,114 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   },
 
   clearError: () => set({ error: null }),
+
+  linkSocialAccount: async (provider: SocialProvider, accountData: Partial<LinkedSocialAccount>) => {
+    const current = get().user
+    if (!current) throw new Error('Entre na sua conta para vincular redes sociais.')
+    const electron = (window as any).contalkDesktop
+    if (electron?.socialLink) {
+      const updatedUser = await electron.socialLink(provider, accountData)
+      localStorage.setItem('contalspeak_current_user', JSON.stringify(updatedUser))
+      set({ user: updatedUser })
+      return
+    }
+    const linked = current.linkedAccounts || {}
+    const updatedUser: User = {
+      ...current,
+      linkedAccounts: {
+        ...linked,
+        [provider]: {
+          provider,
+          accountId: accountData.accountId || accountData.email || accountData.username || `id_${Date.now()}`,
+          email: accountData.email,
+          username: accountData.username,
+          displayName: accountData.displayName || accountData.username || accountData.email,
+          avatarUrl: accountData.avatarUrl,
+          linkedAt: new Date().toISOString()
+        }
+      }
+    }
+    localStorage.setItem('contalspeak_current_user', JSON.stringify(updatedUser))
+    set({ user: updatedUser })
+  },
+
+  unlinkSocialAccount: async (provider: SocialProvider) => {
+    const current = get().user
+    if (!current) throw new Error('Entre na sua conta.')
+    const electron = (window as any).contalkDesktop
+    if (electron?.socialUnlink) {
+      const updatedUser = await electron.socialUnlink(provider)
+      localStorage.setItem('contalspeak_current_user', JSON.stringify(updatedUser))
+      set({ user: updatedUser })
+      return
+    }
+    if (current.linkedAccounts && current.linkedAccounts[provider]) {
+      const copy = { ...current.linkedAccounts }
+      delete copy[provider]
+      const updatedUser: User = { ...current, linkedAccounts: copy }
+      localStorage.setItem('contalspeak_current_user', JSON.stringify(updatedUser))
+      set({ user: updatedUser })
+    }
+  },
+
+  loginWithSocial: async (provider: SocialProvider, accountData?: Partial<LinkedSocialAccount>) => {
+    set({ isLoading: true, error: null })
+    const electron = (window as any).contalkDesktop
+    if (electron?.socialLogin) {
+      try {
+        const res = await electron.socialLogin(provider, accountData || {})
+        if (res.type === 'Success') {
+          localStorage.setItem('contalspeak_token', res.data.token)
+          localStorage.setItem('contalspeak_current_user', JSON.stringify(res.data.user))
+          set({
+            user: res.data.user,
+            token: res.data.token,
+            isAuthenticated: true,
+            isLoading: false
+          })
+          return true
+        } else {
+          set({ error: res.data || 'Falha ao autenticar com rede social', isLoading: false })
+          return false
+        }
+      } catch (err: any) {
+        set({ error: err.message || 'Falha ao autenticar com rede social', isLoading: false })
+        return false
+      }
+    }
+    try {
+      const email = accountData?.email || `user@${provider}.com`
+      const username = (accountData?.username || accountData?.email?.split('@')[0] || `user_${provider}`).toLowerCase().replace(/[^a-z0-9_-]/g, '')
+      const user: User = {
+        id: `social-${provider}-${Date.now()}`,
+        username,
+        email,
+        display_name: accountData?.displayName || username,
+        created_at: new Date().toISOString(),
+        linkedAccounts: {
+          [provider]: {
+            provider,
+            accountId: accountData?.accountId || email,
+            email: accountData?.email,
+            username: accountData?.username,
+            displayName: accountData?.displayName || username,
+            linkedAt: new Date().toISOString()
+          }
+        }
+      }
+      const token = `social-token-${provider}-${Date.now()}`
+      localStorage.setItem('contalspeak_token', token)
+      localStorage.setItem('contalspeak_current_user', JSON.stringify(user))
+      set({
+        user,
+        token,
+        isAuthenticated: true,
+        isLoading: false
+      })
+      return true
+    } catch (err: any) {
+      set({ error: err.message || 'Falha no login social', isLoading: false })
+      return false
+    }
+  },
 }))

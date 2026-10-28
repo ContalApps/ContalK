@@ -110,6 +110,9 @@ export interface DesktopBridge {
   setTitleBarAppearance: (theme: 'classic' | 'vice-city', scale: number) => void
   isElectron: true
   getDesktopSources: () => Promise<DesktopSource[]>
+  socialLink: (provider: 'google' | 'instagram' | 'linkedin', accountData: Record<string, unknown>) => Promise<import('../store/useAuthStore').User>
+  socialUnlink: (provider: 'google' | 'instagram' | 'linkedin') => Promise<import('../store/useAuthStore').User>
+  socialLogin: (provider: 'google' | 'instagram' | 'linkedin', accountData?: Record<string, unknown>) => Promise<{ type: 'Success'; data: { token: string; user: import('../store/useAuthStore').User } } | { type: 'Error'; data: string }>
   login: (params: { identifier: string; password: string }) => Promise<any>
   register: (params: { username: string; email: string; password: string }) => Promise<any>
   getUpdateState: () => Promise<UpdateState>
