@@ -49,36 +49,9 @@ export function VoiceInputSettings() {
 
       {!forced && preferences.voiceInputMode === 'voice-activity' && (
         <div style={{ marginTop: 8, display: 'flex', flexDirection: 'column', gap: 6 }}>
-          <label className="ct-voice-priority-check">
-            <span>
-              <input
-                type="checkbox"
-                aria-label="Determinar sensibilidade de entrada automaticamente"
-                checked={preferences.voiceAutoSensitivity}
-                onChange={(e) => update({ voiceAutoSensitivity: e.target.checked })}
-              />
-              Sensibilidade automática (Noise Gate inteligente)
-            </span>
-            <small>
-              Filtra vídeos, músicas e som de outros aplicativos no PC para que os outros ouçam apenas a sua voz.
-            </small>
-          </label>
-
-          {!preferences.voiceAutoSensitivity && (
-            <label style={{ display: 'flex', flexDirection: 'column', gap: 4, marginTop: 4 }}>
-              <span style={{ fontSize: '0.82em', color: '#aaa' }}>
-                Limiar de ativação de voz: <strong>{preferences.voiceSensitivity}%</strong>
-              </span>
-              <input
-                type="range"
-                min="5"
-                max="70"
-                value={preferences.voiceSensitivity}
-                onChange={(e) => update({ voiceSensitivity: Number(e.target.value) })}
-                style={{ width: '100%' }}
-              />
-            </label>
-          )}
+          <p className="ct-muted" style={{ margin: '4px 0 0', fontSize: '0.85em', lineHeight: '1.45' }}>
+            A transmissão de voz opera em tempo real com baixa latência pelo WebRTC, com cancelamento de eco acústico (AEC), supressão de ruído ambiente, filtro de teclado e DTX nativos.
+          </p>
         </div>
       )}
 

@@ -155,7 +155,7 @@ export function ConTALKLayout() {
 `,
     package: `{
   "name": "contalk",
-  "version": "0.1.33",
+  "version": "0.1.34",
   "description": "ConTALK - Plataforma de Comunicação e Desenvolvimento Colaborativo com IA e WebRTC",
   "main": "dist-electron/main.js",
   "scripts": {
@@ -469,7 +469,7 @@ export function ConTALKLayout() {
     try {
       const diag = {
         app: 'ConTALK',
-        version: '0.1.33',
+        version: '0.1.34',
         timestamp: new Date().toISOString(),
         view,
         server: { id: server.id, name: server.name },

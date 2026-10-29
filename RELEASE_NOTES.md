@@ -1,3 +1,14 @@
+# ConTALK 0.1.34
+
+Restauração da Transmissão de Áudio Nativa WebRTC de Baixa Latência (Remoção do Gate de Software, Eliminação de Delays e Cortes de Voz).
+
+- **Eliminação de Atraso e Delay no Áudio:** Remoção do portão de ruído artificial em JavaScript que manipulava `mediaStreamTrack.enabled`, eliminando a inflação e distorção do jitter buffer (NetEQ) no receptor e restabelecendo a latência ultra-baixa nativa do WebRTC.
+- **Fim dos Cortes e Truncamentos de Voz:** O fluxo de áudio do microfone agora flui sem interrupções por software. O Opus DTX nativo (Discontinuous Transmission) e o cancelamento de eco acústico (AEC) gerenciam a detecção de silêncio diretamente no módulo de processamento de áudio em C++, sem engolir sílabas ou palavras iniciais e finais.
+- **Áudio Cristalino e Estável:** Reativação dos filtros nativos de alta fidelidade do Chromium (filtro passa-alta para ruídos graves, supressão de ruído e cancelamento de digitação de teclado).
+- **Latência Interativa no Web Audio:** Contexto de áudio configurado com `latencyHint: 'interactive'` para reprodução imediata do sinal recebido.
+
+Validação: tipos verificados sem erros (`npm run typecheck`), 325 testes unitários e de integração aprovados (`npm test`) e build de produção Vite e Electron concluídos com sucesso.
+
 # ConTALK 0.1.33
 
 Correção Crítica de Transmissão de Áudio (Microfones e Voice Gate), Compartilhamento Global de Tela e Sincronização em Rede do Co-browsing.
