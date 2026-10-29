@@ -37,10 +37,12 @@ export function getCollaboratorColor(identity: string): string {
 
 interface DevCollaborationState {
   remoteCursors: Record<string, LiveCursor>
+  getRemoteCursorsForFile: (fileId: string) => LiveCursor[]
   activeFileId: string
   lastLocalBroadcast: number
   broadcastCursor: (fileId: string, filePath: string, line: number, ch: number) => void
   broadcastCode: (fileId: string, code: string) => void
+  broadcastNote: (fileId: string, content: string) => void
   handleRemoteCursor: (cursor: LiveCursor) => void
   handleRemoteCode: (fileId: string, code: string, timestamp: number, authorId: string) => void
   setActiveFileId: (fileId: string) => void
@@ -89,6 +91,7 @@ export const useDevCollaborationStore = create<DevCollaborationState>((set, get)
 
   return {
     remoteCursors: {},
+    getRemoteCursorsForFile: (fileId: string) => Object.values(get().remoteCursors).filter(c => c.fileId === fileId),
     activeFileId: '',
     lastLocalBroadcast: 0,
 
@@ -164,6 +167,7 @@ export const useDevCollaborationStore = create<DevCollaborationState>((set, get)
       void useCommunityStore.getState().broadcastDevCursor(fileId, filePath, line, ch)
     },
 
+    broadcastNote: (fileId: string, content: string) => get().broadcastCode(fileId, content),
     broadcastCode: (fileId: string, code: string) => {
       const user = useAuthStore.getState().user
       if (!user) return

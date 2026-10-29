@@ -2,7 +2,6 @@ import { useState } from 'react'
 import { useVoiceStore } from '../store/useVoiceStore'
 import { useAuthStore } from '../store/useAuthStore'
 import { useCommunityStore } from '../store/useCommunityStore'
-import { useSharedBrowserStore } from '../store/useSharedBrowserStore'
 import { useCallClock } from './RightPanel'
 import { Avatar } from './Avatar'
 import { ControlIcon } from './ControlIcon'
@@ -17,14 +16,11 @@ export function UserDock({
   const voice = useVoiceStore()
   const user = useAuthStore(s => s.user)
   const online = useCommunityStore(s => s.status === 'online')
-  const sharedBrowser = useSharedBrowserStore()
   const clock = useCallClock()
   const [error, setError] = useState('')
 
   const activeId = voice.activeChannelId
   const connected = Boolean(activeId && ['connected', 'connecting', 'reconnecting'].includes(voice.connectionStatus))
-  const isRoomSharing = Boolean(activeId && sharedBrowser.activeSession && sharedBrowser.activeSession.roomId === activeId)
-  const isSharingWeb = sharedBrowser.isSharing || isRoomSharing
 
   const micBlocked = voice.isServerMuted || voice.isServerDeafened || voice.currentRoom?.localParticipant.canPublishMicrophone === false
   const outputBlocked = voice.isServerDeafened
@@ -86,35 +82,7 @@ export function UserDock({
             >
               <ControlIcon name="screen" />
             </button>
-            <button
-              aria-label={
-                sharedBrowser.isSharing
-                  ? 'Parar navegador compartilhado'
-                  : isRoomSharing
-                  ? `Navegador compartilhado por ${sharedBrowser.activeSession?.hostName || 'outro participante'}`
-                  : 'Compartilhar navegador web'
-              }
-              title={
-                sharedBrowser.isSharing
-                  ? 'Parar navegador compartilhado'
-                  : isRoomSharing
-                  ? `Navegador compartilhado por ${sharedBrowser.activeSession?.hostName || 'outro participante'} (clique para abrir)`
-                  : 'Compartilhar navegador web em tempo real'
-              }
-              aria-pressed={isSharingWeb}
-              disabled={voice.connectionStatus !== 'connected'}
-              onClick={() => {
-                if (sharedBrowser.isSharing) {
-                  void sharedBrowser.stopSharing()
-                } else if (isRoomSharing && activeId) {
-                  onOpenChannel?.(activeId)
-                } else if (activeId) {
-                  void sharedBrowser.startSharing(activeId)
-                }
-              }}
-            >
-              <ControlIcon name="browser" />
-            </button>
+            
             <button
               className="ct-rp-leave"
               aria-label="Desconectar da chamada"

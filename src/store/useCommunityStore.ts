@@ -20,7 +20,7 @@ function safeMember(identity: string, name: string, metadata?: string): Member {
     avatar: typeof profile.avatar === 'string' && profile.avatar.length < 50000 && /^data:image\/jpeg;base64,[A-Za-z0-9+/=]+$/.test(profile.avatar) ? profile.avatar : undefined,
     bio: typeof profile.bio === 'string' ? profile.bio.slice(0,240) : '', online: true }
 }
-export const useCommunityStore = create<{ members: Member[]; status: string; profileError: string | null; connect: (user: User) => Promise<void>; disconnect: () => void; updateProfile: (user: User) => Promise<void>; broadcastChannels: () => Promise<void>; renameChannel:(serverId:string,channelId:string,name:string)=>Promise<void>; deleteChannel: (serverId: string, channelId: string) => Promise<void>; sendMessage: (channelId: string, content: string, destination?: string, attachment?: Attachment, options?: MessageOptions) => Promise<void>; changeMessage:(channelId:string,id:string,content?:string)=>Promise<void>; broadcastDevCursor: (fileId: string, filePath: string, line: number, ch: number) => Promise<void>; broadcastDevCode: (fileId: string, code: string) => Promise<void>; broadcastSharedBrowser: (message: unknown) => Promise<void> }>((set,get) => ({
+export const useCommunityStore = create<{ members: Member[]; status: string; profileError: string | null; connect: (user: User) => Promise<void>; disconnect: () => void; updateProfile: (user: User) => Promise<void>; broadcastChannels: () => Promise<void>; renameChannel:(serverId:string,channelId:string,name:string)=>Promise<void>; deleteChannel: (serverId: string, channelId: string) => Promise<void>; sendMessage: (channelId: string, content: string, destination?: string, attachment?: Attachment, options?: MessageOptions) => Promise<void>; changeMessage:(channelId:string,id:string,content?:string)=>Promise<void>; broadcastDevCursor: (fileId: string, filePath: string, line: number, ch: number) => Promise<void>; broadcastDevCode: (fileId: string, code: string) => Promise<void> }>((set,get) => ({
   members: cachedMembers(), status: 'offline', profileError: null,
   disconnect: () => { generation++; clearInterval(friendRetry); useFriendStore.getState().activate(null); const previous = room; room = null; void previous?.disconnect(); set({ members: get().members.map(m=>({...m,online:false})), status:'offline' }) },
   connect: async user => {
@@ -45,19 +45,6 @@ export const useCommunityStore = create<{ members: Member[]; status: string; pro
     const receive = (payload: Uint8Array, _participant: unknown, _kind: unknown, topic?: string) => {
       if (room !== connection) return
       if(centralEnabled()&&['community-channels','community-channel-deletions-v1'].includes(topic||''))return
-      if(topic === 'contalk-shared-browser-v1') {
-        const participant = _participant as { identity?: string; name?: string }
-        if (payload.byteLength > 1450000) return
-        try {
-          const data = JSON.parse(new TextDecoder().decode(payload))
-          const identity = participant?.identity || data?.session?.hostIdentity || data?.fromId || ''
-          if (!identity) return
-          void import('./useSharedBrowserStore').then(({ useSharedBrowserStore }) => {
-            void useSharedBrowserStore.getState().handleRemoteMessage(data, identity)
-          })
-        } catch { /* Invalid shared browser packet */ }
-        return
-      }
       if(topic === 'contalk-cursor-v1') {
         const participant = _participant as {identity?: string; name?: string}
         if (!participant?.identity || payload.byteLength > 2000) return
@@ -267,14 +254,6 @@ export const useCommunityStore = create<{ members: Member[]; status: string; pro
     try {
       const data = JSON.stringify({ fileId, code, timestamp: Date.now() })
       await room.localParticipant.publishData(encoder.encode(data), { reliable: true, topic: 'contalk-code-sync-v1' })
-    } catch { /* ignore network blips */ }
-  },
-  broadcastSharedBrowser: async (message: unknown) => {
-    if (!room || room.state !== 'connected') return
-    try {
-      const data = JSON.stringify(message)
-      if (data.length > 1450000) return
-      await room.localParticipant.publishData(encoder.encode(data), { reliable: false, topic: 'contalk-shared-browser-v1' })
     } catch { /* ignore network blips */ }
   },
 }))

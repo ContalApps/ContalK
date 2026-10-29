@@ -5,22 +5,17 @@ import { DevProjectTabs, type DevProjectTabId } from './DevProjectTabs'
 
 export function DevKanbanModal({
   onClose,
-  onOpenAtlassian,
-  onSwitchTab
+    onSwitchTab
 }: {
   onClose: () => void
-  onOpenAtlassian: () => void
-  onSwitchTab?: (tab: DevProjectTabId) => void
+    onSwitchTab?: (tab: DevProjectTabId) => void
 }) {
   const {
     kanbanCards,
     addKanbanCard,
     moveKanbanCard,
     reorderKanbanCard,
-    deleteKanbanCard,
-    atlassian,
-    syncAtlassianData,
-    atlassianSyncing
+    deleteKanbanCard
   } = useDevStore()
 
   const [filterQuery, setFilterQuery] = useState('')
@@ -95,27 +90,7 @@ export function DevKanbanModal({
             <p>Arraste os cards entre as colunas para atualizar status ou reordenar prioridades.</p>
           </div>
           <div className="ct-dev-header-actions">
-            {atlassian?.connected ? (
-              <button
-                type="button"
-                className="ct-atlassian-sync-btn"
-                onClick={() => void syncAtlassianData()}
-                disabled={atlassianSyncing}
-                title="Sincronizar com Jira"
-              >
-                <ControlIcon name="refresh" size={13}/>
-                <span>{atlassianSyncing ? 'Sincronizando Jira…' : 'Jira Conectado ✓'}</span>
-              </button>
-            ) : (
-              <button
-                type="button"
-                className="ct-atlassian-connect-btn"
-                onClick={onOpenAtlassian}
-                title="Conectar com Jira & Confluence"
-              >
-                <span>Conectar Atlassian (Jira)</span>
-              </button>
-            )}
+            
             <button type="button" className="ct-primary" onClick={() => setIsAdding(true)}>
               <ControlIcon name="plus" size={14}/>
               <span>Novo Card</span>
@@ -299,11 +274,7 @@ export function DevKanbanModal({
                             >
                               {priorityLabels[card.priority].text}
                             </span>
-                            {card.jiraKey && (
-                              <span className="ct-jira-badge" title="Importado do Jira">
-                                {card.jiraKey}
-                              </span>
-                            )}
+                            
                           </div>
                           <button
                             type="button"

@@ -32,7 +32,7 @@ export type CommunityAction =
   | {type:'ai-channel-model';channelId:string;model:string|null;endpoint?:string|null}
   | {type:'ai-channel-settings';channelId:string;enabled:boolean;endpoints?:import('../store/useAppStore').Channel['aiEndpoints']}
   | {type:'project-create';id:string;parentId:string;name:string;model?:string;endpoint?:string|null}
-  | {type:'project-member';id:string;member:string;access:import('./ai').ProjectAccess|null}
+  | {type:'project-member';id:string;member:string;access:('reader'|'writer'|'manager')|null}
   | {type:'project-model';id:string;model:string|null;endpoint?:string|null}
   | {type:'project-rename';id:string;name:string}
   | {type:'project-delete';id:string}

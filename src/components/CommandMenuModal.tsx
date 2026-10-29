@@ -6,7 +6,7 @@ import { usePreferencesStore } from '../store/usePreferencesStore'
 export interface CommandItem {
   id: string
   title: string
-  category: 'Ações Rápidas' | 'Canais' | 'Desenvolvimento e IA' | 'Ajuda'
+  category: 'Ações Rápidas' | 'Canais' | 'Colaboração e Projetos' | 'Ajuda'
   shortcut?: string
   icon?: ControlIconName
   action: () => void
@@ -15,8 +15,7 @@ export interface CommandItem {
 interface CommandMenuModalProps {
   onClose: () => void
   onToggleDevEditor?: () => void
-  onToggleReviewPanel?: () => void
-  onOpenSettings?: (tab?: 'ai' | 'appearance') => void
+  onOpenSettings?: (tab?: string) => void
   onOpenHelp?: () => void
   onOpenFolder?: () => void
   onOpenDevModal?: (modalId: string) => void
@@ -25,7 +24,6 @@ interface CommandMenuModalProps {
 export function CommandMenuModal({
   onClose,
   onToggleDevEditor,
-  onToggleReviewPanel,
   onOpenSettings,
   onOpenHelp,
   onOpenFolder,
@@ -40,7 +38,6 @@ export function CommandMenuModal({
   const preferences = usePreferencesStore()
   const currentServer = servers.find(s => s.id === activeServerId) || servers[0]
 
-  // Lista consolidada de comandos baseada na árvore oficial do Codex (pt-BR)
   const allCommands: CommandItem[] = [
     // Ações Rápidas
     {
@@ -99,64 +96,22 @@ export function CommandMenuModal({
       }
     },
 
-    // Desenvolvimento e IA
+    // Colaboração e Projetos
     {
       id: 'cmd-toggle-editor',
-      title: 'Alternar editor de código em abas',
-      category: 'Desenvolvimento e IA',
+      title: 'Alternar Bloco de Notas Colaborativo',
+      category: 'Colaboração e Projetos',
       shortcut: 'Ctrl+Alt+E',
-      icon: 'git-code',
+      icon: 'docs',
       action: () => {
         onToggleDevEditor?.()
         onClose()
       }
     },
     {
-      id: 'cmd-toggle-review',
-      title: 'Exibir/ocultar painel de alterações (Review)',
-      category: 'Desenvolvimento e IA',
-      shortcut: 'Ctrl+Alt+R',
-      icon: 'git-pr',
-      action: () => {
-        onToggleReviewPanel?.()
-        onClose()
-      }
-    },
-    {
-      id: 'cmd-settings-ai',
-      title: 'Configurar modelos e chaves de IA…',
-      category: 'Desenvolvimento e IA',
-      icon: 'ai',
-      action: () => {
-        onOpenSettings?.('ai')
-        onClose()
-      }
-    },
-    {
-      id: 'cmd-browser',
-      title: 'Abrir Navegador Web Interno…',
-      category: 'Desenvolvimento e IA',
-      shortcut: 'Ctrl+Shift+B',
-      icon: 'globe',
-      action: () => {
-        onOpenDevModal?.('browser')
-        onClose()
-      }
-    },
-    {
-      id: 'cmd-mcp',
-      title: 'Servidores MCP (Model Context Protocol)…',
-      category: 'Desenvolvimento e IA',
-      icon: 'ai',
-      action: () => {
-        onOpenDevModal?.('mcp')
-        onClose()
-      }
-    },
-    {
       id: 'cmd-kanban',
-      title: 'Guia de Projetos (Kanban)…',
-      category: 'Desenvolvimento e IA',
+      title: 'Quadro Kanban de Projetos…',
+      category: 'Colaboração e Projetos',
       icon: 'overview',
       action: () => {
         onOpenDevModal?.('overview')
@@ -165,8 +120,8 @@ export function CommandMenuModal({
     },
     {
       id: 'cmd-tasks',
-      title: 'Lista de Tarefas do Desenvolvedor…',
-      category: 'Desenvolvimento e IA',
+      title: 'Lista de Tarefas…',
+      category: 'Colaboração e Projetos',
       icon: 'tasks',
       action: () => {
         onOpenDevModal?.('tasks')
@@ -176,7 +131,7 @@ export function CommandMenuModal({
     {
       id: 'cmd-docs',
       title: 'Central de Documentação…',
-      category: 'Desenvolvimento e IA',
+      category: 'Colaboração e Projetos',
       icon: 'docs',
       action: () => {
         onOpenDevModal?.('docs')
@@ -214,106 +169,110 @@ export function CommandMenuModal({
     }
   }
 
-  // Filtragem dos comandos pela query do usuário
-  const filtered = allCommands.filter(c =>
-    c.title.toLowerCase().includes(query.toLowerCase()) ||
-    c.category.toLowerCase().includes(query.toLowerCase()) ||
-    (c.shortcut && c.shortcut.toLowerCase().includes(query.toLowerCase()))
-  )
-
-  useEffect(() => {
-    inputRef.current?.focus()
-  }, [])
+  // Filtragem
+  const filtered = query.trim()
+    ? allCommands.filter(c =>
+        c.title.toLowerCase().includes(query.toLowerCase()) ||
+        c.category.toLowerCase().includes(query.toLowerCase())
+      )
+    : allCommands
 
   useEffect(() => {
     setSelectedIndex(0)
   }, [query])
 
-  const handleKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === 'Escape') {
-      e.preventDefault()
-      onClose()
-      return
-    }
+  useEffect(() => {
+    inputRef.current?.focus()
+  }, [])
 
+  const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === 'ArrowDown') {
       e.preventDefault()
-      setSelectedIndex(prev => (filtered.length ? (prev + 1) % filtered.length : 0))
-      return
-    }
-
-    if (e.key === 'ArrowUp') {
+      setSelectedIndex(prev => (prev + 1) % (filtered.length || 1))
+    } else if (e.key === 'ArrowUp') {
       e.preventDefault()
-      setSelectedIndex(prev => (filtered.length ? (prev - 1 + filtered.length) % filtered.length : 0))
-      return
-    }
-
-    if (e.key === 'Enter') {
+      setSelectedIndex(prev => (prev - 1 + (filtered.length || 1)) % (filtered.length || 1))
+    } else if (e.key === 'Enter') {
       e.preventDefault()
-      const selected = filtered[selectedIndex]
-      if (selected) {
-        selected.action()
+      if (filtered[selectedIndex]) {
+        filtered[selectedIndex].action()
       }
+    } else if (e.key === 'Escape') {
+      e.preventDefault()
+      onClose()
     }
   }
 
+  // Scroll automático do item ativo
+  useEffect(() => {
+    const listEl = listRef.current
+    if (!listEl) return
+    const activeItem = listEl.querySelector<HTMLElement>(`[data-cmd-index="${selectedIndex}"]`)
+    if (activeItem) {
+      activeItem.scrollIntoView({ block: 'nearest' })
+    }
+  }, [selectedIndex])
+
+  // Agrupa por categoria
+  const categories: CommandItem['category'][] = ['Ações Rápidas', 'Canais', 'Colaboração e Projetos', 'Ajuda']
+
   return (
-    <div
-      className="ct-command-palette-backdrop"
-      onClick={e => {
-        if (e.target === e.currentTarget) onClose()
-      }}
-      role="dialog"
-      aria-modal="true"
-      aria-label="Menu de Comandos do ConTALK"
-    >
-      <div className="ct-command-palette-dialog" onKeyDown={handleKeyDown}>
-        <div className="ct-command-input-row">
+    <div className="ct-command-modal-backdrop" onClick={onClose}>
+      <div
+        className="ct-command-dialog"
+        role="dialog"
+        aria-modal="true"
+        aria-label="Menu de Comandos"
+        onClick={e => e.stopPropagation()}
+        onKeyDown={handleKeyDown}
+      >
+        <div className="ct-command-search-wrap">
           <ControlIcon name="search" size={16} />
           <input
             ref={inputRef}
             type="text"
-            className="ct-command-search-input"
-            placeholder="Digitar comando ou pesquisar chats… (Esc para fechar)"
+            className="ct-command-input"
+            placeholder="Digite um comando ou nome de canal…"
             value={query}
             onChange={e => setQuery(e.target.value)}
           />
-          {query && (
-            <button
-              type="button"
-              className="ct-command-clear-btn"
-              onClick={() => setQuery('')}
-              aria-label="Limpar pesquisa"
-            >
-              <ControlIcon name="close" size={13} />
-            </button>
-          )}
-          <kbd className="ct-command-kbd">Esc</kbd>
+          <kbd className="ct-command-kbd">ESC</kbd>
         </div>
 
         <div className="ct-command-list" ref={listRef}>
           {filtered.length === 0 ? (
-            <div className="ct-command-empty">Nenhum comando encontrado para "{query}".</div>
+            <div className="ct-command-empty">Nenhum comando encontrado para "{query}"</div>
           ) : (
-            filtered.map((item, idx) => {
-              const isSelected = idx === selectedIndex
+            categories.map(cat => {
+              const catItems = filtered.filter(item => item.category === cat)
+              if (catItems.length === 0) return null
+
               return (
-                <div
-                  key={item.id}
-                  className={`ct-command-item ${isSelected ? 'selected' : ''}`}
-                  onClick={() => item.action()}
-                  onMouseEnter={() => setSelectedIndex(idx)}
-                >
-                  <div className="ct-command-item-left">
-                    <span className="ct-command-item-icon">
-                      <ControlIcon name={item.icon || 'chat'} size={14} />
-                    </span>
-                    <span className="ct-command-item-title">{item.title}</span>
-                    <span className="ct-command-item-badge">{item.category}</span>
-                  </div>
-                  {item.shortcut && (
-                    <kbd className="ct-command-item-shortcut">{item.shortcut}</kbd>
-                  )}
+                <div key={cat} className="ct-command-group">
+                  <div className="ct-command-group-title">{cat}</div>
+                  {catItems.map(item => {
+                    const globalIdx = filtered.indexOf(item)
+                    const isSelected = globalIdx === selectedIndex
+
+                    return (
+                      <button
+                        key={item.id}
+                        type="button"
+                        data-cmd-index={globalIdx}
+                        className={`ct-command-item ${isSelected ? 'is-selected' : ''}`}
+                        onClick={() => item.action()}
+                        onMouseEnter={() => setSelectedIndex(globalIdx)}
+                      >
+                        <div className="ct-command-item-left">
+                          {item.icon && <ControlIcon name={item.icon} size={15} />}
+                          <span className="ct-command-item-title">{item.title}</span>
+                        </div>
+                        {item.shortcut && (
+                          <kbd className="ct-command-item-shortcut">{item.shortcut}</kbd>
+                        )}
+                      </button>
+                    )
+                  })}
                 </div>
               )
             })
@@ -321,9 +280,15 @@ export function CommandMenuModal({
         </div>
 
         <div className="ct-command-footer">
-          <span>Use <strong>↑</strong> <strong>↓</strong> para navegar</span>
-          <span><strong>Enter</strong> para selecionar</span>
-          <span><strong>Esc</strong> para fechar</span>
+          <span>
+            <kbd>↑</kbd> <kbd>↓</kbd> navegar
+          </span>
+          <span>
+            <kbd>↵</kbd> selecionar
+          </span>
+          <span>
+            <kbd>ESC</kbd> fechar
+          </span>
         </div>
       </div>
     </div>

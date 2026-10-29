@@ -4,8 +4,6 @@ import { WebhookManager } from './WebhookManager'
 import { VoiceStatusSettings } from './VoiceStatusSettings'
 import { can } from '../roles/permissions'
 import { ThreadSettings } from './ThreadSettings'
-import { AiChannelSettings } from './AiChannelSettings'
-import { AiProjectSettings } from './AiProjectSettings'
 import { SlowmodeSettings } from './SlowmodeSettings'
 import { useEffect, useRef, useState } from 'react'
 import { useAppStore, type Channel } from '../store/useAppStore'
@@ -13,21 +11,17 @@ import { useCommunityStore } from '../store/useCommunityStore'
 import { DeleteChannel } from './DeleteChannel'
 import { ChannelPermissions } from './ChannelPermissions'
 import { useRoleStore } from '../store/useRoleStore'
-import { useDevStore } from '../store/useDevStore'
 
 export function ChannelSettings({ channel, onClose }: { channel: Channel; onClose: () => void }) {
   const roles = useRoleStore()
-  const devStore = useDevStore()
   const current = useAppStore(s => s.servers.find(server => server.id === channel.serverId)?.channels.find(c => c.id === channel.id))
   const [name, setName] = useState(current?.name || channel.name)
-  const [tab, setTab] = useState<'general' | 'ai' | 'github' | 'permissions'>('general')
+  const [tab, setTab] = useState<'general' | 'permissions'>('general')
   const [confirm, setConfirm] = useState(false)
   const [busy, setBusy] = useState(false)
   const [status, setStatus] = useState('')
   const panel = useRef<HTMLElement>(null)
   const previous = useRef(document.activeElement as HTMLElement | null)
-
-  const boundRepo = devStore.getChannelRepo(channel.id)
 
   useEffect(() => () => previous.current?.focus(), [])
   useEffect(() => {
@@ -37,7 +31,6 @@ export function ChannelSettings({ channel, onClose }: { channel: Channel; onClos
     if (!current) onClose()
   }, [current, onClose])
 
-  if (channel.project) return <AiProjectSettings id={channel.id} onClose={onClose} />
   if (channel.parentId) return <ThreadSettings channel={current || channel} onClose={onClose} />
 
   const manage =
@@ -103,16 +96,6 @@ export function ChannelSettings({ channel, onClose }: { channel: Channel; onClos
           <button aria-current={tab === 'general' ? 'page' : undefined} onClick={() => setTab('general')}>
             Visão geral
           </button>
-          {channel.type === 'text' && (
-            <button aria-current={tab === 'github' ? 'page' : undefined} onClick={() => setTab('github')}>
-              GitHub & Repositório
-            </button>
-          )}
-          {channel.type === 'text' && (
-            <button aria-current={tab === 'ai' ? 'page' : undefined} onClick={() => setTab('ai')}>
-              Inteligência artificial
-            </button>
-          )}
           <button aria-current={tab === 'permissions' ? 'page' : undefined} onClick={() => setTab('permissions')}>
             Permissões
           </button>
@@ -166,49 +149,6 @@ export function ChannelSettings({ channel, onClose }: { channel: Channel; onClos
             {channel.type === 'text' && (
               <>
                 <SlowmodeSettings channelId={channel.id} />
-
-                {/* GitHub Repository Overview Card */}
-                <div className="ct-ai-overview-card">
-                  <div className="ct-ai-overview-info">
-                    <div className="ct-ai-overview-title">
-                      <ControlIcon name="git" size={15} />
-                      <strong>Repositório GitHub</strong>
-                      <span className={`ct-ai-status-pill ${boundRepo ? 'is-active' : ''}`}>
-                        {boundRepo ? boundRepo.name : 'Nenhum'}
-                      </span>
-                    </div>
-                    <p>{boundRepo ? `Conectado a ${boundRepo.fullName}. O chat e a IA trabalham neste projeto.` : 'Conecte um repositório para o chat e a IA deste canal.'}</p>
-                  </div>
-                  <button
-                    type="button"
-                    className="ct-secondary ct-ai-overview-btn"
-                    onClick={() => setTab('github')}
-                  >
-                    {boundRepo ? 'Gerenciar Repositório →' : 'Conectar Repositório →'}
-                  </button>
-                </div>
-
-                {/* AI Overview Card linking to the dedicated tab */}
-                <div className="ct-ai-overview-card">
-                  <div className="ct-ai-overview-info">
-                    <div className="ct-ai-overview-title">
-                      <ControlIcon name="ai" size={15} />
-                      <strong>Assistência por IA</strong>
-                      <span className={`ct-ai-status-pill ${channel.aiEnabled ? 'is-active' : ''}`}>
-                        {channel.aiEnabled ? 'Habilitada' : 'Desativada'}
-                      </span>
-                    </div>
-                    <p>Modelos de linguagem, provedores de API e tokens para o chat.</p>
-                  </div>
-                  <button
-                    type="button"
-                    className="ct-secondary ct-ai-overview-btn"
-                    onClick={() => setTab('ai')}
-                  >
-                    Configurar IA →
-                  </button>
-                </div>
-
                 <WebhookManager channelId={channel.id} />
               </>
             )}
@@ -223,150 +163,6 @@ export function ChannelSettings({ channel, onClose }: { channel: Channel; onClos
               </button>
             </section>
           </>
-        ) : tab === 'github' ? (
-          <div className="ct-channel-github-settings">
-            <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '14px' }}>
-              <div style={{ width: '36px', height: '36px', borderRadius: '10px', background: 'var(--cx-hover)', display: 'grid', placeItems: 'center' }}>
-                <ControlIcon name="git" size={20} />
-              </div>
-              <div>
-                <h3 style={{ margin: 0, fontSize: '15px', fontWeight: 600 }}>Repositório do Canal</h3>
-                <p style={{ margin: '2px 0 0', fontSize: '12px', color: 'var(--cx-fg-3)' }}>
-                  Vincule um repositório da sua conta do GitHub a este canal de texto para discussões e automações com IA.
-                </p>
-              </div>
-            </div>
-
-            {devStore.githubAccounts.length === 0 ? (
-              <div style={{ padding: '16px', background: 'var(--cx-surface)', borderRadius: '10px', border: '1px solid var(--cx-border-light)', textAlign: 'center' }}>
-                <p style={{ fontSize: '13px', color: 'var(--cx-fg-2)', marginBottom: '12px' }}>
-                  Nenhuma conta do GitHub conectada no momento.
-                </p>
-                {devStore.detectedLocalGitHub ? (
-                  <button
-                    type="button"
-                    className="ct-primary"
-                    onClick={() => void devStore.connectGitHubDirect()}
-                  >
-                    <ControlIcon name="git" size={14} />
-                    <span>Conectar @{devStore.detectedLocalGitHub.username} (1-Clique)</span>
-                  </button>
-                ) : (
-                  <button
-                    type="button"
-                    className="ct-primary"
-                    onClick={() => void devStore.connectGitHubDirect()}
-                  >
-                    <ControlIcon name="git" size={14} />
-                    <span>Vincular Conta do GitHub</span>
-                  </button>
-                )}
-              </div>
-            ) : (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
-                <div>
-                  <label htmlFor="select-channel-repo" style={{ fontSize: '12px', fontWeight: 500, display: 'block', marginBottom: '6px' }}>
-                    Repositório em que este chat trabalhará
-                  </label>
-                  <div style={{ display: 'flex', gap: '8px' }}>
-                    <select
-                      id="select-channel-repo"
-                      value={boundRepo?.id ? String(boundRepo.id) : ''}
-                      disabled={busy || !manage}
-                      style={{ flex: 1, padding: '8px 10px', borderRadius: '8px', background: 'var(--cx-elevated)', border: '1px solid var(--cx-border-light)', color: 'var(--cx-fg)', fontSize: '13px' }}
-                      onChange={(e) => {
-                        const val = e.target.value
-                        devStore.bindChannelRepo(channel.id, val || null)
-                        setStatus(val ? 'Repositório vinculado ao canal.' : 'Repositório desvinculado.')
-                      }}
-                    >
-                      <option value="">Nenhum repositório vinculado</option>
-                      {devStore.repositories.map((repo) => (
-                        <option key={repo.id} value={String(repo.id)}>
-                          {repo.fullName} ({repo.isPrivate ? 'Privado' : 'Público'})
-                        </option>
-                      ))}
-                    </select>
-                    <button
-                      type="button"
-                      className="ct-secondary"
-                      onClick={() => void devStore.refreshRepositories()}
-                      title="Atualizar lista de repositórios do GitHub"
-                      style={{ padding: '0 12px', height: '36px' }}
-                    >
-                      <ControlIcon name="refresh" size={14} />
-                    </button>
-                  </div>
-                </div>
-
-                {boundRepo ? (
-                  <div style={{ padding: '14px', borderRadius: '12px', background: 'var(--cx-surface)', border: '1px solid var(--cx-border-light)', display: 'flex', flexDirection: 'column', gap: '10px' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                        <ControlIcon name={boundRepo.isPrivate ? 'lock' : 'git-branch'} size={15} />
-                        <strong style={{ fontSize: '14px' }}>{boundRepo.fullName}</strong>
-                        <span style={{ fontSize: '11px', padding: '2px 6px', borderRadius: '4px', background: 'var(--cx-hover)', color: 'var(--cx-fg-3)' }}>
-                          {boundRepo.isPrivate ? 'Privado' : 'Público'}
-                        </span>
-                        {boundRepo.language && (
-                          <span style={{ fontSize: '11px', padding: '2px 6px', borderRadius: '4px', background: '#1c2d42', color: '#58a6ff' }}>
-                            {boundRepo.language}
-                          </span>
-                        )}
-                      </div>
-                      <a
-                        href={boundRepo.htmlUrl}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        style={{ fontSize: '12px', color: 'var(--cx-accent)', textDecoration: 'none', display: 'flex', alignItems: 'center', gap: '4px' }}
-                      >
-                        Abrir no GitHub <ControlIcon name="arrow" size={12} />
-                      </a>
-                    </div>
-
-                    {boundRepo.description && (
-                      <p style={{ margin: 0, fontSize: '12px', color: 'var(--cx-fg-2)' }}>{boundRepo.description}</p>
-                    )}
-
-                    <div style={{ fontSize: '12px', color: 'var(--cx-fg-3)', display: 'flex', gap: '12px' }}>
-                      <span>Branch padrão: <code style={{ color: 'var(--cx-fg)' }}>{boundRepo.defaultBranch || 'main'}</code></span>
-                      {boundRepo.stars !== undefined && <span>⭐ {boundRepo.stars}</span>}
-                    </div>
-
-                    <div style={{ padding: '10px 12px', borderRadius: '8px', background: 'rgba(35, 134, 54, 0.1)', border: '1px solid rgba(35, 134, 54, 0.3)', display: 'flex', alignItems: 'flex-start', gap: '10px', marginTop: '4px' }}>
-                      <ControlIcon name="ai" size={16} />
-                      <div>
-                        <strong style={{ fontSize: '12px', color: '#3fb950', display: 'block' }}>IA Conectada ao Repositório</strong>
-                        <p style={{ margin: '2px 0 0', fontSize: '11px', color: 'var(--cx-fg-2)', lineHeight: '1.4' }}>
-                          Neste chat, a inteligência artificial responderá contextualmente ciente deste repositório, pronta para auxiliar em arquitetura, código, testes e pull requests.
-                        </p>
-                      </div>
-                    </div>
-
-                    {manage && (
-                      <button
-                        type="button"
-                        className="ct-danger"
-                        style={{ alignSelf: 'flex-start', marginTop: '6px', fontSize: '12px' }}
-                        onClick={() => {
-                          devStore.bindChannelRepo(channel.id, null)
-                          setStatus('Repositório desvinculado deste canal.')
-                        }}
-                      >
-                        Desvincular repositório deste chat
-                      </button>
-                    )}
-                  </div>
-                ) : (
-                  <p className="ct-muted" style={{ margin: 0, fontSize: '12px' }}>
-                    Escolha um repositório acima para conectar com este canal de texto.
-                  </p>
-                )}
-              </div>
-            )}
-          </div>
-        ) : tab === 'ai' ? (
-          <AiChannelSettings channelId={channel.id} />
         ) : roles.snapshot ? (
           <ChannelPermissions contextId={channel.id} />
         ) : (
