@@ -76,6 +76,7 @@ export function SaveNoteModal({
 
   const canSubmit =
     !isSubmitting &&
+    !!noteContent.trim() &&
     ((sendToChannel && !!selectedChannelId) || (sendToDm && !!selectedFriendUsername))
 
   const handleSubmit = async (e: React.FormEvent) => {

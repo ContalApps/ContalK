@@ -599,7 +599,8 @@ export function ChatComposer({
       }
       if (e.key === 'Enter' || e.key === 'Tab') {
         e.preventDefault()
-        selectMention(filteredMentions[selectedMentionIndex])
+        const safeIdx = Math.min(selectedMentionIndex, Math.max(0, filteredMentions.length - 1))
+        selectMention(filteredMentions[safeIdx])
         return
       }
       if (e.key === 'Escape') {
