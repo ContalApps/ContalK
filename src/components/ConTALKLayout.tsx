@@ -703,7 +703,6 @@ export function ConTALKLayout() {
         scope={view === 'server' ? server.name : 'ConTALK'}
         sidebarOpen={!preferences.sidebarHidden}
         onToggleSidebar={() => togglePanel('sidebarHidden')}
-        onProfile={() => setProfile(user?.display_name || 'Você', user?.username)}
         onOpenCommandMenu={() => setCommandMenuOpen(true)}
       />
 
@@ -741,24 +740,10 @@ export function ConTALKLayout() {
           >
             <Icon name="plus" />
           </button>
-          <div className="ct-rail-bottom">
-            <button title="Meu perfil" onClick={() => setProfile(user?.display_name || 'Você', user?.username)}>
-              <Avatar name={user?.display_name || 'Você'} />
-            </button>
-          </div>
         </aside>
 
         <>
           <nav className="ct-sidebar" data-collapsed={preferences.sidebarCollapsed} hidden={preferences.sidebarHidden}>
-            <button
-              className="ct-sidebar-toggle"
-              aria-label={preferences.sidebarCollapsed ? 'Expandir lista de canais' : 'Recolher lista de canais'}
-              title={preferences.sidebarCollapsed ? 'Expandir canais' : 'Recolher canais'}
-              onClick={() => preferences.update({ sidebarCollapsed: !preferences.sidebarCollapsed })}
-            >
-              <ControlIcon name="chevron" />
-              <span>Canais e conversas</span>
-            </button>
             <div className="ct-sidebar-scroll">
               {view !== 'server' ? (
                 <>
@@ -807,19 +792,6 @@ export function ConTALKLayout() {
               ) : (
                 <>
                   <div className="ct-server-banner">
-                    {roles.snapshot?.id === server.id && (
-                      <button
-                        className="ct-server-events"
-                        title="Eventos do servidor"
-                        aria-label="Eventos do servidor"
-                        onClick={() => {
-                          setEventTarget(undefined)
-                          setEventsOpen(true)
-                        }}
-                      >
-                        <ControlIcon name="event" />
-                      </button>
-                    )}
                     <strong title={server.description || server.name}>{server.name}</strong>
                     {(!roles.snapshot ||
                       centralAllows('VIEW_GUILD_INSIGHTS') ||

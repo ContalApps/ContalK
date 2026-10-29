@@ -4,18 +4,15 @@ import { UpdateNotification } from './UpdateNotification'
 import { BrandMark } from './BrandMark'
 import { ControlIcon } from './ControlIcon'
 import { TitleMenus, type MenuGroup } from './TitleMenus'
-import { Avatar } from './Avatar'
-import { useAuthStore } from '../store/useAuthStore'
 
 function TitleIcon({name}: {name: 'back' | 'forward' | 'search' | 'help' | 'close'}) {
   return <ControlIcon name={name}/>
 }
 
-export function TitleBar({title = 'ConTALK', authenticated = false, disabled = false, canBack = false, canForward = false, onBack, onForward, search = '', onSearch,onOpenNotification,menus,scope,onToggleSidebar,sidebarOpen=true,onProfile,onOpenCommandMenu}: {
+export function TitleBar({title = 'ConTALK', authenticated = false, disabled = false, canBack = false, canForward = false, onBack, onForward, search = '', onSearch,onOpenNotification,menus,scope,onToggleSidebar,sidebarOpen=true,onOpenCommandMenu}: {
   title?: string; authenticated?: boolean; disabled?: boolean; canBack?: boolean; canForward?: boolean; onBack?: () => void; onForward?: () => void; search?: string; onSearch?: (value: string) => void;onOpenNotification?:(id:string)=>void
-  menus?: MenuGroup[]; scope?: string; onToggleSidebar?: () => void; sidebarOpen?: boolean; onProfile?: () => void; onOpenCommandMenu?: () => void
+  menus?: MenuGroup[]; scope?: string; onToggleSidebar?: () => void; sidebarOpen?: boolean; onOpenCommandMenu?: () => void
 }) {
-  const user = useAuthStore(s => s.user)
   const preferences = usePreferencesStore()
   const [panel, setPanel] = useState<'search' | 'help' | null>(null)
   const ref = useRef<HTMLElement>(null)
@@ -70,7 +67,6 @@ export function TitleBar({title = 'ConTALK', authenticated = false, disabled = f
       <div className="ct-titlebar-actions">{authenticated && <>
         <UpdateNotification onOpenNotification={onOpenNotification}/>
         {preferences.titleBarHelp && <button ref={helpButton} aria-label="Ajuda do ConTALK" title="Ajuda (F1)" aria-expanded={panel==='help'} onClick={()=>setPanel(panel==='help'?null:'help')}><TitleIcon name="help"/></button>}
-        {onProfile && user && <button className="ct-top-profile" aria-label="Seu perfil" title={user.display_name} onClick={onProfile}><Avatar name={user.display_name} identity={user.username}/></button>}
       </>}</div>
     </div>
     {panel==='search' && <section className="ct-titlebar-popover ct-titlebar-search" aria-label="Busca" role="search">
