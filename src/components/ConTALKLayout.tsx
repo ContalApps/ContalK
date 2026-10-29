@@ -36,7 +36,6 @@ import { useDevCollaborationStore } from '../store/useDevCollaborationStore'
 import { CommandMenuModal } from './CommandMenuModal'
 import { ScreenShareModal } from './ScreenShareModal'
 import { RightPanel } from './RightPanel'
-import type { MenuGroup } from './TitleMenus'
 import { UserDock } from './UserDock'
 import { ChannelSettings } from './ChannelSettings'
 import { RoleManager, RoleBadge } from './RoleManager'
@@ -493,15 +492,6 @@ export function ConTALKLayout() {
       await voice.leaveChannel()
       await logout()
     })()
-  const zoom = (stepVal: number) =>
-    preferences.update({
-      interfaceScale: stepVal === 0 ? 100 : Math.min(120, Math.max(80, preferences.interfaceScale + stepVal))
-    })
-  const desktopOnly = 'Disponível no aplicativo desktop'
-  const edit = (command: 'undo' | 'redo' | 'cut' | 'copy' | 'paste' | 'delete' | 'selectAll') => () => {
-    void desktop?.editCommand?.(command)
-  }
-
   const handleCopyDiagnostics = useCallback(async () => {
     try {
       const diag = {
@@ -538,126 +528,6 @@ export function ConTALKLayout() {
       showToast('Falha ao copiar diagnóstico.')
     }
   }, [view, server, channel, user, voice, preferences, devEditorOpen, showToast])
-
-  const menus: MenuGroup[] = [
-    {
-      label: 'Arquivo',
-      items: [
-        { label: 'Menu de comandos…', shortcut: 'Ctrl+K', onSelect: () => setCommandMenuOpen(true) },
-        { label: 'Nova janela', shortcut: 'Ctrl+N', disabled: true, hint: 'em breve' },
-        { label: 'Nova conversa', shortcut: 'Ctrl+Shift+N', onSelect: () => setView('messages') },
-        'separator',
-        {
-          label: 'Abrir pasta…',
-          shortcut: 'Ctrl+O',
-          onSelect: () => void openFolder(),
-          disabled: !desktop?.openFolder,
-          hint: desktop?.openFolder ? undefined : desktopOnly
-        },
-        'separator',
-        { label: 'Sair da conta', onSelect: signOut },
-        {
-          label: 'Encerrar o ConTALK',
-          onSelect: () => void quit(),
-          disabled: !desktop?.quitApp,
-          hint: desktop?.quitApp ? undefined : desktopOnly
-        }
-      ]
-    },
-    {
-      label: 'Editar',
-      items: [
-        { label: 'Desfazer', shortcut: 'Ctrl+Z', onSelect: edit('undo'), disabled: !desktop?.editCommand },
-        { label: 'Refazer', shortcut: 'Ctrl+Y', onSelect: edit('redo'), disabled: !desktop?.editCommand },
-        'separator',
-        { label: 'Recortar', shortcut: 'Ctrl+X', onSelect: edit('cut'), disabled: !desktop?.editCommand },
-        { label: 'Copiar', shortcut: 'Ctrl+C', onSelect: edit('copy'), disabled: !desktop?.editCommand },
-        { label: 'Colar', shortcut: 'Ctrl+V', onSelect: edit('paste'), disabled: !desktop?.editCommand },
-        { label: 'Excluir', onSelect: edit('delete'), disabled: !desktop?.editCommand },
-        { label: 'Selecionar tudo', shortcut: 'Ctrl+A', onSelect: edit('selectAll'), disabled: !desktop?.editCommand },
-        'separator',
-        {
-          label: 'Configurações',
-          shortcut: 'Ctrl+,',
-          onSelect: () => {
-            setSettingsTab('appearance')
-            setSettingsOpen(true)
-          }
-        }
-      ]
-    },
-    {
-      label: 'Exibir',
-      items: [
-        {
-          label: 'Barra lateral',
-          shortcut: 'Ctrl+B',
-          checked: !preferences.sidebarHidden,
-          onSelect: () => togglePanel('sidebarHidden')
-        },
-        {
-          label: 'Terminal',
-          shortcut: 'Ctrl+J',
-          checked: preferences.bottomPanelOpen,
-          onSelect: () => togglePanel('bottomPanelOpen')
-        },
-        {
-          label: 'Bloco de notas colaborativo',
-          shortcut: 'Ctrl+Alt+E',
-          checked: devEditorOpen,
-          onSelect: () => setDevEditorOpen(v => !v)
-        },
-        {
-          label: 'Painel direito',
-          shortcut: 'Ctrl+Alt+B',
-          checked: !preferences.membersCollapsed,
-          onSelect: () => togglePanel('membersCollapsed')
-        },
-        {
-          label: 'Barra de servidores',
-          checked: !preferences.railHidden,
-          onSelect: () => togglePanel('railHidden')
-        },
-        {
-          label: 'Mensagens fixadas do canal',
-          disabled: !(view === 'server' && channel.type === 'text' && !!channel.id),
-          onSelect: () => setPinnedChannel(channel.id)
-        },
-        'separator',
-        { label: 'Aumentar zoom', disabled: preferences.interfaceScale >= 120, onSelect: () => zoom(10) },
-        { label: 'Diminuir zoom', disabled: preferences.interfaceScale <= 80, onSelect: () => zoom(-10) },
-        { label: 'Tamanho original', disabled: preferences.interfaceScale === 100, onSelect: () => zoom(0) },
-        {
-          label: 'Tela cheia',
-          shortcut: 'F11',
-          onSelect: () => void desktop?.toggleFullScreen?.(),
-          disabled: !desktop?.toggleFullScreen
-        }
-      ]
-    },
-    {
-      label: 'Ajuda',
-      items: [
-        {
-          label: 'Atalhos do teclado',
-          shortcut: 'F1',
-          onSelect: () => {
-            document.dispatchEvent(new KeyboardEvent('keydown', { key: 'F1', bubbles: true }))
-          }
-        },
-        { label: 'Copiar diagnóstico do sistema', onSelect: () => void handleCopyDiagnostics() },
-        'separator',
-        { label: 'Documentação do ConTALK', onSelect: () => setActiveDevModal('docs') },
-        {
-          label: 'Sobre o ConTALK',
-          onSelect: () => {
-            setSettingsTab('about')
-            setSettingsOpen(true)
-          }
-        }
-      ]
-    }
-  ]
 
   useEffect(() => {
     const keys = (event: KeyboardEvent) => {
@@ -758,7 +628,6 @@ export function ConTALKLayout() {
         onForward={() => travel(1)}
         search={search}
         onSearch={setSearch}
-        menus={menus}
         scope={view === 'server' ? server.name : 'ConTALK'}
         sidebarOpen={!preferences.sidebarHidden}
         onToggleSidebar={() => togglePanel('sidebarHidden')}
@@ -1745,6 +1614,9 @@ export function ConTALKLayout() {
           onOpenHelp={() => document.dispatchEvent(new KeyboardEvent('keydown', { key: 'F1', bubbles: true }))}
           onOpenFolder={() => void openFolder()}
           onOpenDevModal={modal => setActiveDevModal(modal)}
+          onCopyDiagnostics={() => void handleCopyDiagnostics()}
+          onSignOut={signOut}
+          onQuit={desktop?.quitApp ? () => void quit() : undefined}
         />
       )}
 
