@@ -56,17 +56,7 @@ export function ChannelSettings({
       roles.snapshot?.id === channel.serverId &&
       can(roles.snapshot.policy, roles.snapshot.actor, 'MANAGE_CHANNELS', channel.id))
 
-  if (confirm) {
-    return (
-      <DeleteChannel
-        channel={current || channel}
-        onClose={() => {
-          if (useAppStore.getState().servers.some(s => s.channels.some(c => c.id === channel.id))) setConfirm(false)
-          else onClose()
-        }}
-      />
-    )
-  }
+
 
   const channelThreads = roles.snapshot
     ? roles.snapshot.channels.filter(
@@ -282,6 +272,18 @@ export function ChannelSettings({
 
         {status && <p role="status" className="ct-channel-save-status">{status}</p>}
       </section>
+
+      {confirm && (
+        <DeleteChannel
+          channel={current || channel}
+          onClose={() => {
+            setConfirm(false)
+            if (!useAppStore.getState().servers.some(s => s.channels.some(c => c.id === channel.id))) {
+              onClose()
+            }
+          }}
+        />
+      )}
     </div>
   )
 }
