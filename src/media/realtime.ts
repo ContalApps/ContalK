@@ -106,6 +106,8 @@ export class Room extends Events {
   private pttHeld=false
   prioritySpeakers=new Set<string>()
   prioritySpeaker=false
+  private localVoiceCleanup?: () => void
+  private localVoiceActive = false
   constructor(private options: { serverId?:string;presence?: boolean; tokenProvider?: () => Promise<Authority | null>;inputMode?:VoiceInputMode;prioritySpeaker?:boolean } = {}) { super();this.serverId=options.serverId||null;this.desiredInputMode=options.inputMode||'voice-activity';this.prioritySpeaker=options.prioritySpeaker===true }
   async setInputMode(mode:VoiceInputMode){
     await this.setPushToTalk(false).catch(()=>{})
@@ -184,6 +186,67 @@ export class Room extends Events {
       for (const producer of await this.request('producers')) await this.consume(producer)
     }
   }
+  private startLocalVoiceDetection(track: Track) {
+    this.stopLocalVoiceDetection()
+    if (typeof AudioContext === 'undefined' || typeof MediaStream === 'undefined') return
+    try {
+      const clone = track.mediaStreamTrack?.clone ? track.mediaStreamTrack.clone() : track.mediaStreamTrack
+      if (!clone) return
+      const stream = new MediaStream([clone])
+      const ctx = new AudioContext({ latencyHint: 'interactive' })
+      const src = ctx.createMediaStreamSource(stream)
+      const analyser = ctx.createAnalyser()
+      analyser.fftSize = 256
+      analyser.smoothingTimeConstant = 0.2
+      src.connect(analyser)
+      const buffer = new Uint8Array(analyser.frequencyBinCount)
+      let speaking = false, silenceTicks = 0
+      const THRESHOLD = 0.012, HANGOVER_TICKS = 7
+
+      const interval = setInterval(() => {
+        if (track.isMuted || !track.mediaStreamTrack.enabled || this.localParticipant.serverMuted || this.localParticipant.serverDeafened || this.localParticipant.canPublishMicrophone === false) {
+          if (speaking) { speaking = false; this.setLocalSpeaking(false) }
+          return
+        }
+        analyser.getByteTimeDomainData(buffer)
+        let sum = 0
+        for (let i = 0; i < buffer.length; i++) {
+          const norm = (buffer[i] - 128) / 128
+          sum += norm * norm
+        }
+        const rms = Math.sqrt(sum / buffer.length)
+        if (rms > THRESHOLD) {
+          silenceTicks = 0
+          if (!speaking) { speaking = true; this.setLocalSpeaking(true) }
+        } else if (speaking) {
+          silenceTicks++
+          if (silenceTicks >= HANGOVER_TICKS) { speaking = false; this.setLocalSpeaking(false) }
+        }
+      }, 30)
+
+      this.localVoiceCleanup = () => {
+        clearInterval(interval)
+        try { if (clone !== track.mediaStreamTrack) clone.stop() } catch {}
+        void ctx.close().catch(() => {})
+      }
+      this.localVoiceActive = true
+    } catch {
+      this.localVoiceActive = false
+    }
+  }
+  private setLocalSpeaking(speaking: boolean) {
+    if (this.localParticipant.isSpeaking !== speaking) {
+      this.localParticipant.isSpeaking = speaking
+      this.localParticipant.emit(ParticipantEvent.IsSpeakingChanged, speaking)
+      this.emit(RoomEvent.ActiveSpeakersChanged, [this.localParticipant, ...this.remoteParticipants.values()].filter(p => p.isSpeaking))
+    }
+  }
+  private stopLocalVoiceDetection() {
+    this.localVoiceCleanup?.()
+    this.localVoiceCleanup = undefined
+    this.localVoiceActive = false
+    if (this.localParticipant.isSpeaking) this.setLocalSpeaking(false)
+  }
   private addPeer(data: any) { let peer = this.remoteParticipants.get(data.identity); if (!peer) { peer = new Participant(); this.remoteParticipants.set(data.identity,peer) }; Object.assign(peer,data); this.emit(RoomEvent.ParticipantConnected,peer); return peer }
   private async handle(event: string, data: any) {
     if(event==='stage'){this.stage=data||null;this.emit(RoomEvent.StageChanged)}
@@ -207,7 +270,8 @@ export class Room extends Events {
     if (event === 'consumerClosed') { this.consumers.get(data.consumerId)?.close(); this.consumers.delete(data.consumerId) }
     if (event === 'producerPaused') { for (const peer of [this.localParticipant,...this.remoteParticipants.values()]) { const pub = peer.trackPublications.get(data.producerId); if (pub) {pub.isMuted = data.paused;if(peer===this.localParticipant&&pub.source===Track.Source.Microphone&&this.inputMode==='push-to-talk'&&data.paused){if(data.reason!=='key-release')this.pttHeld=false;pub.track.isMuted=true;pub.track.mediaStreamTrack.enabled=false;this.producers.get(pub.producerId)?.pause()}} }; this.emit(data.paused ? RoomEvent.TrackMuted : RoomEvent.TrackUnmuted) }
     if (event === 'speakers') {
-      for (const peer of [this.localParticipant,...this.remoteParticipants.values()]) { const speaking = data.includes(peer.identity); if (peer.isSpeaking !== speaking) { peer.isSpeaking = speaking; peer.emit(ParticipantEvent.IsSpeakingChanged,speaking) } }
+      for (const peer of this.remoteParticipants.values()) { const speaking = data.includes(peer.identity); if (peer.isSpeaking !== speaking) { peer.isSpeaking = speaking; peer.emit(ParticipantEvent.IsSpeakingChanged,speaking) } }
+      if (!this.localVoiceActive) { const speaking = data.includes(this.localParticipant.identity); if (this.localParticipant.isSpeaking !== speaking) { this.localParticipant.isSpeaking = speaking; this.localParticipant.emit(ParticipantEvent.IsSpeakingChanged,speaking) } }
       this.emit(RoomEvent.ActiveSpeakersChanged,[this.localParticipant,...this.remoteParticipants.values()].filter(peer => peer.isSpeaking))
     }
   }
@@ -237,11 +301,12 @@ export class Room extends Events {
     if (track.isMuted) producer.pause()
     track.onMute = async paused => { await this.request('producerControl',{producerId:producer.id,action:paused?'pause':'resume'}); if (paused) producer.pause(); else producer.resume(); pub.isMuted = paused }
     this.localParticipant.trackPublications.set(producer.id,pub)
+    if(options.source===Track.Source.Microphone)this.startLocalVoiceDetection(track)
     this.emit(RoomEvent.LocalTrackPublished,pub); return pub
   }
-  async unpublish(pub: Publication, stop: boolean) { this.producers.get(pub.producerId)?.close(); this.producers.delete(pub.producerId); this.localParticipant.trackPublications.delete(pub.producerId); if (stop) pub.track.stop(); if (this.socket?.readyState === WebSocket.OPEN) await this.request('producerControl',{producerId:pub.producerId,action:'close'}).catch(() => {}); this.emit(RoomEvent.LocalTrackUnpublished,pub) }
+  async unpublish(pub: Publication, stop: boolean) { if(pub.source===Track.Source.Microphone)this.stopLocalVoiceDetection(); this.producers.get(pub.producerId)?.close(); this.producers.delete(pub.producerId); this.localParticipant.trackPublications.delete(pub.producerId); if (stop) pub.track.stop(); if (this.socket?.readyState === WebSocket.OPEN) await this.request('producerControl',{producerId:pub.producerId,action:'close'}).catch(() => {}); this.emit(RoomEvent.LocalTrackUnpublished,pub) }
   async switchActiveDevice(_kind: string, deviceId: string) { this.outputDevice = deviceId; const audio = document.querySelectorAll<HTMLAudioElement>('#contalk-audio-tracks audio'); for (const el of audio) if ('setSinkId' in el) await (el as HTMLAudioElement & {setSinkId:(id:string)=>Promise<void>}).setSinkId(deviceId); return true }
-  private clearRemote() { for (const peer of this.remoteParticipants.values()) for (const pub of peer.trackPublications.values()) { pub.track.stop(); this.emit(RoomEvent.TrackUnsubscribed,pub.track) }; this.remoteParticipants.clear(); this.sendTransport?.close(); this.recvTransport?.close(); this.producers.clear(); this.consumers.clear(); this.consuming.clear();this.stage=null;this.emit(RoomEvent.StageChanged);this.prioritySpeakers.clear();this.emit(RoomEvent.PrioritySpeakersChanged) }
+  private clearRemote() { this.stopLocalVoiceDetection(); for (const peer of this.remoteParticipants.values()) for (const pub of peer.trackPublications.values()) { pub.track.stop(); this.emit(RoomEvent.TrackUnsubscribed,pub.track) }; this.remoteParticipants.clear(); this.sendTransport?.close(); this.recvTransport?.close(); this.producers.clear(); this.consumers.clear(); this.consuming.clear();this.stage=null;this.emit(RoomEvent.StageChanged);this.prioritySpeakers.clear();this.emit(RoomEvent.PrioritySpeakersChanged) }
   private async reconnect() {
     if (this.ended || this.reconnecting) return
     this.pttHeld=false;for(const pub of this.localParticipant.trackPublications.values())if(pub.source===Track.Source.Microphone&&this.inputMode==='push-to-talk'){pub.track.isMuted=true;pub.track.mediaStreamTrack.enabled=false;pub.isMuted=true}

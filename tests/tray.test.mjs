@@ -56,3 +56,14 @@ test('server audio restrictions are identified in the tray and cannot be toggled
  assert.equal(f.menu[3].label,'Áudio bloqueado pelo servidor');assert.equal(f.menu[3].enabled,false)
  f.window.emit('closed')
 })
+
+test('muted microphone and deafened state switch the tray icon to the blocked microphone indicator',()=>{
+ const f=fixture()
+ f.ipc.emit('tray-voice-state',{sender:f.window.webContents,senderFrame:f.window.webContents.mainFrame},{connected:true,micMuted:true,deafened:false})
+ assert.equal(f.images,1)
+ f.ipc.emit('tray-voice-state',{sender:f.window.webContents,senderFrame:f.window.webContents.mainFrame},{connected:true,micMuted:false,deafened:false})
+ assert.equal(f.images,2)
+ f.ipc.emit('tray-voice-state',{sender:f.window.webContents,senderFrame:f.window.webContents.mainFrame},{connected:true,micMuted:false,deafened:true})
+ assert.equal(f.images,3)
+ f.window.emit('closed')
+})
