@@ -74,6 +74,87 @@ async function broadcastBrowserMessage(msg: unknown) {
 
 let syncIntervalTimer: ReturnType<typeof setInterval> | null = null
 
+let syncOverlayThrottleTimer: any = null
+function triggerDetachedOverlaySync(get: () => SharedBrowserState) {
+  if (!get().isHost) return
+  if (syncOverlayThrottleTimer) return
+  syncOverlayThrottleTimer = setTimeout(() => {
+    syncOverlayThrottleTimer = null
+    const desktop = typeof window !== 'undefined' ? window.contalkDesktop : undefined
+    if (!desktop?.browserUpdateCollaborators) return
+    const currentUsername = useAuthStore.getState().user?.username
+    const activeSession = get().activeSession
+    const collabs = Object.values(get().collaborators).filter(
+      (c) => c.id !== currentUsername && Date.now() - c.lastSeen < 10000
+    )
+    void desktop.browserUpdateCollaborators({
+      collaborators: collabs,
+      allowCollaboration: Boolean(activeSession?.allowCollaboration)
+    })
+  }, 40)
+}
+
+if (typeof window !== 'undefined' && window.contalkDesktop?.onBrowserActionFromDetached) {
+  window.contalkDesktop.onBrowserActionFromDetached((evt) => {
+    const store = useSharedBrowserStore.getState()
+    switch (evt.action) {
+      case 'toggle-collab': {
+        const cur = store.activeSession
+        if (cur && store.isHost) {
+          store.setAllowCollaboration(!cur.allowCollaboration)
+        }
+        break
+      }
+      case 'toggle-detach': {
+        void store.toggleDetach()
+        break
+      }
+      case 'stop-sharing': {
+        void store.stopSharing()
+        break
+      }
+      case 'ai-summarize': {
+        const url = evt.url || store.activeSession?.url || 'a página atual'
+        window.dispatchEvent(
+          new CustomEvent('contalk-ai-prompt', {
+            detail: {
+              prompt: `Por favor, analise a página ${url} no navegador interno e faça um resumo dos principais conteúdos, destaques e links disponíveis.`
+            }
+          })
+        )
+        break
+      }
+      case 'ai-automate': {
+        const url = evt.url || store.activeSession?.url || 'a página atual'
+        window.dispatchEvent(
+          new CustomEvent('contalk-ai-prompt', {
+            detail: {
+              prompt: `Por favor, no navegador interno aberto em ${url}, analise as opções de automação, formulários ou botões principais e execute as tarefas sugeridas.`
+            }
+          })
+        )
+        break
+      }
+      case 'ai-read': {
+        const desktop = window.contalkDesktop
+        if (desktop?.browserReadContent) {
+          desktop.browserReadContent().then((res) => {
+            const preview = `Título: ${res.title}\nURL: ${res.url}\nLinks: ${res.links.length}\nFormulários: ${res.forms.length}\n\nConteúdo:\n${res.content.slice(0, 1000)}...`
+            window.dispatchEvent(
+              new CustomEvent('contalk-ai-prompt', {
+                detail: {
+                  prompt: `Aqui está o texto extraído da página ${res.url}:\n\n${preview}\n\nO que gostaria de analisar ou automatizar a partir deste conteúdo?`
+                }
+              })
+            )
+          }).catch(() => {})
+        }
+        break
+      }
+    }
+  })
+}
+
 export const useSharedBrowserStore = create<SharedBrowserState>((set, get) => {
   // Listen for broadcast messages from local BroadcastChannel
   if (sharedChannel) {
@@ -158,6 +239,7 @@ export const useSharedBrowserStore = create<SharedBrowserState>((set, get) => {
               }
             }
           }))
+          triggerDetachedOverlaySync(get)
           break
         }
 
@@ -183,6 +265,7 @@ export const useSharedBrowserStore = create<SharedBrowserState>((set, get) => {
               }
             }
           }))
+          triggerDetachedOverlaySync(get)
 
           // Se for o host e colaboração estiver permitida, executa o clique no navegador interno do host
           if (get().isHost && get().activeSession?.allowCollaboration) {
@@ -424,6 +507,7 @@ export const useSharedBrowserStore = create<SharedBrowserState>((set, get) => {
         lastUpdated: Date.now()
       }
       set({ activeSession: updated })
+      triggerDetachedOverlaySync(get)
       void broadcastBrowserMessage({
         type: 'SESSION_CONFIG',
         roomId: cur.roomId,
@@ -635,6 +719,7 @@ export const useSharedBrowserStore = create<SharedBrowserState>((set, get) => {
       }
       if (changed) {
         set({ collaborators: next })
+        triggerDetachedOverlaySync(get)
       }
     }
   }

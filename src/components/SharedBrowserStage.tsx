@@ -35,23 +35,16 @@ export function SharedBrowserStage({
 
   const [urlInput, setUrlInput] = useState('')
   const [clickNotice, setClickNotice] = useState('')
-  const [typingInput, setTypingInput] = useState('')
   const [showAiDrawer, setShowAiDrawer] = useState(false)
+  const [showQuickType, setShowQuickType] = useState(false)
+  const [typingInput, setTypingInput] = useState('')
   const [aiPromptInput, setAiPromptInput] = useState('')
   const [extractedContent, setExtractedContent] = useState<string | null>(null)
   const [aiStatus, setAiStatus] = useState<string>('Pronto para automação por IA.')
   const [historyLog, setHistoryLog] = useState<string[]>([])
   const [browserAudioMuted, setBrowserAudioMuted] = useState(false)
 
-  const handleToggleBrowserAudio = async () => {
-    const desktop = window.contalkDesktop
-    if (!desktop?.browserSetAudioMuted) return
-    const next = !browserAudioMuted
-    await desktop.browserSetAudioMuted(next)
-    setBrowserAudioMuted(next)
-  }
-
-  const viewportRef = useRef<HTMLDivElement>(null)
+  const canvasRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
     if (activeSession?.url) {
@@ -63,12 +56,25 @@ export function SharedBrowserStage({
 
   const canInteract = isHost || activeSession.allowCollaboration
 
-  const handleViewportClick = (e: React.MouseEvent<HTMLDivElement>) => {
-    const rect = viewportRef.current?.getBoundingClientRect()
-    if (!rect) return
+  const handleToggleBrowserAudio = async () => {
+    const desktop = window.contalkDesktop
+    if (!desktop?.browserSetAudioMuted) return
+    const next = !browserAudioMuted
+    await desktop.browserSetAudioMuted(next)
+    setBrowserAudioMuted(next)
+  }
 
-    const x = ((e.clientX - rect.left) / rect.width) * 100
-    const y = ((e.clientY - rect.top) / rect.height) * 100
+  const handleCanvasClick = (e: React.MouseEvent<HTMLDivElement>) => {
+    canvasRef.current?.focus()
+    const rect = canvasRef.current?.getBoundingClientRect()
+    if (!rect || rect.width <= 0 || rect.height <= 0) return
+
+    const clickX = e.clientX - rect.left
+    const clickY = e.clientY - rect.top
+    if (clickX < 0 || clickX > rect.width || clickY < 0 || clickY > rect.height) return
+
+    const xPercent = (clickX / rect.width) * 100
+    const yPercent = (clickY / rect.height) * 100
 
     if (!canInteract) {
       setClickNotice('Modo apenas visualização. Peça ao anfitrião para ativar a colaboração.')
@@ -76,17 +82,32 @@ export function SharedBrowserStage({
       return
     }
 
-    void sendClick(Math.max(0, Math.min(100, x)), Math.max(0, Math.min(100, y)))
+    void sendClick(Math.max(0, Math.min(100, xPercent)), Math.max(0, Math.min(100, yPercent)))
   }
 
   const handleMouseMove = (e: React.MouseEvent<HTMLDivElement>) => {
-    const rect = viewportRef.current?.getBoundingClientRect()
-    if (!rect) return
+    const rect = canvasRef.current?.getBoundingClientRect()
+    if (!rect || rect.width <= 0 || rect.height <= 0) return
 
     const x = ((e.clientX - rect.left) / rect.width) * 100
     const y = ((e.clientY - rect.top) / rect.height) * 100
 
-    sendCursor(Math.max(0, Math.min(100, x)), Math.max(0, Math.min(100, y)))
+    if (x >= 0 && x <= 100 && y >= 0 && y <= 100) {
+      sendCursor(Math.max(0, Math.min(100, x)), Math.max(0, Math.min(100, y)))
+    }
+  }
+
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLDivElement>) => {
+    if (!canInteract) return
+    if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return
+
+    if (e.key === 'Backspace' || e.key === 'Enter' || e.key === 'Tab' || e.key === 'ArrowUp' || e.key === 'ArrowDown' || e.key === 'ArrowLeft' || e.key === 'ArrowRight' || e.key === 'Escape') {
+      e.preventDefault()
+      void sendKey(e.key)
+    } else if (e.key.length === 1 && !e.ctrlKey && !e.metaKey && !e.altKey) {
+      e.preventDefault()
+      void sendType(e.key)
+    }
   }
 
   const handleNavigateSubmit = (e: React.FormEvent) => {
@@ -97,11 +118,12 @@ export function SharedBrowserStage({
     }
   }
 
-  const handleSendType = (e?: React.FormEvent) => {
-    if (e) e.preventDefault()
+  const handleQuickTypeSubmit = (e: React.FormEvent) => {
+    e.preventDefault()
     if (!typingInput.trim() || !canInteract) return
     void sendType(typingInput)
     setTypingInput('')
+    setShowQuickType(false)
   }
 
   const handleReadContent = async () => {
@@ -114,7 +136,7 @@ export function SharedBrowserStage({
         setAiStatus(`Conteúdo lido com sucesso (${data.links.length} links, ${data.forms.length} formulários).`)
         setHistoryLog(prev => [`Extraiu texto de ${data.url}`, ...prev.slice(0, 19)])
       } else {
-        setAiStatus('Leitura de conteúdo direta disponível no Electron.')
+        setAiStatus('Leitura de conteúdo disponível no desktop.')
       }
     } catch (e) {
       setAiStatus(e instanceof Error ? e.message : 'Falha ao ler conteúdo.')
@@ -138,172 +160,205 @@ export function SharedBrowserStage({
   )
 
   return (
-    <div className="ct-shared-browser-stage flex-1 flex flex-col min-h-0 w-full h-full bg-[#121212] rounded-2xl border border-neutral-800/80 overflow-hidden shadow-2xl relative select-none">
-      {/* Barra de Ferramentas / Header do Navegador Compartilhado */}
-      <div className="ct-sb-toolbar flex items-center justify-between px-3 py-2 bg-[#181818] border-b border-neutral-800 gap-2 flex-wrap z-20">
-        {/* Esquerda: Identificação do Host e Status de Senha Protegida */}
-        <div className="flex items-center gap-2">
-          <span className="flex items-center gap-1.5 px-2 py-0.5 rounded-md text-[11px] font-bold uppercase tracking-wider bg-sky-600 text-white shadow-sm">
-            <ControlIcon name="globe" size={12} />
-            <span>Navegador Web</span>
-          </span>
-
-          <span className="text-xs text-neutral-300 font-medium">
-            {isHost ? 'Compartilhado por você' : `Compartilhado por ${activeSession.hostName}`}
-          </span>
-
-          {/* Badge de Proteção de Senhas Contra Vazamento */}
-          <div
-            className={`flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-semibold border ${
-              activeSession.hasPasswordField
-                ? 'bg-amber-950/80 border-amber-600/70 text-amber-200 animate-pulse'
-                : 'bg-emerald-950/60 border-emerald-600/40 text-emerald-300'
-            }`}
-            title="Campos de senha e dados sensíveis são mascarados e protegidos contra vazamento para todos os espectadores."
-          >
-            <ControlIcon name="lock" size={11} />
-            <span>{activeSession.hasPasswordField ? 'Senha Ocultada 🔒' : 'Privacidade Ativa 🛡️'}</span>
-          </div>
-        </div>
-
-        {/* Centro: Barra de Navegação de URL */}
-        <form onSubmit={handleNavigateSubmit} className="flex-1 max-w-xl flex items-center gap-1 min-w-[240px]">
+    <div className="ct-shared-browser-stage flex-1 flex flex-col min-h-0 w-full h-full bg-[#101010] rounded-xl border border-neutral-800/80 overflow-hidden relative select-none">
+      {/* Barra de Ferramentas Slim (Altura compacta e controles discretos que não poluem a tela) */}
+      <div className="ct-sb-toolbar flex items-center justify-between px-2.5 h-10 bg-[#141414] border-b border-neutral-800/80 gap-2 flex-shrink-0 z-20">
+        {/* Esquerda: Navegação e Identificação */}
+        <div className="flex items-center gap-1">
           <button
             type="button"
             onClick={() => void goBack()}
             disabled={!canInteract}
-            className="p-1 rounded-lg text-neutral-400 hover:text-white hover:bg-neutral-800 disabled:opacity-30 disabled:hover:bg-transparent"
+            className="w-7 h-7 flex items-center justify-center rounded-md text-neutral-400 hover:text-white hover:bg-neutral-800 disabled:opacity-20"
             title="Voltar"
           >
-            <ControlIcon name="back" size={14} />
+            <ControlIcon name="back" size={13} />
           </button>
           <button
             type="button"
             onClick={() => void goForward()}
             disabled={!canInteract}
-            className="p-1 rounded-lg text-neutral-400 hover:text-white hover:bg-neutral-800 disabled:opacity-30 disabled:hover:bg-transparent"
+            className="w-7 h-7 flex items-center justify-center rounded-md text-neutral-400 hover:text-white hover:bg-neutral-800 disabled:opacity-20"
             title="Avançar"
           >
-            <ControlIcon name="forward" size={14} />
+            <ControlIcon name="forward" size={13} />
           </button>
           <button
             type="button"
             onClick={() => void reload()}
             disabled={!canInteract}
-            className="p-1 rounded-lg text-neutral-400 hover:text-white hover:bg-neutral-800 disabled:opacity-30 disabled:hover:bg-transparent"
-            title="Recarregar"
+            className="w-7 h-7 flex items-center justify-center rounded-md text-neutral-400 hover:text-white hover:bg-neutral-800 disabled:opacity-20"
+            title="Recarregar página"
           >
-            <ControlIcon name="refresh" size={14} />
+            <ControlIcon name="refresh" size={13} />
           </button>
+        </div>
 
-          <div className="flex-1 relative flex items-center">
+        {/* Centro: Barra de URL Compacta com Status de Privacidade */}
+        <form onSubmit={handleNavigateSubmit} className="flex-1 max-w-xl flex items-center gap-1.5 min-w-[200px]">
+          <div className="flex-1 relative flex items-center bg-[#0a0a0a] rounded-lg border border-neutral-700/60 focus-within:border-sky-500/80 px-2.5 py-1">
+            <span className="text-neutral-500 mr-1.5 flex items-center flex-shrink-0">
+              <ControlIcon name={activeSession.hasPasswordField ? 'lock' : 'globe'} size={12} />
+            </span>
             <input
               type="text"
               value={urlInput}
               onChange={(e) => setUrlInput(e.target.value)}
               disabled={!canInteract}
-              placeholder="Digite uma URL ou termo de busca..."
-              className="w-full bg-[#0a0a0a] text-neutral-200 text-xs px-3 py-1.5 rounded-xl border border-neutral-700/60 focus:border-sky-500 focus:outline-none focus:ring-1 focus:ring-sky-500 disabled:opacity-70 disabled:cursor-not-allowed"
+              placeholder="Digite uma URL ou pesquise..."
+              className="w-full bg-transparent text-neutral-200 text-xs focus:outline-none disabled:opacity-70 disabled:cursor-not-allowed"
             />
+            {activeSession.hasPasswordField && (
+              <span
+                className="ml-1 px-1.5 py-0.5 rounded text-[10px] font-semibold bg-amber-950/80 text-amber-300 border border-amber-600/50 flex-shrink-0"
+                title="Campos de senha ocultados automaticamente"
+              >
+                🔒 Protegido
+              </span>
+            )}
           </div>
         </form>
 
-        {/* Direita: Controles de Colaboração, IA e Parar */}
-        <div className="flex items-center gap-2">
-          {/* Botão de Automação com IA */}
+        {/* Direita: Ações Compactas e Botão Encerrar */}
+        <div className="flex items-center gap-1.5 flex-shrink-0">
+          {/* Digitação Rápida / Colar (Popover discreto) */}
+          {canInteract && (
+            <div className="relative">
+              <button
+                type="button"
+                onClick={() => setShowQuickType(!showQuickType)}
+                className={`w-7 h-7 flex items-center justify-center rounded-md border text-xs transition ${
+                  showQuickType
+                    ? 'bg-sky-600/30 border-sky-500 text-sky-200'
+                    : 'bg-neutral-800/80 border-neutral-700 text-neutral-300 hover:text-white hover:bg-neutral-700'
+                }`}
+                title="Digitar ou colar texto longo no campo focado da página"
+              >
+                <ControlIcon name="chat" size={12} />
+              </button>
+              {showQuickType && (
+                <div className="absolute right-0 top-9 w-64 p-2 bg-[#1c1c1c] border border-neutral-700 rounded-lg shadow-xl z-50 animate-fade-in">
+                  <form onSubmit={handleQuickTypeSubmit} className="flex flex-col gap-1.5">
+                    <span className="text-[10px] text-neutral-400 font-medium">Digitar / Colar no campo:</span>
+                    <input
+                      type="text"
+                      autoFocus
+                      value={typingInput}
+                      onChange={(e) => setTypingInput(e.target.value)}
+                      placeholder="Texto a enviar..."
+                      className="w-full bg-[#0a0a0a] text-neutral-200 text-xs px-2 py-1 rounded border border-neutral-700 focus:outline-none focus:border-sky-500"
+                    />
+                    <div className="flex justify-end gap-1">
+                      <button
+                        type="button"
+                        onClick={() => setShowQuickType(false)}
+                        className="px-2 py-0.5 text-[11px] text-neutral-400 hover:text-white"
+                      >
+                        Cancelar
+                      </button>
+                      <button
+                        type="submit"
+                        disabled={!typingInput.trim()}
+                        className="px-2 py-0.5 bg-sky-600 hover:bg-sky-500 disabled:opacity-40 text-white text-[11px] font-semibold rounded"
+                      >
+                        Enviar
+                      </button>
+                    </div>
+                  </form>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Automação com IA */}
           <button
             type="button"
             onClick={() => setShowAiDrawer(!showAiDrawer)}
-            className={`flex items-center gap-1.5 px-2.5 py-1 rounded-xl text-xs font-semibold border transition ${
+            className={`w-7 h-7 flex items-center justify-center rounded-md border text-xs transition ${
               showAiDrawer
-                ? 'bg-purple-600/30 border-purple-500 text-purple-200 shadow-sm'
-                : 'bg-neutral-800/90 border-neutral-700 text-neutral-300 hover:text-white hover:bg-neutral-700'
+                ? 'bg-purple-600/30 border-purple-500 text-purple-200'
+                : 'bg-neutral-800/80 border-neutral-700 text-neutral-300 hover:text-white hover:bg-neutral-700'
             }`}
-            title="Abrir painel de Automação com IA para navegar, resumir, clicar ou preencher formulários nesta página"
+            title="Automação com IA no Navegador"
           >
-            <ControlIcon name="ai" size={13} />
-            <span>Automação com IA</span>
+            <ControlIcon name="ai" size={12} />
           </button>
 
           {/* Controle de Colaboração */}
           {isHost ? (
             <button
+              type="button"
               onClick={() => setAllowCollaboration(!activeSession.allowCollaboration)}
-              className={`flex items-center gap-1.5 px-2.5 py-1 rounded-xl text-xs font-semibold border transition ${
+              className={`flex items-center gap-1 h-7 px-2 rounded-md border text-xs transition ${
                 activeSession.allowCollaboration
-                  ? 'bg-emerald-600/20 border-emerald-500/80 text-emerald-300 hover:bg-emerald-600/30'
-                  : 'bg-neutral-800/80 border-neutral-700 text-neutral-400 hover:text-white hover:bg-neutral-700'
+                  ? 'bg-emerald-600/20 border-emerald-500/80 text-emerald-300'
+                  : 'bg-neutral-800/80 border-neutral-700 text-neutral-400 hover:text-white'
               }`}
               title={
                 activeSession.allowCollaboration
-                  ? 'Colaboração ativada: integrantes podem clicar e interagir. Clique para desativar.'
-                  : 'Permitir que os outros integrantes cliquem nos links e participem da navegação.'
+                  ? 'Interação ativada para outros integrantes (clique para pausar)'
+                  : 'Permitir que integrantes interajam com o navegador'
               }
             >
-              <ControlIcon name="friends" size={13} />
-              <span>{activeSession.allowCollaboration ? 'Interação Permitida' : 'Permitir Interação'}</span>
+              <ControlIcon name="friends" size={12} />
+              <span className="hidden sm:inline text-[11px]">
+                {activeSession.allowCollaboration ? 'Interativo' : 'Ver apenas'}
+              </span>
             </button>
           ) : (
             <span
-              className={`flex items-center gap-1.5 px-2.5 py-1 rounded-xl text-xs font-medium border ${
+              className={`flex items-center gap-1 h-7 px-2 rounded-md border text-[11px] ${
                 activeSession.allowCollaboration
-                  ? 'bg-emerald-950/40 border-emerald-600/50 text-emerald-300'
+                  ? 'bg-emerald-950/40 border-emerald-600/40 text-emerald-300'
                   : 'bg-neutral-900 border-neutral-800 text-neutral-400'
               }`}
-              title={
-                activeSession.allowCollaboration
-                  ? 'Você pode clicar nos links e navegar com o anfitrião!'
-                  : 'Apenas visualização no momento.'
-              }
+              title={activeSession.allowCollaboration ? 'Você pode interagir e clicar' : 'Apenas visualização'}
             >
-              <ControlIcon name={activeSession.allowCollaboration ? 'friends' : 'info'} size={12} />
-              <span>{activeSession.allowCollaboration ? 'Colaboração Ativa' : 'Apenas Visualização'}</span>
+              <ControlIcon name={activeSession.allowCollaboration ? 'friends' : 'info'} size={11} />
+              <span className="hidden sm:inline">
+                {activeSession.allowCollaboration ? 'Interativo' : 'Visualizando'}
+              </span>
             </span>
           )}
 
-          {/* Botão de Silenciar/Ativar Áudio do Navegador */}
+          {/* Som / Mudo (se host) */}
           {isHost && (
             <button
               type="button"
               onClick={handleToggleBrowserAudio}
-              className={`flex items-center gap-1.5 px-2.5 py-1 rounded-xl text-xs font-semibold border transition ${
+              className={`w-7 h-7 flex items-center justify-center rounded-md border text-xs transition ${
                 browserAudioMuted
-                  ? 'bg-amber-950/40 border-amber-600/60 text-amber-300 hover:bg-amber-900/50'
-                  : 'bg-neutral-800/90 border-neutral-700 text-neutral-300 hover:text-white hover:bg-neutral-700'
+                  ? 'bg-amber-950/40 border-amber-600/60 text-amber-300'
+                  : 'bg-neutral-800/80 border-neutral-700 text-neutral-300 hover:text-white'
               }`}
-              title={browserAudioMuted ? 'Áudio do navegador silenciado. Clique para ativar som.' : 'Silenciar áudio do navegador interno.'}
+              title={browserAudioMuted ? 'Áudio do navegador mudo (clique para ativar)' : 'Silenciar áudio do navegador'}
             >
-              <ControlIcon name="audio" slashed={browserAudioMuted} size={13} />
-              <span>{browserAudioMuted ? 'Mudo' : 'Som'}</span>
+              <ControlIcon name="audio" slashed={browserAudioMuted} size={12} />
             </button>
           )}
 
-          {/* Botão para Destacar / Fixar Navegador no ConTALK */}
+          {/* Destacar / Fixar (se host) */}
           {isHost && (
             <button
               type="button"
               onClick={() => void toggleDetach()}
-              className={`flex items-center gap-1.5 px-2.5 py-1 rounded-xl text-xs font-semibold border transition ${
+              className={`w-7 h-7 flex items-center justify-center rounded-md border text-xs transition ${
                 isDetached
-                  ? 'bg-sky-600/30 border-sky-500 text-sky-200 hover:bg-sky-600/40'
-                  : 'bg-neutral-800/90 border-neutral-700 text-neutral-300 hover:text-white hover:bg-neutral-700'
+                  ? 'bg-sky-600/30 border-sky-500 text-sky-200'
+                  : 'bg-neutral-800/80 border-neutral-700 text-neutral-300 hover:text-white'
               }`}
-              title={
-                isDetached
-                  ? 'Navegador destacado em janela do Windows. Clique para fixar de volta dentro do ConTALK.'
-                  : 'Destacar navegador em uma janela separada do Windows (opcional).'
-              }
+              title={isDetached ? 'Fixar de volta no ConTALK' : 'Destacar em janela separada do Windows'}
             >
-              <ControlIcon name={isDetached ? 'shrink' : 'expand'} size={13} />
-              <span>{isDetached ? 'Fixar no ConTALK' : 'Destacar'}</span>
+              <ControlIcon name={isDetached ? 'shrink' : 'expand'} size={12} />
             </button>
           )}
 
-          {/* Botão de alternar Foco / Grade */}
+          {/* Foco / Grade */}
           {isSpotlight && onMinimize && (
             <button
+              type="button"
               onClick={onMinimize}
-              className="px-2.5 py-1 rounded-xl bg-neutral-800 hover:bg-neutral-700 text-neutral-200 text-xs font-semibold transition"
+              className="h-7 px-2 rounded-md bg-neutral-800 hover:bg-neutral-700 text-neutral-200 text-xs font-medium"
               title="Voltar ao modo grade"
             >
               ⊞ Grade
@@ -313,22 +368,24 @@ export function SharedBrowserStage({
           {/* Tela cheia */}
           {onFullscreen && (
             <button
+              type="button"
               onClick={onFullscreen}
-              className="p-1.5 rounded-xl bg-neutral-800 hover:bg-neutral-700 text-neutral-300 hover:text-white transition"
+              className="w-7 h-7 flex items-center justify-center rounded-md bg-neutral-800 hover:bg-neutral-700 text-neutral-300 hover:text-white"
               title="Tela cheia"
             >
-              <ControlIcon name="expand" size={14} />
+              <ControlIcon name="expand" size={12} />
             </button>
           )}
 
-          {/* Parar Compartilhamento (se for host) */}
+          {/* Encerrar */}
           {isHost && (
             <button
+              type="button"
               onClick={() => void stopSharing()}
-              className="flex items-center gap-1 px-2.5 py-1 rounded-xl bg-red-600/20 hover:bg-red-600/30 text-red-300 border border-red-500/40 text-xs font-semibold transition"
+              className="h-7 px-2.5 rounded-md bg-red-600/80 hover:bg-red-600 text-white text-[11px] font-semibold flex items-center gap-1 shadow-sm"
               title="Encerrar compartilhamento do navegador"
             >
-              <ControlIcon name="close" size={13} />
+              <ControlIcon name="close" size={11} />
               <span>Encerrar</span>
             </button>
           )}
@@ -337,54 +394,51 @@ export function SharedBrowserStage({
 
       {/* Aviso temporário de clique restrito */}
       {clickNotice && (
-        <div className="absolute top-14 left-1/2 -translate-x-1/2 z-50 bg-amber-950/90 text-amber-200 border border-amber-600/80 px-4 py-1.5 rounded-xl text-xs font-medium shadow-lg backdrop-blur animate-fade-in">
+        <div className="absolute top-12 left-1/2 -translate-x-1/2 z-50 bg-amber-950/90 text-amber-200 border border-amber-600/80 px-3.5 py-1 rounded-lg text-xs font-medium shadow-xl backdrop-blur animate-fade-in">
           {clickNotice}
         </div>
       )}
 
-      {/* Banner de proteção contra vazamento de senhas */}
-      {activeSession.hasPasswordField && (
-        <div className="bg-amber-950/90 border-b border-amber-600/60 text-amber-200 px-4 py-1 text-xs flex items-center justify-center gap-2 z-10">
-          <ControlIcon name="lock" size={12} />
-          <span>
-            <strong>Proteção Ativa:</strong> Campos de senha e credenciais confidenciais foram desfocados e ocultados
-            automaticamente da visualização.
-          </span>
-        </div>
-      )}
-
-      {/* Container Principal: Viewport + Drawer Lateral de Automação com IA */}
-      <div className="flex-1 flex min-h-0 w-full h-full relative overflow-hidden bg-black">
-        {/* Área Central: Viewport do Navegador */}
-        <div className="flex-1 flex flex-col min-w-0 h-full relative overflow-hidden items-center justify-center">
+      {/* Área Central: Viewport com Aspect Ratio Nativo Perfeito e Sem Deformação */}
+      <div className="flex-1 flex min-h-0 w-full h-full relative overflow-hidden bg-[#0c0c0c]">
+        <div
+          tabIndex={0}
+          onKeyDown={handleKeyDown}
+          className="flex-1 flex flex-col min-w-0 h-full relative overflow-hidden items-center justify-center p-2 outline-none"
+        >
+          {/* Canvas Wrapper 16:9 Exato com letterbox/pillarbox limpos sem esticar */}
           <div
-            ref={viewportRef}
-            onClick={handleViewportClick}
+            ref={canvasRef}
+            tabIndex={0}
+            onClick={handleCanvasClick}
             onMouseMove={handleMouseMove}
-            className={`relative max-w-full max-h-full overflow-hidden flex items-center justify-center bg-black ${
+            onKeyDown={handleKeyDown}
+            className={`relative flex items-center justify-center overflow-hidden rounded-lg bg-black shadow-2xl outline-none ${
               canInteract ? 'cursor-pointer' : 'cursor-default'
             }`}
             style={{
-              aspectRatio: '1080 / 720',
+              aspectRatio: '16 / 9',
+              maxWidth: '100%',
+              maxHeight: '100%',
               width: '100%',
-              height: '100%'
+              height: 'auto'
             }}
           >
             {activeSession.screenshot ? (
               <img
                 src={activeSession.screenshot}
                 alt={activeSession.title || 'Navegador Web'}
-                className="w-full h-full object-fill pointer-events-none select-none"
+                className="w-full h-full object-contain pointer-events-none select-none block"
                 draggable={false}
               />
             ) : (
-              <div className="flex flex-col items-center justify-center gap-3 text-neutral-400">
-                <ControlIcon name="globe" size={32} />
-                <p className="text-sm font-medium">Carregando visualização segura do navegador...</p>
+              <div className="flex flex-col items-center justify-center gap-2 text-neutral-400 p-8">
+                <ControlIcon name="globe" size={28} />
+                <p className="text-xs font-medium">Carregando visualização do navegador...</p>
               </div>
             )}
 
-            {/* Cursores dos Colaboradores Remotos */}
+            {/* Cursores Colaborativos posicionados dentro da área exata da página */}
             {otherCollaborators.map((c) => (
               <div
                 key={c.id}
@@ -396,8 +450,8 @@ export function SharedBrowserStage({
                 }}
               >
                 <svg
-                  width="18"
-                  height="18"
+                  width="16"
+                  height="16"
                   viewBox="0 0 24 24"
                   fill={c.color}
                   stroke="#000"
@@ -407,95 +461,46 @@ export function SharedBrowserStage({
                   <path d="M3 3l7 18 3-7 7-3L3 3z" />
                 </svg>
                 <span
-                  className="text-[10px] font-bold text-white px-1.5 py-0.5 rounded-md shadow-md -mt-1 ml-3 whitespace-nowrap"
+                  className="text-[9px] font-bold text-white px-1 py-0.2 rounded shadow-md -mt-1 ml-2.5 whitespace-nowrap"
                   style={{ backgroundColor: c.color }}
                 >
                   {c.name}
                 </span>
 
-                {/* Onda de clique recente do colaborador */}
                 {c.lastClick && Date.now() - c.lastClick.time < 700 && (
                   <span
-                    className="absolute w-8 h-8 rounded-full border-2 border-white bg-white/30 animate-ping -left-2 -top-2 pointer-events-none"
+                    className="absolute w-6 h-6 rounded-full border-2 border-white bg-white/30 animate-ping -left-1.5 -top-1.5 pointer-events-none"
                     style={{ borderColor: c.color }}
                   />
                 )}
               </div>
             ))}
           </div>
-
-          {/* Barra de Digitação Colaborativa (visível quando pode interagir) */}
-          {canInteract && (
-            <div className="w-full bg-[#161616] border-t border-neutral-800 px-3 py-1.5 flex items-center justify-between gap-2 z-10 flex-wrap">
-              <form onSubmit={handleSendType} className="flex-1 flex items-center gap-2 max-w-xl">
-                <span className="text-[11px] text-neutral-400 whitespace-nowrap flex items-center gap-1">
-                  <ControlIcon name="chat" size={11} /> Digitar no campo:
-                </span>
-                <input
-                  type="text"
-                  value={typingInput}
-                  onChange={(e) => setTypingInput(e.target.value)}
-                  placeholder="Clique em um campo acima e digite o texto aqui..."
-                  className="flex-1 bg-[#0a0a0a] text-neutral-200 text-xs px-2.5 py-1 rounded-lg border border-neutral-700 focus:border-sky-500 focus:outline-none"
-                />
-                <button
-                  type="submit"
-                  disabled={!typingInput.trim()}
-                  className="px-2.5 py-1 rounded-lg bg-sky-600 hover:bg-sky-500 disabled:opacity-40 text-white text-xs font-semibold"
-                >
-                  Digitar
-                </button>
-              </form>
-
-              <div className="flex items-center gap-1.5">
-                <button
-                  type="button"
-                  onClick={() => void sendKey('Enter')}
-                  className="px-2 py-1 rounded-lg bg-neutral-800 hover:bg-neutral-700 text-neutral-200 text-xs font-mono"
-                  title="Pressionar tecla Enter na página"
-                >
-                  ↵ Enter
-                </button>
-                <button
-                  type="button"
-                  onClick={() => void sendKey('Backspace')}
-                  className="px-2 py-1 rounded-lg bg-neutral-800 hover:bg-neutral-700 text-neutral-200 text-xs font-mono"
-                  title="Pressionar tecla Backspace na página"
-                >
-                  ⌫ Apagar
-                </button>
-              </div>
-            </div>
-          )}
         </div>
 
-        {/* Drawer Lateral: Opções de Automação com IA */}
+        {/* Drawer Lateral de Automação com IA (Retrátil, sem achatar a página) */}
         {showAiDrawer && (
-          <aside className="w-80 h-full bg-[#181818] border-l border-neutral-800 flex flex-col z-30 shadow-2xl animate-fade-in flex-shrink-0">
-            {/* Header do Drawer de IA */}
-            <div className="flex items-center justify-between px-3.5 py-2.5 border-b border-neutral-800">
+          <aside className="w-72 h-full bg-[#161616] border-l border-neutral-800 flex flex-col z-30 shadow-2xl animate-fade-in flex-shrink-0">
+            <div className="flex items-center justify-between px-3 py-2 border-b border-neutral-800">
               <div className="flex items-center gap-1.5 text-purple-300 font-semibold text-xs">
-                <ControlIcon name="ai" size={14} />
+                <ControlIcon name="ai" size={13} />
                 <span>Automação com IA</span>
               </div>
               <button
                 type="button"
                 onClick={() => setShowAiDrawer(false)}
-                className="text-neutral-400 hover:text-white p-1 rounded-lg"
-                title="Fechar painel de IA"
+                className="text-neutral-400 hover:text-white p-0.5 rounded"
+                title="Fechar painel"
               >
-                <ControlIcon name="close" size={12} />
+                <ControlIcon name="close" size={11} />
               </button>
             </div>
 
-            {/* Conteúdo do Drawer */}
-            <div className="flex-1 overflow-y-auto p-3.5 flex flex-col gap-3 scrollbar-thin">
-              {/* Card de Ações Rápidas */}
-              <div className="bg-[#202020] rounded-xl p-3 border border-neutral-700/60 flex flex-col gap-2">
-                <span className="text-[11px] font-bold uppercase tracking-wider text-neutral-400">
+            <div className="flex-1 overflow-y-auto p-3 flex flex-col gap-2.5 scrollbar-thin">
+              <div className="bg-[#1e1e1e] rounded-lg p-2.5 border border-neutral-700/60 flex flex-col gap-1.5">
+                <span className="text-[10px] font-bold uppercase tracking-wider text-neutral-400">
                   Ações Rápidas
                 </span>
-
                 <button
                   type="button"
                   onClick={() =>
@@ -503,39 +508,32 @@ export function SharedBrowserStage({
                       `Por favor, acesse a página ${activeSession.url} no navegador e faça um resumo claro dos tópicos principais, pontos-chave e links úteis.`
                     )
                   }
-                  className="flex items-center gap-2 p-2 rounded-lg bg-purple-950/40 hover:bg-purple-900/50 border border-purple-700/40 text-purple-200 text-xs font-medium text-left transition"
+                  className="flex items-center gap-2 p-1.5 rounded bg-purple-950/40 hover:bg-purple-900/50 border border-purple-700/40 text-purple-200 text-xs font-medium text-left transition"
                 >
-                  <ControlIcon name="ai" size={13} />
+                  <ControlIcon name="ai" size={12} />
                   <span>Resumir página com IA</span>
                 </button>
-
                 <button
                   type="button"
                   onClick={handleReadContent}
-                  className="flex items-center gap-2 p-2 rounded-lg bg-neutral-800 hover:bg-neutral-700 text-neutral-200 text-xs font-medium text-left transition"
+                  className="flex items-center gap-2 p-1.5 rounded bg-neutral-800 hover:bg-neutral-700 text-neutral-200 text-xs font-medium text-left transition"
                 >
-                  <ControlIcon name="file" size={13} />
+                  <ControlIcon name="file" size={12} />
                   <span>Extrair texto & links da página</span>
                 </button>
               </div>
 
-              {/* Input de Ação Personalizada para a IA */}
-              <div className="bg-[#202020] rounded-xl p-3 border border-neutral-700/60 flex flex-col gap-2">
-                <span className="text-[11px] font-bold uppercase tracking-wider text-neutral-400">
-                  Comandar IA no Navegador
+              <div className="bg-[#1e1e1e] rounded-lg p-2.5 border border-neutral-700/60 flex flex-col gap-1.5">
+                <span className="text-[10px] font-bold uppercase tracking-wider text-neutral-400">
+                  Comandar IA
                 </span>
-                <p className="text-[11px] text-neutral-400 leading-relaxed">
-                  Peça à IA para pesquisar, clicar em botões, preencher formulários ou extrair dados específicos desta página:
-                </p>
-
                 <textarea
                   value={aiPromptInput}
                   onChange={(e) => setAiPromptInput(e.target.value)}
-                  placeholder="Ex: Localize o botão de cadastro e clique nele, ou pesquise sobre inteligência artificial..."
-                  rows={3}
-                  className="w-full bg-[#101010] text-neutral-200 text-xs p-2 rounded-lg border border-neutral-700 focus:border-purple-500 focus:outline-none resize-none"
+                  placeholder="Ex: Preencha o campo de busca ou clique no primeiro resultado..."
+                  rows={2}
+                  className="w-full bg-[#0a0a0a] text-neutral-200 text-xs p-1.5 rounded border border-neutral-700 focus:border-purple-500 focus:outline-none resize-none"
                 />
-
                 <button
                   type="button"
                   disabled={!aiPromptInput.trim()}
@@ -544,61 +542,54 @@ export function SharedBrowserStage({
                     handleTriggerAiPrompt(fullPrompt)
                     setAiPromptInput('')
                   }}
-                  className="flex items-center justify-center gap-1.5 py-1.5 px-3 rounded-lg bg-purple-600 hover:bg-purple-500 disabled:opacity-40 text-white text-xs font-semibold shadow-md transition"
+                  className="flex items-center justify-center gap-1 py-1 px-2.5 rounded bg-purple-600 hover:bg-purple-500 disabled:opacity-40 text-white text-xs font-semibold shadow transition"
                 >
-                  <ControlIcon name="ai" size={12} />
-                  <span>Executar Ação com IA</span>
+                  <ControlIcon name="ai" size={11} />
+                  <span>Executar</span>
                 </button>
               </div>
 
-              {/* Visualização de Texto Extraído */}
               {extractedContent && (
-                <div className="bg-[#202020] rounded-xl p-3 border border-neutral-700/60 flex flex-col gap-2 max-h-48 overflow-hidden">
+                <div className="bg-[#1e1e1e] rounded-lg p-2.5 border border-neutral-700/60 flex flex-col gap-1 max-h-40 overflow-hidden">
                   <div className="flex items-center justify-between">
-                    <span className="text-[11px] font-bold uppercase tracking-wider text-neutral-400">
+                    <span className="text-[10px] font-bold uppercase tracking-wider text-neutral-400">
                       Texto Extraído
                     </span>
                     <button
                       type="button"
                       onClick={() => setExtractedContent(null)}
-                      className="text-[10px] text-neutral-400 hover:text-white"
+                      className="text-[9px] text-neutral-400 hover:text-white"
                     >
                       Limpar
                     </button>
                   </div>
-                  <div className="text-[11px] text-neutral-300 font-mono bg-[#101010] p-2 rounded-lg overflow-y-auto max-h-36 scrollbar-thin whitespace-pre-wrap select-text">
+                  <div className="text-[10px] text-neutral-300 font-mono bg-[#0a0a0a] p-1.5 rounded overflow-y-auto max-h-28 scrollbar-thin whitespace-pre-wrap select-text">
                     {extractedContent}
                   </div>
                 </div>
               )}
 
-              {/* Histórico de Ações da IA */}
-              <div className="bg-[#202020] rounded-xl p-3 border border-neutral-700/60 flex flex-col gap-2">
-                <span className="text-[11px] font-bold uppercase tracking-wider text-neutral-400">
-                  Histórico de Automações
-                </span>
-                <div className="flex flex-col gap-1.5 max-h-36 overflow-y-auto scrollbar-thin">
-                  {historyLog.length > 0 ? (
-                    historyLog.map((item, idx) => (
+              {historyLog.length > 0 && (
+                <div className="bg-[#1e1e1e] rounded-lg p-2.5 border border-neutral-700/60 flex flex-col gap-1">
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-neutral-400">
+                    Histórico
+                  </span>
+                  <div className="flex flex-col gap-1 max-h-28 overflow-y-auto scrollbar-thin">
+                    {historyLog.map((item, idx) => (
                       <div
                         key={idx}
-                        className="flex items-start gap-1.5 text-[11px] text-neutral-300 bg-[#161616] p-1.5 rounded-md"
+                        className="flex items-start gap-1 text-[10px] text-neutral-300 bg-[#121212] p-1 rounded"
                       >
-                        <ControlIcon name="check" size={11} />
+                        <ControlIcon name="check" size={10} />
                         <span className="break-all">{item}</span>
                       </div>
-                    ))
-                  ) : (
-                    <span className="text-[11px] text-neutral-500 italic">
-                      Nenhuma automação solicitada recentemente.
-                    </span>
-                  )}
+                    ))}
+                  </div>
                 </div>
-              </div>
+              )}
             </div>
 
-            {/* Footer do Drawer com Status */}
-            <div className="px-3.5 py-2 border-t border-neutral-800 bg-[#141414] text-[11px] text-neutral-400 truncate">
+            <div className="px-2.5 py-1.5 border-t border-neutral-800 bg-[#121212] text-[10px] text-neutral-400 truncate">
               {aiStatus}
             </div>
           </aside>

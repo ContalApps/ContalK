@@ -124,3 +124,75 @@ test('Shared Browser Store structures session and collaborative interactions', a
   assert.equal(session.allowCollaboration, true)
   assert.equal(session.hasPasswordField, false)
 })
+
+test('Detached browser overlay injects collaborator cursors and floating control bar', async () => {
+  let executedScripts = []
+
+  const mockWebContents = {
+    getURL: () => 'https://example.com/collab',
+    getTitle: () => 'Collab Room',
+    canGoBack: () => true,
+    canGoForward: () => false,
+    goBack() {},
+    goForward() {},
+    reload() {},
+    loadURL: async () => {},
+    on() {},
+    once() {},
+    removeListener() {},
+    isLoadingMainFrame: () => false,
+    executeJavaScript: async (script) => {
+      executedScripts.push(script)
+      return true
+    }
+  }
+
+  const mockBrowserWindow = {
+    isDestroyed: () => false,
+    webContents: mockWebContents,
+    show() {},
+    hide() {},
+    focus() {},
+    close() {},
+    isVisible: () => true,
+    loadURL: async () => {},
+    on() {}
+  }
+
+  const fakeElectron = {
+    BrowserWindow: class {
+      constructor() {
+        return mockBrowserWindow
+      }
+    },
+    ipcMain: {
+      handle() {},
+      removeHandler() {}
+    }
+  }
+
+  const { browserManager } = loadTypescript(
+    'electron/browser.ts',
+    { electron: fakeElectron },
+    { process }
+  )
+
+  await browserManager.open('https://example.com/collab', true)
+
+  const ok = await browserManager.updateCollaborators({
+    collaborators: [
+      { id: 'vgzera', name: 'VG', color: '#10b981', xPercent: 42, yPercent: 68 },
+      { id: 'trevs', name: 'Trevs', color: '#f59e0b', xPercent: 80, yPercent: 15, lastClick: { xPercent: 80, yPercent: 15, time: Date.now() } }
+    ],
+    allowCollaboration: true,
+    isAudioMuted: false
+  })
+
+  assert.equal(ok, true)
+  assert.ok(executedScripts.some(s => s.includes('contalk-detached-overlay')), 'Detached overlay element must be injected')
+  assert.ok(executedScripts.some(s => s.includes('contalk-floating-bar')), 'Floating control bar must be rendered')
+  assert.ok(executedScripts.some(s => s.includes('vgzera') || s.includes('VG')), 'Collaborator name and cursor must be rendered')
+  assert.ok(executedScripts.some(s => s.includes('ctRippleAnim')), 'Click ripple effect must be supported')
+
+  browserManager.close()
+})

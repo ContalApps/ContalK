@@ -23,6 +23,267 @@ let currentStatus: BrowserActionStatus = {
   canGoForward: false
 }
 
+let lastCollaboratorsState: {
+  collaborators: any[]
+  allowCollaboration: boolean
+  isAudioMuted?: boolean
+} = {
+  collaborators: [],
+  allowCollaboration: false,
+  isAudioMuted: false
+}
+
+function handleDetachedBrowserAction(actionStr: string) {
+  const [action, ...rest] = actionStr.split(':')
+  const payload = rest.join(':')
+
+  if (action === 'toggle-audio') {
+    const nextMuted = !browserManager.isAudioMuted()
+    browserManager.setAudioMuted(nextMuted)
+    lastCollaboratorsState.isAudioMuted = nextMuted
+    void applyDetachedOverlay()
+  } else if (action === 'toggle-detach') {
+    browserManager.hide()
+  } else if (action === 'stop-sharing') {
+    browserManager.hide()
+  }
+
+  if (mainWindowRef && !mainWindowRef.isDestroyed()) {
+    try {
+      const url = browserWindow && !browserWindow.isDestroyed() ? browserWindow.webContents.getURL() : ''
+      const title = browserWindow && !browserWindow.isDestroyed() ? browserWindow.webContents.getTitle() : ''
+      mainWindowRef.webContents.send('browser-action-from-detached', { action, payload, url, title })
+    } catch {
+      // ignore
+    }
+  }
+}
+
+export async function applyDetachedOverlay(data?: {
+  collaborators?: any[]
+  allowCollaboration?: boolean
+  isAudioMuted?: boolean
+}): Promise<boolean> {
+  if (data) {
+    if (Array.isArray(data.collaborators)) lastCollaboratorsState.collaborators = data.collaborators
+    if (typeof data.allowCollaboration === 'boolean') lastCollaboratorsState.allowCollaboration = data.allowCollaboration
+    if (typeof data.isAudioMuted === 'boolean') lastCollaboratorsState.isAudioMuted = data.isAudioMuted
+  }
+
+  if (!browserWindow || browserWindow.isDestroyed()) return false
+  if (typeof (browserWindow.webContents as any).isLoadingMainFrame === 'function' && (browserWindow.webContents as any).isLoadingMainFrame()) return false
+
+  const script = `
+    (() => {
+      try {
+        const data = ${JSON.stringify(lastCollaboratorsState)};
+        let overlay = document.getElementById('contalk-detached-overlay');
+        if (!overlay) {
+          overlay = document.createElement('div');
+          overlay.id = 'contalk-detached-overlay';
+          overlay.setAttribute('style', 'position:fixed!important;inset:0!important;width:100vw!important;height:100vh!important;pointer-events:none!important;z-index:2147483647!important;overflow:hidden!important;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif!important;');
+          (document.body || document.documentElement).appendChild(overlay);
+        }
+
+        let style = document.getElementById('contalk-detached-style');
+        if (!style) {
+          style = document.createElement('style');
+          style.id = 'contalk-detached-style';
+          style.textContent = \`
+            @keyframes ctPulseDot {
+              0%, 100% { opacity: 1; transform: scale(1); }
+              50% { opacity: 0.35; transform: scale(0.85); }
+            }
+            @keyframes ctRippleAnim {
+              0% { transform: translate(-50%, -50%) scale(0.2); opacity: 1; }
+              100% { transform: translate(-50%, -50%) scale(2.4); opacity: 0; }
+            }
+            .ct-bar-btn {
+              background: rgba(255, 255, 255, 0.08);
+              border: 1px solid rgba(255, 255, 255, 0.16);
+              color: #f1f5f9;
+              font-size: 11px;
+              font-weight: 500;
+              padding: 4px 10px;
+              border-radius: 9999px;
+              cursor: pointer;
+              display: inline-flex;
+              align-items: center;
+              gap: 5px;
+              transition: all 0.15s ease;
+              user-select: none;
+            }
+            .ct-bar-btn:hover {
+              background: rgba(255, 255, 255, 0.18);
+              border-color: rgba(255, 255, 255, 0.3);
+            }
+            .ct-bar-btn-active {
+              background: rgba(16, 185, 129, 0.22) !important;
+              border-color: rgba(16, 185, 129, 0.5) !important;
+              color: #34d399 !important;
+            }
+            .ct-bar-btn-danger {
+              background: rgba(239, 68, 68, 0.22) !important;
+              border-color: rgba(239, 68, 68, 0.45) !important;
+              color: #fca5a5 !important;
+            }
+            .ct-bar-btn-danger:hover {
+              background: rgba(239, 68, 68, 0.35) !important;
+            }
+            .ct-ai-item {
+              padding: 7px 10px;
+              border-radius: 6px;
+              cursor: pointer;
+              font-size: 11px;
+              color: #e2e8f0;
+              display: flex;
+              align-items: center;
+              gap: 6px;
+              transition: background 0.12s ease;
+            }
+            .ct-ai-item:hover {
+              background: rgba(255, 255, 255, 0.12);
+              color: #fff;
+            }
+          \`;
+          (document.head || document.documentElement).appendChild(style);
+        }
+
+        let bar = document.getElementById('contalk-floating-bar');
+        if (!bar) {
+          bar = document.createElement('div');
+          bar.id = 'contalk-floating-bar';
+          bar.setAttribute('style', 'position:fixed;top:10px;left:50%;transform:translateX(-50%);pointer-events:auto;display:flex;align-items:center;gap:7px;background:rgba(18,18,18,0.94);backdrop-filter:blur(16px);-webkit-backdrop-filter:blur(16px);border:1px solid rgba(255,255,255,0.14);box-shadow:0 10px 30px rgba(0,0,0,0.6);padding:5px 12px;border-radius:9999px;color:#e2e8f0;z-index:2147483647;');
+          overlay.appendChild(bar);
+        }
+
+        const allowCollab = Boolean(data.allowCollaboration);
+        const isMuted = Boolean(data.isAudioMuted);
+
+        bar.innerHTML = \`
+          <div style="display:flex;align-items:center;gap:6px;padding-right:4px;">
+            <span style="width:7px;height:7px;border-radius:50%;background:#22c55e;box-shadow:0 0 8px #22c55e;animation:ctPulseDot 2s infinite ease-in-out;"></span>
+            <strong style="font-size:11px;font-weight:700;letter-spacing:0.3px;color:#fff;">ConTALK</strong>
+          </div>
+          <div style="width:1px;height:14px;background:rgba(255,255,255,0.16);"></div>
+          <button id="ct-act-collab" class="ct-bar-btn \${allowCollab ? 'ct-bar-btn-active' : ''}">
+            \${allowCollab ? '👥 Colaboração Ativa' : '🔒 Colaboração Pausada'}
+          </button>
+          <button id="ct-act-audio" class="ct-bar-btn \${isMuted ? 'ct-bar-btn-danger' : ''}">
+            \${isMuted ? '🔇 Mudo' : '🔊 Áudio'}
+          </button>
+          <div style="position:relative;">
+            <button id="ct-act-ai-toggle" class="ct-bar-btn" style="background:rgba(168,85,247,0.18);border-color:rgba(168,85,247,0.4);color:#d8b4fe;">
+              ✦ Automação IA ▾
+            </button>
+            <div id="ct-ai-menu" style="display:none;position:absolute;top:calc(100% + 8px);left:50%;transform:translateX(-50%);background:#181818;border:1px solid rgba(255,255,255,0.18);border-radius:10px;padding:6px;box-shadow:0 12px 32px rgba(0,0,0,0.8);min-width:215px;z-index:2147483647;">
+              <div class="ct-ai-item" id="ct-ai-action-summarize">
+                <span>✦</span> <strong>Resumir página no chat</strong>
+              </div>
+              <div class="ct-ai-item" id="ct-ai-action-automate">
+                <span>⚡</span> <strong>Automatizar ações na página</strong>
+              </div>
+              <div class="ct-ai-item" id="ct-ai-action-read">
+                <span>📄</span> <strong>Extrair dados e formulários</strong>
+              </div>
+            </div>
+          </div>
+          <div style="width:1px;height:14px;background:rgba(255,255,255,0.16);"></div>
+          <button id="ct-act-hide" class="ct-bar-btn" title="Minimizar navegador para o ConTALK">
+            ⤓ Recolher ao App
+          </button>
+          <button id="ct-act-stop" class="ct-bar-btn ct-bar-btn-danger" title="Encerrar compartilhamento">
+            ✕ Parar
+          </button>
+        \`;
+
+        const btnCollab = document.getElementById('ct-act-collab');
+        if (btnCollab) btnCollab.onclick = () => console.log('CONTALK_ACTION:toggle-collab');
+
+        const btnAudio = document.getElementById('ct-act-audio');
+        if (btnAudio) btnAudio.onclick = () => console.log('CONTALK_ACTION:toggle-audio');
+
+        const btnAi = document.getElementById('ct-act-ai-toggle');
+        const aiMenu = document.getElementById('ct-ai-menu');
+        if (btnAi && aiMenu) {
+          btnAi.onclick = (e) => {
+            e.stopPropagation();
+            aiMenu.style.display = aiMenu.style.display === 'none' ? 'block' : 'none';
+          };
+          document.addEventListener('click', () => {
+            if (aiMenu) aiMenu.style.display = 'none';
+          });
+        }
+
+        const aiSummarize = document.getElementById('ct-ai-action-summarize');
+        if (aiSummarize) aiSummarize.onclick = () => console.log('CONTALK_ACTION:ai-summarize');
+
+        const aiAutomate = document.getElementById('ct-ai-action-automate');
+        if (aiAutomate) aiAutomate.onclick = () => console.log('CONTALK_ACTION:ai-automate');
+
+        const aiRead = document.getElementById('ct-ai-action-read');
+        if (aiRead) aiRead.onclick = () => console.log('CONTALK_ACTION:ai-read');
+
+        const btnHide = document.getElementById('ct-act-hide');
+        if (btnHide) btnHide.onclick = () => console.log('CONTALK_ACTION:toggle-detach');
+
+        const btnStop = document.getElementById('ct-act-stop');
+        if (btnStop) btnStop.onclick = () => console.log('CONTALK_ACTION:stop-sharing');
+
+        let cursorsContainer = document.getElementById('contalk-cursors-container');
+        if (!cursorsContainer) {
+          cursorsContainer = document.createElement('div');
+          cursorsContainer.id = 'contalk-cursors-container';
+          cursorsContainer.setAttribute('style', 'position:fixed!important;inset:0!important;width:100vw!important;height:100vh!important;pointer-events:none!important;overflow:hidden!important;');
+          overlay.appendChild(cursorsContainer);
+        }
+
+        const collabs = Array.isArray(data.collaborators) ? data.collaborators : [];
+        let html = '';
+        const now = Date.now();
+
+        for (const c of collabs) {
+          if (!c || !c.id) continue;
+          const x = Math.max(0, Math.min(100, c.xPercent || 0));
+          const y = Math.max(0, Math.min(100, c.yPercent || 0));
+          const color = c.color || '#38bdf8';
+          const name = String(c.name || c.id).replace(/[<>&"]/g, '');
+
+          html += \`
+            <div style="position:absolute;left:\${x}%;top:\${y}%;transform:translate(-2px,-2px);pointer-events:none;transition:left 0.06s linear,top 0.06s linear;display:flex;flex-direction:column;align-items:flex-start;z-index:2147483640;">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="\${color}" stroke="#000" stroke-width="1.5" style="filter:drop-shadow(0 2px 4px rgba(0,0,0,0.6));">
+                <path d="M3 3l7 18 3-7 7-3L3 3z"/>
+              </svg>
+              <span style="background:\${color};color:#ffffff;font-size:10px;font-weight:700;padding:2px 6px;border-radius:4px;box-shadow:0 2px 6px rgba(0,0,0,0.5);margin-top:-4px;margin-left:12px;white-space:nowrap;font-family:-apple-system,sans-serif;">
+                \${name}
+              </span>
+            </div>
+          \`;
+
+          if (c.lastClick && (now - c.lastClick.time < 700)) {
+            const cx = Math.max(0, Math.min(100, c.lastClick.xPercent));
+            const cy = Math.max(0, Math.min(100, c.lastClick.yPercent));
+            html += \`
+              <div style="position:absolute;left:\${cx}%;top:\${cy}%;width:34px;height:34px;border-radius:50%;border:2px solid \${color};background:\${color}33;pointer-events:none;animation:ctRippleAnim 0.6s cubic-bezier(0,0.2,0.8,1) forwards;z-index:2147483639;"></div>
+            \`;
+          }
+        }
+
+        cursorsContainer.innerHTML = html;
+      } catch (err) {
+        // Overlay update error suppressed
+      }
+    })();
+  `
+
+  try {
+    await browserWindow.webContents.executeJavaScript(script)
+    return true
+  } catch {
+    return false
+  }
+}
+
 function notifyStatus(actionDesc?: string) {
   if (actionDesc) currentStatus.lastAction = actionDesc
   if (browserWindow && !browserWindow.isDestroyed()) {
@@ -90,6 +351,14 @@ export function createBrowserWindow(initialUrl = 'https://www.google.com', show 
   browserWindow.webContents.on('did-finish-load', () => {
     currentStatus.isLoading = false
     notifyStatus('Página carregada com sucesso')
+    void applyDetachedOverlay()
+  })
+
+  browserWindow.webContents.on('console-message', (_e, _level, message) => {
+    if (typeof message === 'string' && message.startsWith('CONTALK_ACTION:')) {
+      const raw = message.replace('CONTALK_ACTION:', '').trim()
+      handleDetachedBrowserAction(raw)
+    }
   })
 
   browserWindow.webContents.on('did-fail-load', (_e, errorCode, errorDescription) => {
@@ -475,7 +744,17 @@ export const browserManager = {
         try {
           const x = Math.round((window.innerWidth * ${Math.max(0, Math.min(100, xPercent))}) / 100);
           const y = Math.round((window.innerHeight * ${Math.max(0, Math.min(100, yPercent))}) / 100);
-          const el = document.elementFromPoint(x, y);
+          const rawEl = document.elementFromPoint(x, y);
+
+          if (!rawEl) {
+            return { success: false, message: 'Nenhum elemento no ponto' };
+          }
+
+          if (rawEl.tagName === 'INPUT' && (rawEl as HTMLInputElement).type === 'password') {
+            return { success: false, message: 'Campo de senha protegido contra interação' };
+          }
+
+          const el = rawEl.closest('button, a, input, textarea, select, [role="button"], [role="link"], [tabindex]') || rawEl;
 
           // Wave visual indicator
           const wave = document.createElement('div');
@@ -655,6 +934,10 @@ export const browserManager = {
     browserWindow = null
     currentStatus.isOpen = false
     notifyStatus('Navegador fechado')
+  },
+
+  async updateCollaborators(data: { collaborators: any[]; allowCollaboration: boolean; isAudioMuted?: boolean }): Promise<boolean> {
+    return applyDetachedOverlay(data)
   }
 }
 
@@ -775,6 +1058,11 @@ export function setupInternalBrowser(mainWindow: BrowserWindow) {
     return true
   })
 
+  ipcMain.handle('browser-update-collaborators', async (event, data: unknown) => {
+    trusted(event)
+    return applyDetachedOverlay(data as any)
+  })
+
   mainWindow.once('closed', () => {
     browserManager.close()
     for (const channel of [
@@ -794,7 +1082,12 @@ export function setupInternalBrowser(mainWindow: BrowserWindow) {
       'browser-get-status',
       'browser-show',
       'browser-hide',
-      'browser-close'
+      'browser-close',
+      'browser-insert-text',
+      'browser-set-audio-muted',
+      'browser-is-audio-muted',
+      'browser-send-key',
+      'browser-update-collaborators'
     ]) {
       ipcMain.removeHandler(channel)
     }

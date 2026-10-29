@@ -100,6 +100,8 @@ export interface DesktopBridge {
   browserShow?:()=>Promise<boolean>
   browserHide?:()=>Promise<boolean>
   browserClose?:()=>Promise<boolean>
+  browserUpdateCollaborators?:(data:{collaborators:import('../store/useSharedBrowserStore').CollaboratorCursor[];allowCollaboration:boolean;isAudioMuted?:boolean})=>Promise<boolean>
+  onBrowserActionFromDetached?:(listener:(data:{action:string;payload?:string;url?:string;title?:string})=>void)=>()=>void
   onBrowserStatusChanged?:(listener:(status:any)=>void)=>()=>void
   terminalCreate:(cwd:string|null,cols:number,rows:number)=>Promise<{id:string;shell:string;cwd:string}>
   terminalInput:(id:string,data:string)=>void

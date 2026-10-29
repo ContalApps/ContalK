@@ -89,7 +89,7 @@ export function createCommunityVoice({ url, announcedAddress = '127.0.0.1', medi
       ] })
       // Room creation runs inside the per-socket queue, but different sockets can race.
       try {
-        const observer = await router.createAudioLevelObserver({ maxEntries: 4, threshold: -55, interval: 500 })
+        const observer = await router.createAudioLevelObserver({ maxEntries: 4, threshold: -55, interval: 200 })
         const room = { router, observer }; rooms.set(name, room)
         observer.on('volumes', volumes => {
           const identities = volumes.map(({ producer }) => producer.appData.identity)

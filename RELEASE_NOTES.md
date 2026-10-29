@@ -1,3 +1,17 @@
+# ConTALK 0.1.35
+
+Navegador Destacado com Cursores em Tempo Real e Barra de Colaboração Flutuante, Detecção Vocal Zero-Delay ("Falando agora"), Ícone de Microfone Bloqueado na Bandeja e Doca Unificada.
+
+- **Cursores Colaborativos no Navegador Destacado:** Na janela externa nativa do Chromium, os movimentos de mouse e cliques de todos os participantes agora são renderizados em tempo real diretamente sobre a página web, com cores distintas, identificação por nome e animação de ondas (*ripple ping*). A camada visual é não-bloqueante (`pointer-events: none`), permitindo ao anfitrião navegar livremente.
+- **Barra de Controle Flutuante na Janela Destacada:** Barra de controle *dark glass* integrada ao topo do navegador destacado com alternância rápida de permissão de interação (`👥 Colaboração Ativa` / `🔒 Pausada`), controle de áudio/mudo do navegador, menu de Automação com IA (resumo de página no chat, automação de ações e formulários, extração de texto estruturado), botão de recolher ao ConTALK e encerramento de compartilhamento.
+- **Correção da Interação e Foco para Usuários Remotos:** O algoritmo de clique colaborativo agora identifica e aciona o elemento interativo pai (`closest('button, a, input, ...')`) caso o participante clique em elementos gráficos internos (`svg`, `span`). O canvas do palco agora captura foco imediato (`tabIndex={0}`), permitindo digitação direta de caracteres e atalhos de teclado (`Backspace`, `Enter`, `Tab`, setas) sem rolar a tela.
+- **Proporção Perfeita 16:9 no Palco:** Enquadramento estrito em 16:9 HD (1280x720) com ajuste contido (`object-contain`), eliminando distorções de escala ou páginas esticadas.
+- **Detecção Vocal Zero-Delay ("Falando agora"):** Implementação de detector VAD local imediato via Web Audio AnalyserNode (intervalo ultra-rápido de 30ms), ativando instantaneamente o indicador visual de fala sem depender de latência de rede ou confirmações do servidor.
+- **Ícone de Microfone Bloqueado na Bandeja do Sistema:** Quando mutado ou ensurdecido (pelo app ou pelo menu da bandeja), o ícone próximo ao relógio exibe um símbolo nítido de microfone bloqueado 24x24 em pixel art. A animação de ondas sonoras só é ativada estritamente quando o usuário está falando no microfone.
+- **Doca de Usuário e Chamada Unificada:** A barra de controles de áudio, microfone, câmera, tela e status do usuário foi consolidada em um único card fixo no rodapé esquerdo (`UserDock`), removendo cards de chamada duplicados no topo da lista de canais.
+
+Validação: tipos verificados sem erros (`npm run typecheck`), 327 testes unitários e de integração aprovados (`npm test`) e build de produção Vite e Electron concluídos com sucesso.
+
 # ConTALK 0.1.34
 
 Restauração da Transmissão de Áudio Nativa WebRTC de Baixa Latência (Remoção do Gate de Software, Eliminação de Delays e Cortes de Voz).
