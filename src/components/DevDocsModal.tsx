@@ -5,12 +5,10 @@ import { DevProjectTabs, type DevProjectTabId } from './DevProjectTabs'
 
 export function DevDocsModal({
   onClose,
-  onOpenAtlassian,
-  onSwitchTab
+    onSwitchTab
 }: {
   onClose: () => void
-  onOpenAtlassian?: () => void
-  onSwitchTab?: (tab: DevProjectTabId) => void
+    onSwitchTab?: (tab: DevProjectTabId) => void
 }) {
   const {
     devDocs,
@@ -19,10 +17,7 @@ export function DevDocsModal({
     createDevDoc,
     updateDevDoc,
     deleteDevDoc,
-    reorderDevDocs,
-    atlassian,
-    syncAtlassianData,
-    atlassianSyncing
+    reorderDevDocs
   } = useDevStore()
 
   const [search, setSearch] = useState('')
@@ -173,27 +168,7 @@ export function DevDocsModal({
             <p>Escreva, consulte e formate documentações, especificações e artigos técnicos com Markdown nativo.</p>
           </div>
           <div className="ct-dev-header-actions">
-            {atlassian?.connected ? (
-              <button
-                type="button"
-                className="ct-atlassian-sync-btn"
-                onClick={() => void syncAtlassianData()}
-                disabled={atlassianSyncing}
-                title="Sincronizar com Confluence & Jira"
-              >
-                <ControlIcon name="refresh" size={13}/>
-                <span>{atlassianSyncing ? 'Sincronizando Confluence…' : 'Confluence Conectado ✓'}</span>
-              </button>
-            ) : onOpenAtlassian ? (
-              <button
-                type="button"
-                className="ct-atlassian-connect-btn"
-                onClick={onOpenAtlassian}
-                title="Conectar com Confluence & Jira"
-              >
-                <span>Conectar Atlassian (Confluence)</span>
-              </button>
-            ) : null}
+            
             <button type="button" className="ct-close-btn" onClick={onClose} aria-label="Fechar">
               <ControlIcon name="close" size={14}/>
             </button>
@@ -283,11 +258,7 @@ export function DevDocsModal({
                         <div className="ct-docs-nav-title">{doc.title || 'Sem Título'}</div>
                         <div className="ct-docs-nav-meta">
                           <span className="ct-docs-category-pill">{doc.category || 'Geral'}</span>
-                          {doc.confluenceId && (
-                            <span className="ct-docs-confluence-pill" title="Sincronizado via Confluence">
-                              Confluence
-                            </span>
-                          )}
+                          
                         </div>
                       </div>
                       <button

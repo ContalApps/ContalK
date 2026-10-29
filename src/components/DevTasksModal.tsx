@@ -5,22 +5,17 @@ import { DevProjectTabs, type DevProjectTabId } from './DevProjectTabs'
 
 export function DevTasksModal({
   onClose,
-  onOpenAtlassian,
-  onSwitchTab
+    onSwitchTab
 }: {
   onClose: () => void
-  onOpenAtlassian?: () => void
-  onSwitchTab?: (tab: DevProjectTabId) => void
+    onSwitchTab?: (tab: DevProjectTabId) => void
 }) {
   const {
     todoTasks,
     addTodoTask,
     toggleTodoTask,
     deleteTodoTask,
-    reorderTodoTasks,
-    atlassian,
-    syncAtlassianData,
-    atlassianSyncing
+    reorderTodoTasks
   } = useDevStore()
 
   const [filter, setFilter] = useState<'all' | 'pending' | 'completed'>('all')
@@ -55,8 +50,7 @@ export function DevTasksModal({
       const q = search.toLowerCase()
       const matchTitle = t.title.toLowerCase().includes(q)
       const matchAssignee = t.assignee?.toLowerCase().includes(q)
-      const matchJira = t.jiraKey?.toLowerCase().includes(q)
-      return matchTitle || matchAssignee || matchJira
+      return matchTitle || matchAssignee
     }
     return true
   })
@@ -77,27 +71,7 @@ export function DevTasksModal({
             <p>Monitore pendências, itens de sprint e arraste as tarefas para reordenar prioridades.</p>
           </div>
           <div className="ct-dev-header-actions">
-            {atlassian?.connected ? (
-              <button
-                type="button"
-                className="ct-atlassian-sync-btn"
-                onClick={() => void syncAtlassianData()}
-                disabled={atlassianSyncing}
-                title="Sincronizar com Jira"
-              >
-                <ControlIcon name="refresh" size={13}/>
-                <span>{atlassianSyncing ? 'Sincronizando Jira…' : 'Jira Conectado ✓'}</span>
-              </button>
-            ) : onOpenAtlassian ? (
-              <button
-                type="button"
-                className="ct-atlassian-connect-btn"
-                onClick={onOpenAtlassian}
-                title="Conectar com Jira & Confluence"
-              >
-                <span>Conectar Atlassian (Jira)</span>
-              </button>
-            ) : null}
+            
             <button type="button" className="ct-close-btn" onClick={onClose} aria-label="Fechar">
               <ControlIcon name="close" size={14}/>
             </button>
@@ -261,11 +235,7 @@ export function DevTasksModal({
                     <div className="ct-task-content" onClick={() => toggleTodoTask(task.id)}>
                       <span className="ct-task-title">{task.title}</span>
                       <div className="ct-task-badges">
-                        {task.jiraKey && (
-                          <span className="ct-task-jira-badge" title="Ticket Jira">
-                            {task.jiraKey}
-                          </span>
-                        )}
+                        
                         <span
                           className="ct-task-priority-badge"
                           style={{ color: p.color, backgroundColor: p.bg }}

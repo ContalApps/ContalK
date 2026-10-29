@@ -43,7 +43,7 @@ export interface Message {
   channelId: string
   userId: string
   userName: string
-  ai?:import('../roles/ai').AiRunInfo
+  ai?:any
   content: string
   expression?:import('../roles/expressions').ExpressionReference&{name:string;kind:import('../roles/expressions').ExpressionKind}
   webhook?:{id:string;name:string}

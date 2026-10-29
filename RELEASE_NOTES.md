@@ -1,3 +1,16 @@
+# ConTALK 0.1.36
+
+Retorno à Engenharia Reversa Perfeita do Discord (Foco em Comunicação e Transmissão de Tela), Bloco de Notas Colaborativo em Tempo Real e Otimização Ponytail Ultra.
+
+- **Foco Absoluto em Comunicação e Transmissão:** O ConTALK retorna à sua essência original de alto desempenho, priorizando chamadas de voz e vídeo WebRTC de latência ultra-baixa e compartilhamento nítido de tela.
+- **Remoção de Complexidades e IA Interna:** Remoção total de modelos generativos, configurações de API/tokens, canais de IA e cartões de prompt/automação, restabelecendo leveza, velocidade imediata e estabilidade.
+- **Remoção do Navegador Compartilhado:** Eliminação do navegador compartilhado interno e janelas externas de navegação acopladas.
+- **Remoção de Integrações Externas:** Remoção de conectores externos (GitHub, Jira, Confluence). As ferramentas nativas de produtividade da equipe (Kanban, Tarefas, Documentação e Roadmap) foram integralmente preservadas e limpas de dependências de terceiros.
+- **Bloco de Notas Colaborativo:** O antigo editor de código foi transformado em um Bloco de Notas Colaborativo moderno com suporte a múltiplas abas, edição simultânea em tempo real, cursores coloridos dos participantes, identificação de presença e contador dinâmico de palavras/caracteres.
+- **Auditoria Ponytail Ultra:** Eliminação de dependências não utilizadas em runtime (`clsx`, `tailwind-merge`, `sql.js`), remoção de mais de 25 arquivos e testes obsoletos e redução do tempo de compilação.
+
+Validação: tipos verificados sem erros (`npm run typecheck`), 281 testes unitários e de integração aprovados (`npm test`) e build de produção Vite e Electron concluídos com sucesso.
+
 # ConTALK 0.1.35
 
 Navegador Destacado com Cursores em Tempo Real e Barra de Colaboração Flutuante, Detecção Vocal Zero-Delay ("Falando agora"), Ícone de Microfone Bloqueado na Bandeja e Doca Unificada.

@@ -32,7 +32,7 @@ export function DevRoadmapModal({
         'Cards de Kanban com drag-and-drop e movimentação entre colunas',
         'Lista de tarefas interativa com reordenação por arrasto',
         'Central de documentação com Markdown e reorganização de artigos',
-        'Persistência e sincronização de repositórios GitHub e Atlassian (Jira/Confluence)'
+        'Persistência de quadros Kanban, checklists de tarefas e notas técnicas'
       ]
     },
     {

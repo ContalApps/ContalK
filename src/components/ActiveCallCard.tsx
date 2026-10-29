@@ -1,9 +1,8 @@
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 import { useVoiceStore, type VoiceParticipant } from '../store/useVoiceStore'
 import { Avatar } from './Avatar'
 import { ControlIcon } from './ControlIcon'
 import { useCallClock } from './RightPanel'
-import { useSharedBrowserStore } from '../store/useSharedBrowserStore'
 import { StageControls } from './StageControls'
 
 export function ActiveCallCard({
@@ -20,19 +19,9 @@ export function ActiveCallCard({
   onParticipantContextMenu?: (participant: VoiceParticipant, event: React.MouseEvent) => void
 }) {
   const voice = useVoiceStore()
-  const sharedBrowser = useSharedBrowserStore()
   const clock = useCallClock()
   const [error, setError] = useState('')
   const connected = voice.connectionStatus === 'connected'
-  const micBlocked = voice.isServerMuted || voice.isServerDeafened || voice.currentRoom?.localParticipant.canPublishMicrophone === false
-  const isRoomSharing = Boolean(sharedBrowser.activeSession && sharedBrowser.activeSession.roomId === channelId)
-  const isSharingWeb = sharedBrowser.isSharing || isRoomSharing
-
-  useEffect(() => {
-    if (connected) {
-      sharedBrowser.requestSync()
-    }
-  }, [connected])
 
   const run = async (action: () => Promise<unknown>) => {
     setError('')
@@ -79,35 +68,6 @@ export function ActiveCallCard({
             <ControlIcon name="screen"/>
           </button>
           <button
-            aria-label={
-              sharedBrowser.isSharing
-                ? 'Parar navegador compartilhado'
-                : isRoomSharing
-                ? `Navegador compartilhado por ${sharedBrowser.activeSession?.hostName || 'outro participante'}`
-                : 'Compartilhar navegador web'
-            }
-            title={
-              sharedBrowser.isSharing
-                ? 'Parar navegador compartilhado'
-                : isRoomSharing
-                ? `Navegador compartilhado por ${sharedBrowser.activeSession?.hostName || 'outro participante'} (clique para abrir)`
-                : 'Compartilhar navegador web em tempo real'
-            }
-            aria-pressed={isSharingWeb}
-            disabled={!connected}
-            onClick={() => {
-              if (sharedBrowser.isSharing) {
-                void sharedBrowser.stopSharing()
-              } else if (isRoomSharing) {
-                onOpenChannel(channelId)
-              } else {
-                void sharedBrowser.startSharing(channelId)
-              }
-            }}
-          >
-            <ControlIcon name="browser"/>
-          </button>
-          <button
             className="ct-rp-leave"
             aria-label="Desconectar da chamada"
             title="Desconectar da chamada"
@@ -116,66 +76,29 @@ export function ActiveCallCard({
             <ControlIcon name="disconnect"/>
           </button>
         </div>
-
-        <ul className="ct-rp-people">
-          {voice.participants.map(p => (
-            <li
-              key={p.identity}
-              onClick={() => onProfile?.(p.serverNickname || p.name, p.identity)}
-              onContextMenu={e => {
-                e.preventDefault()
-                onParticipantContextMenu?.(p, e)
-              }}
-              style={{ cursor: 'pointer' }}
-            >
-              <Avatar name={p.serverNickname || p.name} identity={p.identity} live={p.isScreenShareEnabled}/>
-              <span>
-                <strong>{p.serverNickname || p.name}{p.isLocal ? ' (você)' : ''}</strong>
-                <small className={p.isSpeaking ? 'ct-status-speaking' : 'ct-status-listening'}>
-                  {p.serverMuted
-                    ? 'Silenciado pelo servidor'
-                    : !p.isAudioEnabled
-                    ? 'Microfone desligado'
-                    : p.isSpeaking
-                    ? 'Falando agora'
-                    : 'Ouvindo'}
-                </small>
-              </span>
-              {p.isLocal ? (
-                <div className="ct-rp-local-devices" onClick={e => e.stopPropagation()}>
-                  <button
-                    className="ct-rp-device-btn"
-                    aria-label={voice.isMicMuted ? 'Ativar microfone' : 'Silenciar microfone'}
-                    title={voice.isMicMuted ? 'Ativar microfone' : 'Silenciar microfone'}
-                    aria-pressed={voice.isMicMuted || micBlocked}
-                    disabled={!connected || micBlocked}
-                    onClick={() => void run(voice.toggleMic)}
-                  >
-                    <ControlIcon name="mic" slashed={voice.isMicMuted || micBlocked} size={15}/>
-                  </button>
-                  <button
-                    className="ct-rp-device-btn"
-                    aria-label={voice.isDeafened ? 'Ativar áudio' : 'Silenciar áudio'}
-                    title={voice.isDeafened ? 'Ativar áudio' : 'Silenciar áudio'}
-                    aria-pressed={voice.isDeafened}
-                    disabled={voice.isServerDeafened}
-                    onClick={() => void run(voice.toggleDeafen)}
-                  >
-                    <ControlIcon name="audio" slashed={voice.isDeafened} size={15}/>
-                  </button>
-                </div>
-              ) : (
-                p.isSpeaking && p.isAudioEnabled && (
-                  <span className="ct-rp-speaking"><ControlIcon name="voice" size={16}/></span>
-                )
-              )}
-            </li>
-          ))}
-        </ul>
-
-        {voice.currentRoom?.stage && <StageControls/>}
-        {error && <p className="ct-dock-error" role="alert">{error}</p>}
       </div>
+
+      <div className="ct-rp-call-participants">
+        {voice.participants.map(p => (
+          <button
+            key={p.identity}
+            className={`ct-rp-participant ${p.isSpeaking ? 'is-speaking' : ''}`}
+            onClick={() => onProfile?.(p.name, p.identity)}
+            onContextMenu={e => {
+              e.preventDefault()
+              onParticipantContextMenu?.(p, e)
+            }}
+            title={`${p.serverNickname || p.name}${p.isLocal ? ' (você)' : ''}${p.isSpeaking ? ' · Falando' : ''}`}
+          >
+            <Avatar name={p.name} identity={p.identity}  />
+            <span className="truncate">{p.serverNickname || p.name}</span>
+            {!p.isAudioEnabled && <span className="ct-rp-p-muted"><ControlIcon name="mic" slashed size={10}/></span>}
+          </button>
+        ))}
+      </div>
+
+      <StageControls />
+      {error && <p className="ct-dock-error" role="alert">{error}</p>}
     </div>
   )
 }
