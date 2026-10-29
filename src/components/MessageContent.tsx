@@ -8,7 +8,8 @@ import { PollCard } from './PollCard'
 import { ControlIcon } from './ControlIcon'
 import { LinkPreview } from './LinkPreview'
 import { MessageTools } from './MessageTools'
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useRef, useMemo } from 'react'
+import { Avatar } from './Avatar'
 import { useAuthStore } from '../store/useAuthStore'
 import { useCommunityStore } from '../store/useCommunityStore'
 import type { Message, MessageOptions, Attachment } from '../store/useAppStore'
@@ -17,6 +18,26 @@ import { canMentionRole } from '../roles/permissions'
 import { centralAllows } from '../roles/transport'
 
 const fileUrlCache = new Map<string, string>()
+
+function ViewOnceIcon({ size = 18, active = false }: { size?: number; active?: boolean }) {
+  return (
+    <svg
+      width={size}
+      height={size}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth={active ? 2.2 : 1.8}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      <circle cx="12" cy="12" r="9.5" strokeDasharray={active ? 'none' : '3.5 2'} />
+      <path d="M10.5 10.5L12 9v6.5" />
+      <path d="M10.5 15.5h3" />
+    </svg>
+  )
+}
 
 function ImagePreview({ src, name }: { src: string; name: string }) {
   const [failed, setFailed] = useState(false)
@@ -66,10 +87,11 @@ function ImagePreview({ src, name }: { src: string; name: string }) {
   )
 }
 
-function StorageAttachmentPreview({ a }: { a: Attachment; preview: boolean }) {
+function StorageAttachmentPreview({ a }: { a: Attachment }) {
   const [effectiveSrc, setEffectiveSrc] = useState<string | null>(null)
   const [failed, setFailed] = useState(false)
   const [zoomed, setZoomed] = useState(false)
+  const [textSnippet, setTextSnippet] = useState<string | null>(null)
   const placeholder = a.thumbnail ? `data:image/jpeg;base64,${a.thumbnail}` : null
 
   useEffect(() => {
@@ -93,7 +115,23 @@ function StorageAttachmentPreview({ a }: { a: Attachment; preview: boolean }) {
 
   const displaySrc = effectiveSrc || placeholder
 
-  if (a.type.startsWith('image/')) {
+  const isImage = a.type.startsWith('image/') || /\.(png|jpe?g|gif|webp|svg|bmp|ico|avif)$/i.test(a.name)
+  const isVideo = a.type.startsWith('video/') || /\.(mp4|webm|mov|ogg|mkv|avi|m4v)$/i.test(a.name)
+  const isAudio = a.type.startsWith('audio/') || /\.(mp3|wav|ogg|m4a|flac|aac|opus)$/i.test(a.name)
+  const isPdf = a.type === 'application/pdf' || /\.pdf$/i.test(a.name)
+  const isText = a.type.startsWith('text/') || a.type === 'application/json' || /\.(txt|md|json|csv|log|js|ts|tsx|jsx|py|html|css|c|cpp|rs|go|java|php|sql|sh|bat|ps1|yml|yaml|xml)$/i.test(a.name)
+  const ext = (a.name.split('.').pop() || 'FILE').toUpperCase().slice(0, 5)
+
+  useEffect(() => {
+    if (isText && effectiveSrc && !textSnippet) {
+      fetch(effectiveSrc)
+        .then(res => res.text())
+        .then(txt => setTextSnippet(txt.slice(0, 800)))
+        .catch(() => {})
+    }
+  }, [isText, effectiveSrc, textSnippet])
+
+  if (isImage) {
     return (
       <div className="ct-attachment ct-attachment-image">
         {displaySrc && !failed ? (
@@ -121,7 +159,7 @@ function StorageAttachmentPreview({ a }: { a: Attachment; preview: boolean }) {
         <div className="ct-attachment-info">
           <div className="ct-attachment-text">
             <strong>{a.name}</strong>
-            <small>{(a.size / 1024 / 1024).toFixed(2)} MB</small>
+            <small>{(a.size / 1024 / 1024).toFixed(2)} MB · Imagem</small>
           </div>
           <button
             type="button"
@@ -167,16 +205,200 @@ function StorageAttachmentPreview({ a }: { a: Attachment; preview: boolean }) {
     )
   }
 
-  return (
-    <div className="ct-attachment">
-      <div className="ct-attachment-info">
-        <div className="ct-attachment-text">
+  if (isVideo) {
+    return (
+      <div className="ct-attachment ct-attachment-video">
+        {displaySrc ? (
+          <video
+            controls
+            preload="metadata"
+            src={displaySrc}
+            className="ct-chat-video"
+            style={{ maxWidth: '100%', maxHeight: '320px', borderRadius: '8px', background: '#000', display: 'block' }}
+          />
+        ) : placeholder ? (
+          <img src={placeholder} alt={a.name} className="ct-chat-image" />
+        ) : (
+          <span className="ct-chat-image-fallback">
+            <ControlIcon name="screen" size={24} />
+          </span>
+        )}
+        <div className="ct-attachment-info">
+          <div className="ct-attachment-text">
+            <strong>{a.name}</strong>
+            <small>{(a.size / 1024 / 1024).toFixed(2)} MB · Vídeo</small>
+          </div>
+          <button
+            type="button"
+            className="ct-download-btn"
+            title="Baixar vídeo"
+            aria-label={`Baixar vídeo ${a.name}`}
+            onClick={() => {
+              void window.contalkDesktop?.openStorageFile(a.storageId!).catch(() => {})
+            }}
+          >
+            <ControlIcon name="download" size={13} /> Baixar
+          </button>
+        </div>
+      </div>
+    )
+  }
+
+  if (isAudio) {
+    return (
+      <div className="ct-attachment ct-attachment-audio">
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px' }}>
+          <ControlIcon name="speaker" size={18} />
           <strong>{a.name}</strong>
-          <small>{(a.size / 1024 / 1024).toFixed(2)} MB · {a.type || 'Arquivo'}</small>
+        </div>
+        {displaySrc && (
+          <audio controls src={displaySrc} style={{ width: '100%', maxWidth: '380px', margin: '4px 0' }} />
+        )}
+        <div className="ct-attachment-info">
+          <small>{(a.size / 1024 / 1024).toFixed(2)} MB · Áudio</small>
+          <button
+            type="button"
+            className="ct-download-btn"
+            title="Baixar áudio"
+            aria-label={`Baixar áudio ${a.name}`}
+            onClick={() => {
+              void window.contalkDesktop?.openStorageFile(a.storageId!).catch(() => {})
+            }}
+          >
+            <ControlIcon name="download" size={13} /> Baixar
+          </button>
+        </div>
+      </div>
+    )
+  }
+
+  if (isPdf) {
+    return (
+      <div className="ct-attachment ct-attachment-pdf" style={{ borderLeft: '3px solid #ff4d4f' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+          <span
+            style={{
+              background: 'rgba(255, 77, 79, 0.15)',
+              color: '#ff4d4f',
+              padding: '6px 10px',
+              borderRadius: '6px',
+              fontWeight: 700,
+              fontSize: '12px'
+            }}
+          >
+            PDF
+          </span>
+          <div className="ct-attachment-text" style={{ flex: 1, minWidth: 0 }}>
+            <strong style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', display: 'block' }}>
+              {a.name}
+            </strong>
+            <small>{(a.size / 1024 / 1024).toFixed(2)} MB · Documento PDF</small>
+          </div>
+        </div>
+        <div className="ct-attachment-info" style={{ marginTop: '8px' }}>
+          <button
+            type="button"
+            className="ct-download-btn"
+            title="Abrir e visualizar documento"
+            aria-label={`Abrir ${a.name}`}
+            onClick={() => {
+              void window.contalkDesktop?.openStorageFile(a.storageId!).catch(() => {})
+            }}
+          >
+            <ControlIcon name="docs" size={13} /> Abrir
+          </button>
+          <button
+            type="button"
+            className="ct-download-btn"
+            title="Baixar documento"
+            aria-label={`Baixar ${a.name}`}
+            onClick={() => {
+              void window.contalkDesktop?.openStorageFile(a.storageId!).catch(() => {})
+            }}
+          >
+            <ControlIcon name="download" size={13} /> Baixar
+          </button>
+        </div>
+      </div>
+    )
+  }
+
+  if (isText) {
+    return (
+      <div className="ct-attachment ct-attachment-textdoc">
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+          <ControlIcon name="docs" size={16} />
+          <strong style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{a.name}</strong>
+          <small style={{ marginLeft: 'auto', flexShrink: 0 }}>
+            {a.size > 1024 * 1024 ? `${(a.size / 1024 / 1024).toFixed(2)} MB` : `${Math.max(1, Math.ceil(a.size / 1024))} KB`}
+          </small>
+        </div>
+        {textSnippet && (
+          <pre
+            style={{
+              margin: '6px 0',
+              padding: '8px 10px',
+              borderRadius: '6px',
+              background: 'rgba(0,0,0,0.3)',
+              border: '1px solid rgba(255,255,255,0.08)',
+              fontSize: '12px',
+              lineHeight: '1.4',
+              maxHeight: '160px',
+              overflow: 'auto',
+              whiteSpace: 'pre-wrap',
+              wordBreak: 'break-word',
+              fontFamily: 'monospace'
+            }}
+          >
+            {textSnippet}
+          </pre>
+        )}
+        <div className="ct-attachment-info">
+          <small>{a.type || 'Documento de texto'}</small>
+          <button
+            type="button"
+            className="ct-download-btn"
+            title="Baixar arquivo"
+            aria-label={`Baixar ${a.name}`}
+            onClick={() => {
+              void window.contalkDesktop?.openStorageFile(a.storageId!).catch(() => {})
+            }}
+          >
+            <ControlIcon name="download" size={13} /> Baixar
+          </button>
+        </div>
+      </div>
+    )
+  }
+
+  // All other documents / files
+  return (
+    <div className="ct-attachment ct-attachment-file" style={{ borderLeft: '3px solid var(--cx-accent, #5865f2)' }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+        <span
+          style={{
+            background: 'rgba(255, 255, 255, 0.1)',
+            color: 'var(--cx-fg, #fff)',
+            padding: '6px 8px',
+            borderRadius: '6px',
+            fontWeight: 700,
+            fontSize: '11px',
+            letterSpacing: '0.05em'
+          }}
+        >
+          {ext}
+        </span>
+        <div className="ct-attachment-text" style={{ flex: 1, minWidth: 0 }}>
+          <strong style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', display: 'block' }}>
+            {a.name}
+          </strong>
+          <small>{(a.size / 1024 / 1024).toFixed(2)} MB · Arquivo {ext}</small>
         </div>
         <button
           type="button"
           className="ct-download-btn"
+          title="Baixar arquivo"
+          aria-label={`Baixar ${a.name}`}
           onClick={() => {
             void window.contalkDesktop?.openStorageFile(a.storageId!).catch(() => {})
           }}
@@ -188,31 +410,107 @@ function StorageAttachmentPreview({ a }: { a: Attachment; preview: boolean }) {
   )
 }
 
-function AttachmentPreview({ attachment: a, preview }: { attachment: Attachment; preview?: boolean }) {
-  const [downloadError] = useState('')
+function AttachmentPreview({ attachment: a }: { attachment: Attachment }) {
   if (a.storageId) {
-    return <StorageAttachmentPreview a={a} preview={!!preview} />
+    return <StorageAttachmentPreview a={a} />
   }
-  const text = /^(text\/(plain|csv)|application\/json)$/.test(a.type)
-  let snippet = ''
-  if (text) {
+
+  const isImage = a.type.startsWith('image/') || /\.(png|jpe?g|gif|webp|svg|bmp|ico|avif)$/i.test(a.name)
+  const isVideo = a.type.startsWith('video/') || /\.(mp4|webm|mov|ogg|mkv|avi|m4v)$/i.test(a.name)
+  const isAudio = a.type.startsWith('audio/') || /\.(mp3|wav|ogg|m4a|flac|aac|opus)$/i.test(a.name)
+  const isPdf = a.type === 'application/pdf' || /\.pdf$/i.test(a.name)
+  const isText = a.type.startsWith('text/') || a.type === 'application/json' || /\.(txt|md|json|csv|log|js|ts|tsx|jsx|py|html|css|c|cpp|rs|go|java|php|sql|sh|bat|ps1|yml|yaml|xml)$/i.test(a.name)
+  const ext = (a.name.split('.').pop() || 'FILE').toUpperCase().slice(0, 5)
+
+  if (isImage && a.data) {
+    return <ImagePreview src={a.data} name={a.name} />
+  }
+
+  if (isVideo && a.data) {
+    return (
+      <div className="ct-attachment ct-attachment-video">
+        <video
+          controls
+          preload="metadata"
+          src={a.data}
+          style={{ maxWidth: '100%', maxHeight: '320px', borderRadius: '8px', background: '#000', display: 'block' }}
+        />
+        <div className="ct-attachment-info">
+          <strong>{a.name}</strong>
+          <a href={a.data} download={a.name} className="ct-download-btn">
+            <ControlIcon name="download" size={13} /> Baixar
+          </a>
+        </div>
+      </div>
+    )
+  }
+
+  if (isAudio && a.data) {
+    return (
+      <div className="ct-attachment ct-attachment-audio">
+        <strong>{a.name}</strong>
+        <audio controls src={a.data} style={{ width: '100%', maxWidth: '380px', margin: '4px 0' }} />
+        <a href={a.data} download={a.name} className="ct-download-btn">
+          <ControlIcon name="download" size={13} /> Baixar
+        </a>
+      </div>
+    )
+  }
+
+  let textSnippet = ''
+  if (isText && a.data) {
     try {
-      snippet = new TextDecoder().decode(
+      textSnippet = new TextDecoder().decode(
         Uint8Array.from(atob(a.data.split(',')[1]), c => c.charCodeAt(0))
-      ).slice(0, 600)
-    } catch {
-      /* No preview. */
-    }
+      ).slice(0, 800)
+    } catch {}
   }
+
   return (
     <div className="ct-attachment">
-      <a href={a.data} download={a.name} className="ct-download-link">
-        <ControlIcon name="download" size={13} />
-        <strong>{a.name}</strong>
-        <small>{Math.max(1, Math.ceil(a.size / 1024))} KB · {a.type || 'Arquivo'}</small>
-      </a>
-      {preview && snippet && <pre>{snippet}</pre>}
-      {downloadError && <p role="alert">{downloadError}</p>}
+      <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+        <span
+          style={{
+            background: isPdf ? 'rgba(255, 77, 79, 0.15)' : 'rgba(255, 255, 255, 0.1)',
+            color: isPdf ? '#ff4d4f' : 'var(--cx-fg, #fff)',
+            padding: '6px 8px',
+            borderRadius: '6px',
+            fontWeight: 700,
+            fontSize: '11px'
+          }}
+        >
+          {isPdf ? 'PDF' : ext}
+        </span>
+        <div className="ct-attachment-text" style={{ flex: 1, minWidth: 0 }}>
+          <strong style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', display: 'block' }}>
+            {a.name}
+          </strong>
+          <small>{Math.max(1, Math.ceil(a.size / 1024))} KB · {isPdf ? 'Documento PDF' : a.type || 'Arquivo'}</small>
+        </div>
+        <a href={a.data} download={a.name} className="ct-download-btn">
+          <ControlIcon name="download" size={13} /> Baixar
+        </a>
+      </div>
+      {textSnippet && (
+        <pre
+          style={{
+            margin: '6px 0',
+            padding: '8px 10px',
+            borderRadius: '6px',
+            background: 'rgba(0,0,0,0.3)',
+            border: '1px solid rgba(255,255,255,0.08)',
+            fontSize: '12px',
+            lineHeight: '1.4',
+            maxHeight: '160px',
+            overflow: 'auto',
+            whiteSpace: 'pre-wrap',
+            wordBreak: 'break-word',
+            fontFamily: 'monospace'
+          }}
+        >
+          {textSnippet}
+        </pre>
+      )}
     </div>
   )
 }
@@ -289,7 +587,7 @@ export function CodeBlock({ language, code }: { language: string; code: string }
 export function MessageContent({
   content,
   attachment,
-  preview = true,
+  preview: _preview = true,
   roleMentions = [],
   mentionsEveryone
 }: {
@@ -382,7 +680,7 @@ export function MessageContent({
                   )}
                 </p>
               )}
-              {preview && links.map(link => <LinkPreview key={link} url={link} />)}
+              {links.map(link => <LinkPreview key={link} url={link} />)}
             </span>
           )
         })}
@@ -398,7 +696,7 @@ export function MessageContent({
         }
         return renderTextBlock(item.text || '', idx)
       })}
-      {attachment && <AttachmentPreview attachment={attachment} preview={preview} />}
+      {attachment && <AttachmentPreview attachment={attachment} />}
     </div>
   )
 }
@@ -426,9 +724,14 @@ export function ChatComposer({
   const [expression, setExpression] = useState<CommunityExpression | null>(null)
   const [voiceRecorder, setVoiceRecorder] = useState(false)
   const [pollEditor, setPollEditor] = useState(false)
-  const [preview, setPreview] = useState(true)
   const [once, setOnce] = useState(false)
   const [tts, setTts] = useState(false)
+
+  const inputRef = useRef<HTMLInputElement>(null)
+  const mentionDropdownRef = useRef<HTMLDivElement>(null)
+  const [mentionActive, setMentionActive] = useState(false)
+  const [mentionQuery, setMentionQuery] = useState('')
+  const [selectedMentionIndex, setSelectedMentionIndex] = useState(0)
 
   const members = useCommunityStore(s => s.members)
   const snapshot = useRoleStore(s => s.snapshot)
@@ -458,6 +761,145 @@ export function ChatComposer({
   const canTts = !!snapshot && !!channelId && centralAllows('SEND_TTS_MESSAGES', channelId) && centralAllows('SEND_MESSAGES', channelId)
   const canAttach = !channelId || centralAllows('ATTACH_FILES', channelId)
   const canPreview = !channelId || centralAllows('EMBED_LINKS', channelId)
+
+  const mentionCandidates = useMemo(() => {
+    const list: Array<{
+      kind: 'everyone' | 'here' | 'role' | 'member'
+      id: string
+      name: string
+      username?: string
+      description: string
+      insertText: string
+      color?: string | null
+    }> = []
+
+    if (channelId && snapshot && centralAllows('MENTION_EVERYONE', channelId)) {
+      list.push({
+        kind: 'everyone',
+        id: 'all:everyone',
+        name: 'everyone',
+        description: 'Notificar todos no canal',
+        insertText: '@everyone '
+      })
+      list.push({
+        kind: 'here',
+        id: 'all:here',
+        name: 'here',
+        description: 'Notificar membros online agora',
+        insertText: '@here '
+      })
+    }
+
+    for (const role of mentionRoles) {
+      list.push({
+        kind: 'role',
+        id: 'role:' + role.id,
+        name: role.name,
+        description: 'Cargo do servidor',
+        insertText: '<@&' + role.id + '> ',
+        color: role.color ?? undefined
+      })
+    }
+
+    for (const m of members) {
+      list.push({
+        kind: 'member',
+        id: m.username,
+        name: m.display_name,
+        username: m.username,
+        description: `@${m.username}${m.online ? ' • Online' : ''}`,
+        insertText: `@${m.username} `
+      })
+    }
+
+    return list
+  }, [channelId, snapshot, mentionRoles, members])
+
+  const filteredMentions = useMemo(() => {
+    if (!mentionActive) return []
+    const q = mentionQuery.toLowerCase()
+    if (!q) return mentionCandidates
+    return mentionCandidates.filter(
+      c => c.name.toLowerCase().includes(q) || (c.username && c.username.toLowerCase().includes(q))
+    )
+  }, [mentionActive, mentionQuery, mentionCandidates])
+
+  const checkMentionTrigger = (val: string, cursorPosition?: number) => {
+    const cursor = cursorPosition ?? (inputRef.current?.selectionStart ?? val.length)
+    const textBefore = val.slice(0, cursor)
+    const match = textBefore.match(/(?:^|\s)@([a-zA-Z0-9_À-ÿ-]*)$/)
+    if (match) {
+      setMentionActive(true)
+      setMentionQuery(match[1])
+      setSelectedMentionIndex(0)
+    } else {
+      setMentionActive(false)
+    }
+  }
+
+  const selectMention = (item: (typeof mentionCandidates)[0]) => {
+    const input = inputRef.current
+    const cursor = input?.selectionStart ?? text.length
+    const textBefore = text.slice(0, cursor)
+    const textAfter = text.slice(cursor)
+
+    const match = textBefore.match(/(?:^|\s)@([a-zA-Z0-9_À-ÿ-]*)$/)
+    if (!match) return
+
+    const atIndex = textBefore.lastIndexOf('@')
+    const newTextBefore = textBefore.slice(0, atIndex) + item.insertText
+    const newText = newTextBefore + textAfter
+    setText(newText)
+    setMentionActive(false)
+
+    requestAnimationFrame(() => {
+      if (input) {
+        input.focus()
+        const newCursor = newTextBefore.length
+        input.setSelectionRange(newCursor, newCursor)
+      }
+    })
+  }
+
+  const handleInputKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (mentionActive && filteredMentions.length > 0) {
+      if (e.key === 'ArrowDown') {
+        e.preventDefault()
+        setSelectedMentionIndex(i => (i + 1) % filteredMentions.length)
+        return
+      }
+      if (e.key === 'ArrowUp') {
+        e.preventDefault()
+        setSelectedMentionIndex(i => (i - 1 + filteredMentions.length) % filteredMentions.length)
+        return
+      }
+      if (e.key === 'Enter' || e.key === 'Tab') {
+        e.preventDefault()
+        const safeIdx = Math.min(selectedMentionIndex, Math.max(0, filteredMentions.length - 1))
+        selectMention(filteredMentions[safeIdx])
+        return
+      }
+      if (e.key === 'Escape') {
+        e.preventDefault()
+        setMentionActive(false)
+        return
+      }
+    }
+  }
+
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (
+        mentionDropdownRef.current &&
+        !mentionDropdownRef.current.contains(e.target as Node) &&
+        inputRef.current !== e.target
+      ) {
+        setMentionActive(false)
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside)
+    return () => document.removeEventListener('mousedown', handleClickOutside)
+  }, [])
 
   const choose = async (file?: File) => {
     if (disabled || !canAttach) {
@@ -506,7 +948,14 @@ export function ChatComposer({
     <div className="ct-chat-compose">
       {localFile && (
         <div className="ct-pending-attachment">
-          {preview && localFile.thumbnail && <ImagePreview src={'data:image/jpeg;base64,' + localFile.thumbnail} name={localFile.name} />}
+          {localFile.thumbnail ? (
+            <ImagePreview src={'data:image/jpeg;base64,' + localFile.thumbnail} name={localFile.name} />
+          ) : (
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '4px 0' }}>
+              <ControlIcon name="file" size={18} />
+              <span style={{ fontWeight: 500, fontSize: '13px' }}>{localFile.name}</span>
+            </div>
+          )}
           <strong>{localFile.name}</strong>
           <small>{(localFile.size / 1024 / 1024).toFixed(2)} MB</small>
           <button onClick={() => setLocalFile(undefined)}>Remover anexo</button>
@@ -514,18 +963,12 @@ export function ChatComposer({
       )}
 
       <div className="ct-send-options">
-        <label>
-          <input type="checkbox" checked={preview && canPreview} disabled={!canPreview} onChange={e => setPreview(e.target.checked)} /> Gerar prévia
-        </label>
-        <label>
-          <input type="checkbox" checked={once} onChange={e => setOnce(e.target.checked)} /> Visualização única por pessoa
-        </label>
-        <label>
+                <label>
           <input type="checkbox" aria-label="Enviar com leitura em voz" checked={tts} disabled={!canTts && !tts} onChange={event => setTts(event.target.checked)} /> Leitura em voz
         </label>
         <select
           aria-label="Mencionar pessoa"
-          className="ct-mention-select"
+          className="ct-mention-select" style={{ display: 'none' }}
           value=""
           onChange={e => {
             const val = e.target.value
@@ -575,6 +1018,50 @@ export function ChatComposer({
         </div>
       )}
 
+      {mentionActive && filteredMentions.length > 0 && (
+        <div
+          ref={mentionDropdownRef}
+          className="ct-mention-dropdown"
+          role="listbox"
+          aria-label="Sugestões de menção"
+        >
+          <div className="ct-mention-dropdown-header">
+            <span>Mencionar: <strong>{mentionQuery ? `@${mentionQuery}` : '@...'}</strong></span>
+          </div>
+          <div className="ct-mention-dropdown-list">
+            {filteredMentions.slice(0, 8).map((item, idx) => (
+              <button
+                key={item.id}
+                type="button"
+                role="option"
+                aria-selected={idx === selectedMentionIndex}
+                className={`ct-mention-item ${idx === selectedMentionIndex ? 'active' : ''}`}
+                onMouseDown={e => {
+                  e.preventDefault()
+                  selectMention(item)
+                }}
+                onMouseEnter={() => setSelectedMentionIndex(idx)}
+              >
+                {item.kind === 'everyone' || item.kind === 'here' ? (
+                  <span className="ct-mention-badge ct-mention-everyone">@</span>
+                ) : item.kind === 'role' ? (
+                  <span className="ct-mention-badge ct-mention-role" style={{ color: item.color || '#58a6ff' }}>@</span>
+                ) : (
+                  <Avatar name={item.name} identity={item.username} />
+                )}
+                <div className="ct-mention-info">
+                  <div className="flex items-center gap-1.5">
+                    <span className="ct-mention-name">{item.name}</span>
+                    {item.kind === 'role' && <span className="text-[10px] px-1 rounded bg-sky-500/10 text-sky-400">Cargo</span>}
+                    {item.kind === 'everyone' && <span className="text-[10px] px-1 rounded bg-amber-500/10 text-amber-400">Todos</span>}
+                  </div>
+                  <span className="ct-mention-desc">{item.description}</span>
+                </div>
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
       <form
         className="ct-composer"
         onSubmit={async e => {
@@ -604,7 +1091,7 @@ export function ChatComposer({
               setLocalFile(undefined)
             }
             await onSend(text, uploaded, {
-              preview,
+              preview: canPreview,
               once,
               tts,
               expression: expression ? { serverId: expression.serverId, id: expression.id } : undefined
@@ -665,13 +1152,24 @@ export function ChatComposer({
           <ControlIcon name="plus" size={18} />
         </button>
         <input
+          ref={inputRef}
           list="ct-mention-users"
           aria-label="Mensagem"
           maxLength={2000}
           placeholder={placeholder}
           value={text}
           disabled={busy || disabled}
-          onChange={e => setText(e.target.value)}
+          onChange={e => {
+            setText(e.target.value)
+            checkMentionTrigger(e.target.value, e.target.selectionStart ?? undefined)
+          }}
+          onKeyDown={handleInputKeyDown}
+          onClick={e => checkMentionTrigger(text, (e.target as HTMLInputElement).selectionStart ?? undefined)}
+          onKeyUp={e => {
+            if (e.key !== 'ArrowDown' && e.key !== 'ArrowUp' && e.key !== 'Enter') {
+              checkMentionTrigger(text, (e.target as HTMLInputElement).selectionStart ?? undefined)
+            }
+          }}
           onPaste={e => {
             const file = e.clipboardData.files[0]
             if (file) {
@@ -680,6 +1178,17 @@ export function ChatComposer({
             }
           }}
         />
+        <button
+          type="button"
+          className={`ct-view-once-btn ${once ? 'active' : ''}`}
+          aria-label={once ? 'Visualização única ativada' : 'Ativar visualização única'}
+          aria-pressed={once}
+          title={once ? 'Visualização única ativada: a mensagem só poderá ser vista uma vez' : 'Visualização única por pessoa'}
+          disabled={busy || disabled}
+          onClick={() => setOnce(!once)}
+        >
+          <ViewOnceIcon active={once} size={18} />
+        </button>
         <button
           className="ct-primary ct-composer-send-btn"
           disabled={busy || disabled || cooling || (!text.trim() && !attachment && !localFile && !expression)}
@@ -726,6 +1235,14 @@ export function ChatMessage({
   const [opened, setOpened] = useState(false)
   const [editing, setEditing] = useState(false)
   const [draft, setDraft] = useState(m.content)
+  const [confirmDelete, setConfirmDelete] = useState(false)
+  const cancelDeleteRef = useRef<HTMLButtonElement>(null)
+
+  useEffect(() => {
+    if (confirmDelete) {
+      cancelDeleteRef.current?.focus()
+    }
+  }, [confirmDelete])
   const [error, setError] = useState('')
   const [busy, setBusy] = useState(false)
 
@@ -782,7 +1299,7 @@ export function ChatMessage({
         disabled={busy || !deleteAllowed}
         title="Apagar mensagem"
         aria-label="Apagar mensagem"
-        onClick={() => void change()}
+        onClick={() => setConfirmDelete(true)}
       >
         <ControlIcon name="delete" size={12} />
         <span>Apagar</span>
@@ -836,6 +1353,83 @@ export function ChatMessage({
         body
       )}
       {m.editedAt && <small>Editada</small>}
+      {confirmDelete && (
+        <div className="ct-modal-backdrop" onClick={() => !busy && setConfirmDelete(false)}>
+          <section
+            className="ct-edit-dialog ct-delete-dialog"
+            role="alertdialog"
+            aria-modal="true"
+            aria-labelledby={'delete-message-title-' + m.id}
+            aria-describedby={'delete-message-desc-' + m.id}
+            onClick={e => e.stopPropagation()}
+            onKeyDown={e => {
+              if (e.key === 'Escape' && !busy) {
+                e.stopPropagation()
+                setConfirmDelete(false)
+              }
+              if (e.key === 'Tab') {
+                const buttons = [...e.currentTarget.querySelectorAll<HTMLButtonElement>('button:not(:disabled)')]
+                if (!buttons.length) return
+                if (e.shiftKey && document.activeElement === buttons[0]) {
+                  e.preventDefault()
+                  buttons[buttons.length - 1]?.focus()
+                } else if (!e.shiftKey && document.activeElement === buttons[buttons.length - 1]) {
+                  e.preventDefault()
+                  buttons[0]?.focus()
+                }
+              }
+            }}
+          >
+            <h2 id={'delete-message-title-' + m.id}>Excluir mensagem</h2>
+            <p id={'delete-message-desc-' + m.id}>
+              Tem certeza de que deseja excluir esta mensagem? Esta ação não pode ser desfeita.
+            </p>
+            {m.content && (
+              <div
+                style={{
+                  margin: '4px 0 12px',
+                  padding: '10px 12px',
+                  borderRadius: '6px',
+                  background: 'var(--ct-settings-bg, rgba(0, 0, 0, 0.25))',
+                  border: '1px solid var(--ct-settings-line, rgba(255, 255, 255, 0.08))',
+                  fontSize: '13px',
+                  lineHeight: '1.5',
+                  maxHeight: '140px',
+                  overflow: 'auto',
+                  wordBreak: 'break-word',
+                  color: 'var(--cx-fg-2, #ccc)'
+                }}
+              >
+                {m.content}
+              </div>
+            )}
+            {error && <p role="alert">{error}</p>}
+            <footer style={{ display: 'flex', justifyContent: 'flex-end', gap: '8px', marginTop: '8px' }}>
+              <button
+                type="button"
+                ref={cancelDeleteRef}
+                className="ct-secondary"
+                disabled={busy}
+                onClick={() => setConfirmDelete(false)}
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                className="ct-danger"
+                aria-label="Confirmar exclusão da mensagem"
+                disabled={busy}
+                onClick={async () => {
+                  await change()
+                  setConfirmDelete(false)
+                }}
+              >
+                {busy ? 'Excluindo…' : 'Excluir'}
+              </button>
+            </footer>
+          </section>
+        </div>
+      )}
       {!editing && <MessageTools message={m} onOpenChannel={onOpenChannel} actions={actions} />}
       {error && <p role="alert">{error}</p>}
     </div>

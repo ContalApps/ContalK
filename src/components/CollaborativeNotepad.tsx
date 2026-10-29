@@ -228,10 +228,10 @@ export function CollaborativeNotepad({
               onClick={() => void handleSave()}
               disabled={isSaving}
               className="flex items-center gap-1 h-7 px-2.5 rounded-md bg-neutral-800 hover:bg-neutral-700 text-neutral-200 text-xs font-medium border border-neutral-700 transition"
-              title="Salvar notas (Ctrl+S)"
+              title="Salvar no canal / privado (Ctrl+S)"
             >
               <ControlIcon name="check" size={11} />
-              <span>{isSaving ? 'Salvando…' : 'Salvar'}</span>
+              <span>{isSaving ? 'Salvando…' : 'Salvar no Canal'}</span>
             </button>
           )}
 

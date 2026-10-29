@@ -1,11 +1,10 @@
 import { CommunityEvents } from './CommunityEvents'
 import { ThreadCreate } from './ThreadCreate'
-import { ThreadList } from './ThreadList'
 import { ThreadHeader } from './ThreadHeader'
 import { threadArchived } from '../roles/permissions'
 import { PinnedMessages } from './PinnedMessages'
 import { ChatComposer, ChatMessage } from './MessageContent'
-import { Fragment, useEffect, useLayoutEffect, useRef, useState, useCallback } from 'react'
+import { Fragment, useEffect, useLayoutEffect, useRef, useState, useCallback, useMemo } from 'react'
 import { useAuthStore } from '../store/useAuthStore'
 import { useAppStore } from '../store/useAppStore'
 import { useVoiceStore } from '../store/useVoiceStore'
@@ -32,11 +31,11 @@ import { BrandMark } from './BrandMark'
 import { ControlIcon, type ControlIconName } from './ControlIcon'
 import { TerminalPanel } from './TerminalPanel'
 import { CollaborativeNotepad, type NotepadTab } from './CollaborativeNotepad'
+import { SaveNoteModal, type SaveNoteDestination } from './SaveNoteModal'
 import { useDevCollaborationStore } from '../store/useDevCollaborationStore'
 import { CommandMenuModal } from './CommandMenuModal'
 import { ScreenShareModal } from './ScreenShareModal'
 import { RightPanel } from './RightPanel'
-import type { MenuGroup } from './TitleMenus'
 import { UserDock } from './UserDock'
 import { ChannelSettings } from './ChannelSettings'
 import { RoleManager, RoleBadge } from './RoleManager'
@@ -102,9 +101,10 @@ export function ConTALKLayout() {
   const [memberRoles, setMemberRoles] = useState<string | null>(null)
   const roles = useRoleStore()
   const [threadCreate, setThreadCreate] = useState<string | null>(null)
-  const [threadList, setThreadList] = useState<string | null>(null)
+  const [channelSettingsTab, setChannelSettingsTab] = useState<'general' | 'threads' | 'permissions'>('general')
   const [activeDevModal, setActiveDevModal] = useState<string | null>(null)
   const [devEditorOpen, setDevEditorOpen] = useState(false)
+  const [saveNoteModalOpen, setSaveNoteModalOpen] = useState(false)
   const [commandMenuOpen, setCommandMenuOpen] = useState(false)
   const [toastMessage, setToastMessage] = useState<string | null>(null)
 
@@ -407,19 +407,77 @@ export function ConTALKLayout() {
     setActiveEditorTab(newId)
   }
 
-  const handleSaveActiveCode = async () => {
+  const allTextChannels = useMemo(() => {
+    return servers.flatMap(s =>
+      s.channels
+        .filter(c => c.type === 'text')
+        .map(c => ({ id: c.id, name: c.name, serverName: s.name }))
+    )
+  }, [servers])
+
+  const availablePeers = useMemo(() => {
+    const map = new Map<string, { username: string; display_name: string; online?: boolean }>()
+    for (const f of friends) {
+      map.set(f.username, { username: f.username, display_name: f.display_name, online: f.online })
+    }
+    for (const m of community.members) {
+      if (m.username !== user?.username && !map.has(m.username)) {
+        map.set(m.username, { username: m.username, display_name: m.display_name, online: m.online })
+      }
+    }
+    return Array.from(map.values())
+  }, [friends, community.members, user?.username])
+
+  const handleSaveActiveCode = () => {
+    setSaveNoteModalOpen(true)
+  }
+
+  const handleConfirmSaveNote = async (dest: SaveNoteDestination) => {
     const currentTab = editorTabs.find(t => t.id === activeEditorTab)
     if (!currentTab) return
     setIsSavingCode(true)
     try {
       const currentCode = tabCodes[activeEditorTab] ?? ''
+      const title = currentTab.name || 'Notas.md'
+
       if (desktop?.workspaceWriteFile) {
         await desktop.workspaceWriteFile(currentTab.path, currentCode)
       }
+
+      const formatMessage = (heading: string) => {
+        if (currentCode.length <= 1800) {
+          return `📝 **${heading}**\n\`\`\`markdown\n${currentCode}\n\`\`\``
+        }
+        return `📝 **${heading}**\n\n${currentCode.slice(0, 1850)}…\n\n*(Documento longo salvo via Bloco de Notas Colaborativo)*`
+      }
+
+      const messageContent = formatMessage(title)
+
+      if (dest.sendToChannel && dest.channelId) {
+        await community.sendMessage(dest.channelId, messageContent)
+      }
+
+      if (dest.sendToDm && dest.friendUsername && user) {
+        const dmChannel = 'dm:' + [user.username, dest.friendUsername].sort().join(':')
+        await community.sendMessage(dmChannel, messageContent, dest.friendUsername)
+      }
+
       setEditorTabs(tabs => tabs.map(tab => (tab.id === activeEditorTab ? { ...tab, isDirty: false } : tab)))
-      showToast(`Documento ${currentTab.name} salvo com sucesso!`)
-    } catch {
-      showToast('Falha ao salvar documento.')
+
+      let destText = ''
+      if (dest.sendToChannel && dest.sendToDm) {
+        destText = 'no canal de texto e na mensagem privada'
+      } else if (dest.sendToChannel) {
+        destText = 'no canal de texto'
+      } else if (dest.sendToDm) {
+        destText = 'na mensagem privada'
+      } else {
+        destText = 'com sucesso'
+      }
+      showToast(`Documento ${title} salvo ${destText}!`)
+    } catch (err) {
+      showToast(err instanceof Error ? err.message : 'Falha ao salvar documento.')
+      throw err
     } finally {
       setIsSavingCode(false)
     }
@@ -434,20 +492,11 @@ export function ConTALKLayout() {
       await voice.leaveChannel()
       await logout()
     })()
-  const zoom = (stepVal: number) =>
-    preferences.update({
-      interfaceScale: stepVal === 0 ? 100 : Math.min(120, Math.max(80, preferences.interfaceScale + stepVal))
-    })
-  const desktopOnly = 'Disponível no aplicativo desktop'
-  const edit = (command: 'undo' | 'redo' | 'cut' | 'copy' | 'paste' | 'delete' | 'selectAll') => () => {
-    void desktop?.editCommand?.(command)
-  }
-
   const handleCopyDiagnostics = useCallback(async () => {
     try {
       const diag = {
         app: 'ConTALK',
-        version: '0.1.34',
+        version: '0.1.37',
         timestamp: new Date().toISOString(),
         view,
         server: { id: server.id, name: server.name },
@@ -479,126 +528,6 @@ export function ConTALKLayout() {
       showToast('Falha ao copiar diagnóstico.')
     }
   }, [view, server, channel, user, voice, preferences, devEditorOpen, showToast])
-
-  const menus: MenuGroup[] = [
-    {
-      label: 'Arquivo',
-      items: [
-        { label: 'Menu de comandos…', shortcut: 'Ctrl+K', onSelect: () => setCommandMenuOpen(true) },
-        { label: 'Nova janela', shortcut: 'Ctrl+N', disabled: true, hint: 'em breve' },
-        { label: 'Nova conversa', shortcut: 'Ctrl+Shift+N', onSelect: () => setView('messages') },
-        'separator',
-        {
-          label: 'Abrir pasta…',
-          shortcut: 'Ctrl+O',
-          onSelect: () => void openFolder(),
-          disabled: !desktop?.openFolder,
-          hint: desktop?.openFolder ? undefined : desktopOnly
-        },
-        'separator',
-        { label: 'Sair da conta', onSelect: signOut },
-        {
-          label: 'Encerrar o ConTALK',
-          onSelect: () => void quit(),
-          disabled: !desktop?.quitApp,
-          hint: desktop?.quitApp ? undefined : desktopOnly
-        }
-      ]
-    },
-    {
-      label: 'Editar',
-      items: [
-        { label: 'Desfazer', shortcut: 'Ctrl+Z', onSelect: edit('undo'), disabled: !desktop?.editCommand },
-        { label: 'Refazer', shortcut: 'Ctrl+Y', onSelect: edit('redo'), disabled: !desktop?.editCommand },
-        'separator',
-        { label: 'Recortar', shortcut: 'Ctrl+X', onSelect: edit('cut'), disabled: !desktop?.editCommand },
-        { label: 'Copiar', shortcut: 'Ctrl+C', onSelect: edit('copy'), disabled: !desktop?.editCommand },
-        { label: 'Colar', shortcut: 'Ctrl+V', onSelect: edit('paste'), disabled: !desktop?.editCommand },
-        { label: 'Excluir', onSelect: edit('delete'), disabled: !desktop?.editCommand },
-        { label: 'Selecionar tudo', shortcut: 'Ctrl+A', onSelect: edit('selectAll'), disabled: !desktop?.editCommand },
-        'separator',
-        {
-          label: 'Configurações',
-          shortcut: 'Ctrl+,',
-          onSelect: () => {
-            setSettingsTab('appearance')
-            setSettingsOpen(true)
-          }
-        }
-      ]
-    },
-    {
-      label: 'Exibir',
-      items: [
-        {
-          label: 'Barra lateral',
-          shortcut: 'Ctrl+B',
-          checked: !preferences.sidebarHidden,
-          onSelect: () => togglePanel('sidebarHidden')
-        },
-        {
-          label: 'Terminal',
-          shortcut: 'Ctrl+J',
-          checked: preferences.bottomPanelOpen,
-          onSelect: () => togglePanel('bottomPanelOpen')
-        },
-        {
-          label: 'Bloco de notas colaborativo',
-          shortcut: 'Ctrl+Alt+E',
-          checked: devEditorOpen,
-          onSelect: () => setDevEditorOpen(v => !v)
-        },
-        {
-          label: 'Painel direito',
-          shortcut: 'Ctrl+Alt+B',
-          checked: !preferences.membersCollapsed,
-          onSelect: () => togglePanel('membersCollapsed')
-        },
-        {
-          label: 'Barra de servidores',
-          checked: !preferences.railHidden,
-          onSelect: () => togglePanel('railHidden')
-        },
-        {
-          label: 'Mensagens fixadas do canal',
-          disabled: !(view === 'server' && channel.type === 'text' && !!channel.id),
-          onSelect: () => setPinnedChannel(channel.id)
-        },
-        'separator',
-        { label: 'Aumentar zoom', disabled: preferences.interfaceScale >= 120, onSelect: () => zoom(10) },
-        { label: 'Diminuir zoom', disabled: preferences.interfaceScale <= 80, onSelect: () => zoom(-10) },
-        { label: 'Tamanho original', disabled: preferences.interfaceScale === 100, onSelect: () => zoom(0) },
-        {
-          label: 'Tela cheia',
-          shortcut: 'F11',
-          onSelect: () => void desktop?.toggleFullScreen?.(),
-          disabled: !desktop?.toggleFullScreen
-        }
-      ]
-    },
-    {
-      label: 'Ajuda',
-      items: [
-        {
-          label: 'Atalhos do teclado',
-          shortcut: 'F1',
-          onSelect: () => {
-            document.dispatchEvent(new KeyboardEvent('keydown', { key: 'F1', bubbles: true }))
-          }
-        },
-        { label: 'Copiar diagnóstico do sistema', onSelect: () => void handleCopyDiagnostics() },
-        'separator',
-        { label: 'Documentação do ConTALK', onSelect: () => setActiveDevModal('docs') },
-        {
-          label: 'Sobre o ConTALK',
-          onSelect: () => {
-            setSettingsTab('about')
-            setSettingsOpen(true)
-          }
-        }
-      ]
-    }
-  ]
 
   useEffect(() => {
     const keys = (event: KeyboardEvent) => {
@@ -699,11 +628,9 @@ export function ConTALKLayout() {
         onForward={() => travel(1)}
         search={search}
         onSearch={setSearch}
-        menus={menus}
         scope={view === 'server' ? server.name : 'ConTALK'}
         sidebarOpen={!preferences.sidebarHidden}
         onToggleSidebar={() => togglePanel('sidebarHidden')}
-        onProfile={() => setProfile(user?.display_name || 'Você', user?.username)}
         onOpenCommandMenu={() => setCommandMenuOpen(true)}
       />
 
@@ -741,24 +668,10 @@ export function ConTALKLayout() {
           >
             <Icon name="plus" />
           </button>
-          <div className="ct-rail-bottom">
-            <button title="Meu perfil" onClick={() => setProfile(user?.display_name || 'Você', user?.username)}>
-              <Avatar name={user?.display_name || 'Você'} />
-            </button>
-          </div>
         </aside>
 
         <>
           <nav className="ct-sidebar" data-collapsed={preferences.sidebarCollapsed} hidden={preferences.sidebarHidden}>
-            <button
-              className="ct-sidebar-toggle"
-              aria-label={preferences.sidebarCollapsed ? 'Expandir lista de canais' : 'Recolher lista de canais'}
-              title={preferences.sidebarCollapsed ? 'Expandir canais' : 'Recolher canais'}
-              onClick={() => preferences.update({ sidebarCollapsed: !preferences.sidebarCollapsed })}
-            >
-              <ControlIcon name="chevron" />
-              <span>Canais e conversas</span>
-            </button>
             <div className="ct-sidebar-scroll">
               {view !== 'server' ? (
                 <>
@@ -807,19 +720,6 @@ export function ConTALKLayout() {
               ) : (
                 <>
                   <div className="ct-server-banner">
-                    {roles.snapshot?.id === server.id && (
-                      <button
-                        className="ct-server-events"
-                        title="Eventos do servidor"
-                        aria-label="Eventos do servidor"
-                        onClick={() => {
-                          setEventTarget(undefined)
-                          setEventsOpen(true)
-                        }}
-                      >
-                        <ControlIcon name="event" />
-                      </button>
-                    )}
                     <strong title={server.description || server.name}>{server.name}</strong>
                     {(!roles.snapshot ||
                       centralAllows('VIEW_GUILD_INSIGHTS') ||
@@ -933,7 +833,7 @@ export function ConTALKLayout() {
                             channel={c}
                             active={channel.id === c.id}
                             onOpen={() => openChannel(c.id)}
-                            onSettings={() => setChannelSettings(c)}
+                            onSettings={() => { setChannelSettingsTab('general'); setChannelSettings(c) }}
                           />
                           {server.channels
                             .filter(
@@ -954,7 +854,7 @@ export function ConTALKLayout() {
                                   channel={child}
                                   active={channel.id === child.id}
                                   onOpen={() => openChannel(child.id)}
-                                  onSettings={() => setChannelSettings(child)}
+                                  onSettings={() => { setChannelSettingsTab('general'); setChannelSettings(child) }}
                                 />
                               </div>
                             ))}
@@ -991,7 +891,7 @@ export function ConTALKLayout() {
                               connected={isConnected}
                               count={occupants.length}
                               onOpen={() => void join(c.id, c.name)}
-                              onSettings={() => setChannelSettings(c)}
+                              onSettings={() => { setChannelSettingsTab('general'); setChannelSettings(c) }}
                             />
                             <div className="ct-channel-occupants">
                               {occupants.map(p => (
@@ -1243,7 +1143,11 @@ export function ConTALKLayout() {
                         <button
                           aria-label="Tópicos do canal"
                           title="Tópicos do canal"
-                          onClick={() => setThreadList(channel.parentId || channel.id)}
+                          onClick={() => {
+                          const target = channel.parentId ? server.channels.find(c => c.id === channel.parentId) || channel : channel
+                          setChannelSettingsTab('threads')
+                          setChannelSettings(target)
+                        }}
                         >
                           <ControlIcon name="thread" />
                         </button>
@@ -1281,7 +1185,10 @@ export function ConTALKLayout() {
                         className="ct-channel-header-settings"
                         aria-label={`Configurações de ${channel.name}`}
                         title="Configurações do canal"
-                        onClick={() => setChannelSettings(channel)}
+                        onClick={() => {
+                        setChannelSettingsTab('general')
+                        setChannelSettings(channel)
+                      }}
                       >
                         <Icon name="settings" />
                       </button>
@@ -1519,18 +1426,7 @@ export function ConTALKLayout() {
       {threadCreate && (
         <ThreadCreate parentId={threadCreate} onCreated={openChannel} onClose={() => setThreadCreate(null)} />
       )}
-      {threadList && (
-        <ThreadList
-          parentId={threadList}
-          onOpen={openChannel}
-          onCreate={() => {
-            setThreadCreate(threadList)
-            setThreadList(null)
-          }}
-          onClose={() => setThreadList(null)}
-        />
-      )}
-      {pinnedChannel && (
+            {pinnedChannel && (
         <PinnedMessages
           channelId={pinnedChannel}
           onOpenChannel={id => {
@@ -1540,7 +1436,29 @@ export function ConTALKLayout() {
           onClose={() => setPinnedChannel(null)}
         />
       )}
-      {channelSettings && <ChannelSettings channel={channelSettings} onClose={() => setChannelSettings(null)} />}
+      {channelSettings && (
+        <ChannelSettings
+          channel={channelSettings}
+          initialTab={channelSettingsTab}
+          onClose={() => {
+            setChannelSettings(null)
+            setChannelSettingsTab('general')
+          }}
+          onOpenChannel={openChannel}
+          onCreateThread={id => setThreadCreate(id)}
+        />
+      )}
+      <SaveNoteModal
+        isOpen={saveNoteModalOpen}
+        onClose={() => setSaveNoteModalOpen(false)}
+        noteTitle={editorTabs.find(t => t.id === activeEditorTab)?.name || 'Notas.md'}
+        noteContent={tabCodes[activeEditorTab] ?? ''}
+        availableChannels={allTextChannels}
+        defaultChannelId={channel.type === 'text' ? channel.id : (server.channels.find(c => c.type === 'text')?.id || '')}
+        availableFriends={availablePeers}
+        defaultFriendUsername={selectedPeer || undefined}
+        onConfirm={handleConfirmSaveNote}
+      />
       {profile && (
         <div className="ct-modal-backdrop" onClick={() => setProfile(null)}>
           <section
@@ -1696,6 +1614,9 @@ export function ConTALKLayout() {
           onOpenHelp={() => document.dispatchEvent(new KeyboardEvent('keydown', { key: 'F1', bubbles: true }))}
           onOpenFolder={() => void openFolder()}
           onOpenDevModal={modal => setActiveDevModal(modal)}
+          onCopyDiagnostics={() => void handleCopyDiagnostics()}
+          onSignOut={signOut}
+          onQuit={desktop?.quitApp ? () => void quit() : undefined}
         />
       )}
 

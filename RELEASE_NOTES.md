@@ -1,3 +1,33 @@
+# ConTALK 0.1.37
+
+Interface Minimalista Instantânea (Zero Delay), Bloco de Notas Integrado a Canais e DMs, Menções Automáticas com @, Prévias Nativas Universais e Confirmação de Exclusão.
+
+- **Interface Minimalista e Limpa:**
+  - Remoção de avatares duplicados da barra de título e da rail lateral esquerda, além da remoção do botão 'Canais e conversas' e do ícone de calendário próximo ao status de membros.
+  - Remoção dos menus suspensos 'Arquivo', 'Editar', 'Exibir' e 'Ajuda' da barra de título, unificando as ações e atalhos na Command Palette universal (`Ctrl+K`).
+  - Remoção do fundo acinzentado e contornos de card do canal de voz conectado na barra lateral, proporcionando uma aparência limpa, integrada e contígua.
+- **Bloco de Notas Colaborativo Direcionável:**
+  - Novo modal interativo ao salvar notas colaborativas (`SaveNoteModal`), permitindo escolher dinamicamente em qual canal de texto salvar e/ou enviar diretamente como mensagem privada (DM) para amigos selecionados.
+- **Menções Rápidas sem Botões:**
+  - Menu suspenso de menções que surge automaticamente ao digitar `@` no campo de texto com navegação por teclado e inserção instantânea, dispensando cliques adicionais.
+- **Visualização Única Integrada:**
+  - Substituição da caixa de seleção por um botão compacto com o ícone `1` em círculo embutido ao lado do botão de envio no compositor.
+- **Tópicos como Configuração Interna do Canal:**
+  - Aba nativa 'Tópicos' integrada ao painel de configurações internas de canais de texto (`ChannelSettings`), permitindo criar, renomear, arquivar e excluir tópicos de forma centralizada.
+- **Pop-ups de Confirmação Segura:**
+  - Pop-up modal com alerta e foco inicial no botão 'Cancelar' para confirmação explícita ao excluir mensagens.
+  - Pop-up modal independente para confirmação segura ao excluir canais e tópicos.
+- **Prévias Automáticas Padrão para Todos os Links e Arquivos:**
+  - Ativação permanente e sem exceções de prévias automáticas: imagens em alta definição, reprodutores nativos de vídeo e áudio, visualizador de snippets de texto/código, PDFs, documentos e pacotes compactados.
+- **Latência Zero e Fim dos Delays:**
+  - Eliminação de todos os atrasos de transição e animações CSS de entrada (`codex.css`), proporcionando resposta instantânea em todos os botões, menus e abas.
+  - Remoção do debounce de 400ms no controle de escala e densidade da interface.
+  - Áudio e captura de microfone configurados com restrição nativa `latency: 0` e `latencyHint: 0` no Web Audio.
+- **Auditoria e Limpeza Ponytail Ultra:**
+  - Remoção de arquivos legados (`ActiveCallCard.tsx`, `ParticipantVolumePopup.tsx`, `TitleMenus.tsx`) e de mais de 1.100 linhas de CSS morto, reduzindo o tamanho final do bundle de distribuição.
+
+Validação: tipos verificados sem erros (`npm run typecheck`), 281 testes unitários e de integração aprovados (`npm test`) e build de produção Vite e Electron concluídos com sucesso.
+
 # ConTALK 0.1.36
 
 Retorno à Engenharia Reversa Perfeita do Discord (Foco em Comunicação e Transmissão de Tela), Bloco de Notas Colaborativo em Tempo Real e Otimização Ponytail Ultra.

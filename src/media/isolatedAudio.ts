@@ -6,7 +6,7 @@ export interface IsolatedAudio {
 export async function captureIsolatedAudio(sourceId: string, onError: (error: string) => void): Promise<IsolatedAudio> {
   const desktop = window.contalkDesktop
   if (!desktop?.startCaptureAudio) throw new Error('Instale a versão mais recente do ConTALK para transmitir áudio isolado.')
-  const context = new AudioContext({ sampleRate: 48000, latencyHint: 'interactive' })
+  const context = new AudioContext({ sampleRate: 48000, latencyHint: 0 })
   let sessionId: string | undefined
   let node: AudioWorkletNode | undefined
   let unsubscribeData = () => {}

@@ -78,6 +78,53 @@ export function LinkPreview({ url }: { url: string }) {
     const image = !imageFailed ? data?.image : undefined
     const favicon = !faviconFailed ? data?.favicon : undefined
     const isDirectImage = /\.(png|jpe?g|gif|webp|svg)(\?.*)?$/i.test(targetUrl.pathname)
+    const isDirectVideo = /\.(mp4|webm|mov|ogg|mkv)(\?.*)?$/i.test(targetUrl.pathname)
+    const isDirectAudio = /\.(mp3|wav|ogg|m4a|aac|flac)(\?.*)?$/i.test(targetUrl.pathname)
+
+    if (isDirectVideo) {
+      return (
+        <div className="ct-link-preview" style={{ padding: '10px' }}>
+          <div className="ct-link-preview-header">
+            <ControlIcon name="screen" size={13} />
+            <span className="ct-link-preview-sitename">{siteName}</span>
+          </div>
+          <video
+            controls
+            preload="metadata"
+            src={targetUrl.href}
+            style={{ width: '100%', maxHeight: '300px', borderRadius: '6px', background: '#000', marginTop: '6px' }}
+          />
+          <a
+            href={targetUrl.href}
+            target="_blank"
+            rel="noopener noreferrer"
+            style={{ fontSize: '12px', marginTop: '6px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', display: 'block' }}
+          >
+            {title}
+          </a>
+        </div>
+      )
+    }
+
+    if (isDirectAudio) {
+      return (
+        <div className="ct-link-preview" style={{ padding: '10px' }}>
+          <div className="ct-link-preview-header">
+            <ControlIcon name="speaker" size={13} />
+            <span className="ct-link-preview-sitename">{siteName}</span>
+          </div>
+          <audio controls src={targetUrl.href} style={{ width: '100%', marginTop: '6px' }} />
+          <a
+            href={targetUrl.href}
+            target="_blank"
+            rel="noopener noreferrer"
+            style={{ fontSize: '12px', marginTop: '6px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', display: 'block' }}
+          >
+            {title}
+          </a>
+        </div>
+      )
+    }
 
     return (
       <a

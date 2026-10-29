@@ -11,8 +11,7 @@ export function DensityControl({value,onChange}:{value:number;onChange:(value:nu
   const commit=()=>{if(valid){if(number!==value)onChange(number)}else setDraft(String(value))}
   useEffect(()=>{
     if(!valid||number===value)return
-    const timer=setTimeout(()=>changeRef.current(number),400)
-    return()=>clearTimeout(timer)
+    changeRef.current(number)
   },[draft,value,valid,number])
   return <div className="ct-density-control"><div className="ct-density-stepper">
     <button type="button" aria-label="Diminuir escala" disabled={valid&&number<=80} onClick={()=>step(-1)}>−</button>

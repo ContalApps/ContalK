@@ -19,6 +19,9 @@ interface CommandMenuModalProps {
   onOpenHelp?: () => void
   onOpenFolder?: () => void
   onOpenDevModal?: (modalId: string) => void
+  onCopyDiagnostics?: () => void
+  onSignOut?: () => void
+  onQuit?: () => void
 }
 
 export function CommandMenuModal({
@@ -27,7 +30,10 @@ export function CommandMenuModal({
   onOpenSettings,
   onOpenHelp,
   onOpenFolder,
-  onOpenDevModal
+  onOpenDevModal,
+  onCopyDiagnostics,
+  onSignOut,
+  onQuit
 }: CommandMenuModalProps) {
   const [query, setQuery] = useState('')
   const [selectedIndex, setSelectedIndex] = useState(0)
@@ -40,6 +46,30 @@ export function CommandMenuModal({
 
   const allCommands: CommandItem[] = [
     // Ações Rápidas
+    {
+      id: 'cmd-sign-out',
+      title: 'Sair da conta',
+      category: 'Ações Rápidas',
+      icon: 'user',
+      action: () => {
+        onClose()
+        onSignOut?.()
+      }
+    },
+    ...(onQuit
+      ? [
+          {
+            id: 'cmd-quit-app',
+            title: 'Encerrar o ConTALK',
+            category: 'Ações Rápidas' as const,
+            icon: 'close' as const,
+            action: () => {
+              onClose()
+              onQuit?.()
+            }
+          }
+        ]
+      : []),
     {
       id: 'cmd-toggle-sidebar',
       title: 'Alternar barra lateral',
@@ -140,6 +170,16 @@ export function CommandMenuModal({
     },
 
     // Ajuda
+    {
+      id: 'cmd-copy-diagnostics',
+      title: 'Copiar diagnóstico do sistema',
+      category: 'Ajuda',
+      icon: 'copy',
+      action: () => {
+        onCopyDiagnostics?.()
+        onClose()
+      }
+    },
     {
       id: 'cmd-shortcuts',
       title: 'Mostrar atalhos de teclado e ajuda',
