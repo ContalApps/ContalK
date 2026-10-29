@@ -5,7 +5,7 @@ import { ThreadHeader } from './ThreadHeader'
 import { threadArchived } from '../roles/permissions'
 import { PinnedMessages } from './PinnedMessages'
 import { ChatComposer, ChatMessage } from './MessageContent'
-import { Fragment, useEffect, useLayoutEffect, useRef, useState, useCallback } from 'react'
+import { Fragment, useEffect, useLayoutEffect, useRef, useState, useCallback, useMemo } from 'react'
 import { useAuthStore } from '../store/useAuthStore'
 import { useAppStore } from '../store/useAppStore'
 import { useVoiceStore } from '../store/useVoiceStore'
@@ -32,6 +32,7 @@ import { BrandMark } from './BrandMark'
 import { ControlIcon, type ControlIconName } from './ControlIcon'
 import { TerminalPanel } from './TerminalPanel'
 import { CollaborativeNotepad, type NotepadTab } from './CollaborativeNotepad'
+import { SaveNoteModal, type SaveNoteDestination } from './SaveNoteModal'
 import { useDevCollaborationStore } from '../store/useDevCollaborationStore'
 import { CommandMenuModal } from './CommandMenuModal'
 import { ScreenShareModal } from './ScreenShareModal'
@@ -105,6 +106,7 @@ export function ConTALKLayout() {
   const [threadList, setThreadList] = useState<string | null>(null)
   const [activeDevModal, setActiveDevModal] = useState<string | null>(null)
   const [devEditorOpen, setDevEditorOpen] = useState(false)
+  const [saveNoteModalOpen, setSaveNoteModalOpen] = useState(false)
   const [commandMenuOpen, setCommandMenuOpen] = useState(false)
   const [toastMessage, setToastMessage] = useState<string | null>(null)
 
@@ -407,19 +409,77 @@ export function ConTALKLayout() {
     setActiveEditorTab(newId)
   }
 
-  const handleSaveActiveCode = async () => {
+  const allTextChannels = useMemo(() => {
+    return servers.flatMap(s =>
+      s.channels
+        .filter(c => c.type === 'text')
+        .map(c => ({ id: c.id, name: c.name, serverName: s.name }))
+    )
+  }, [servers])
+
+  const availablePeers = useMemo(() => {
+    const map = new Map<string, { username: string; display_name: string; online?: boolean }>()
+    for (const f of friends) {
+      map.set(f.username, { username: f.username, display_name: f.display_name, online: f.online })
+    }
+    for (const m of community.members) {
+      if (m.username !== user?.username && !map.has(m.username)) {
+        map.set(m.username, { username: m.username, display_name: m.display_name, online: m.online })
+      }
+    }
+    return Array.from(map.values())
+  }, [friends, community.members, user?.username])
+
+  const handleSaveActiveCode = () => {
+    setSaveNoteModalOpen(true)
+  }
+
+  const handleConfirmSaveNote = async (dest: SaveNoteDestination) => {
     const currentTab = editorTabs.find(t => t.id === activeEditorTab)
     if (!currentTab) return
     setIsSavingCode(true)
     try {
       const currentCode = tabCodes[activeEditorTab] ?? ''
+      const title = currentTab.name || 'Notas.md'
+
       if (desktop?.workspaceWriteFile) {
         await desktop.workspaceWriteFile(currentTab.path, currentCode)
       }
+
+      const formatMessage = (heading: string) => {
+        if (currentCode.length <= 1800) {
+          return `📝 **${heading}**\n\`\`\`markdown\n${currentCode}\n\`\`\``
+        }
+        return `📝 **${heading}**\n\n${currentCode.slice(0, 1850)}…\n\n*(Documento longo salvo via Bloco de Notas Colaborativo)*`
+      }
+
+      const messageContent = formatMessage(title)
+
+      if (dest.sendToChannel && dest.channelId) {
+        await community.sendMessage(dest.channelId, messageContent)
+      }
+
+      if (dest.sendToDm && dest.friendUsername && user) {
+        const dmChannel = 'dm:' + [user.username, dest.friendUsername].sort().join(':')
+        await community.sendMessage(dmChannel, messageContent, dest.friendUsername)
+      }
+
       setEditorTabs(tabs => tabs.map(tab => (tab.id === activeEditorTab ? { ...tab, isDirty: false } : tab)))
-      showToast(`Documento ${currentTab.name} salvo com sucesso!`)
-    } catch {
-      showToast('Falha ao salvar documento.')
+
+      let destText = ''
+      if (dest.sendToChannel && dest.sendToDm) {
+        destText = 'no canal de texto e na mensagem privada'
+      } else if (dest.sendToChannel) {
+        destText = 'no canal de texto'
+      } else if (dest.sendToDm) {
+        destText = 'na mensagem privada'
+      } else {
+        destText = 'com sucesso'
+      }
+      showToast(`Documento ${title} salvo ${destText}!`)
+    } catch (err) {
+      showToast(err instanceof Error ? err.message : 'Falha ao salvar documento.')
+      throw err
     } finally {
       setIsSavingCode(false)
     }
@@ -1513,6 +1573,17 @@ export function ConTALKLayout() {
         />
       )}
       {channelSettings && <ChannelSettings channel={channelSettings} onClose={() => setChannelSettings(null)} />}
+      <SaveNoteModal
+        isOpen={saveNoteModalOpen}
+        onClose={() => setSaveNoteModalOpen(false)}
+        noteTitle={editorTabs.find(t => t.id === activeEditorTab)?.name || 'Notas.md'}
+        noteContent={tabCodes[activeEditorTab] ?? ''}
+        availableChannels={allTextChannels}
+        defaultChannelId={channel.type === 'text' ? channel.id : (server.channels.find(c => c.type === 'text')?.id || '')}
+        availableFriends={availablePeers}
+        defaultFriendUsername={selectedPeer || undefined}
+        onConfirm={handleConfirmSaveNote}
+      />
       {profile && (
         <div className="ct-modal-backdrop" onClick={() => setProfile(null)}>
           <section
