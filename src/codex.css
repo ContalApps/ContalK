@@ -1850,3 +1850,15 @@ select option:hover, select option:focus, select option:checked {
   border-top: 1px solid #282828;
   background: #141414;
 }
+
+/* Zero-delay UI: eliminação de delays em transições e animações */
+*, *::before, *::after {
+  transition: none !important;
+  transition-duration: 0s !important;
+  transition-delay: 0s !important;
+  animation-delay: 0s !important;
+}
+
+*:not([class*="pulse"]):not([class*="shimmer"]):not([class*="spin"]):not([class*="live"]):not(.ring-green-500) {
+  animation-duration: 0s !important;
+}

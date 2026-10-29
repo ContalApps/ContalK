@@ -12,6 +12,7 @@ export function microphoneOptions(deviceId?: string): AudioCaptureOptions {
     noiseSuppression: true,
     autoGainControl: false,
     channelCount: 1,
+    latency: 0,
     googEchoCancellation: true,
     googExperimentalEchoCancellation: true,
     googNoiseSuppression: true,
