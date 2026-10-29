@@ -87,10 +87,11 @@ function ImagePreview({ src, name }: { src: string; name: string }) {
   )
 }
 
-function StorageAttachmentPreview({ a }: { a: Attachment; preview: boolean }) {
+function StorageAttachmentPreview({ a }: { a: Attachment }) {
   const [effectiveSrc, setEffectiveSrc] = useState<string | null>(null)
   const [failed, setFailed] = useState(false)
   const [zoomed, setZoomed] = useState(false)
+  const [textSnippet, setTextSnippet] = useState<string | null>(null)
   const placeholder = a.thumbnail ? `data:image/jpeg;base64,${a.thumbnail}` : null
 
   useEffect(() => {
@@ -114,7 +115,23 @@ function StorageAttachmentPreview({ a }: { a: Attachment; preview: boolean }) {
 
   const displaySrc = effectiveSrc || placeholder
 
-  if (a.type.startsWith('image/')) {
+  const isImage = a.type.startsWith('image/') || /\.(png|jpe?g|gif|webp|svg|bmp|ico|avif)$/i.test(a.name)
+  const isVideo = a.type.startsWith('video/') || /\.(mp4|webm|mov|ogg|mkv|avi|m4v)$/i.test(a.name)
+  const isAudio = a.type.startsWith('audio/') || /\.(mp3|wav|ogg|m4a|flac|aac|opus)$/i.test(a.name)
+  const isPdf = a.type === 'application/pdf' || /\.pdf$/i.test(a.name)
+  const isText = a.type.startsWith('text/') || a.type === 'application/json' || /\.(txt|md|json|csv|log|js|ts|tsx|jsx|py|html|css|c|cpp|rs|go|java|php|sql|sh|bat|ps1|yml|yaml|xml)$/i.test(a.name)
+  const ext = (a.name.split('.').pop() || 'FILE').toUpperCase().slice(0, 5)
+
+  useEffect(() => {
+    if (isText && effectiveSrc && !textSnippet) {
+      fetch(effectiveSrc)
+        .then(res => res.text())
+        .then(txt => setTextSnippet(txt.slice(0, 800)))
+        .catch(() => {})
+    }
+  }, [isText, effectiveSrc, textSnippet])
+
+  if (isImage) {
     return (
       <div className="ct-attachment ct-attachment-image">
         {displaySrc && !failed ? (
@@ -142,7 +159,7 @@ function StorageAttachmentPreview({ a }: { a: Attachment; preview: boolean }) {
         <div className="ct-attachment-info">
           <div className="ct-attachment-text">
             <strong>{a.name}</strong>
-            <small>{(a.size / 1024 / 1024).toFixed(2)} MB</small>
+            <small>{(a.size / 1024 / 1024).toFixed(2)} MB · Imagem</small>
           </div>
           <button
             type="button"
@@ -188,16 +205,200 @@ function StorageAttachmentPreview({ a }: { a: Attachment; preview: boolean }) {
     )
   }
 
-  return (
-    <div className="ct-attachment">
-      <div className="ct-attachment-info">
-        <div className="ct-attachment-text">
+  if (isVideo) {
+    return (
+      <div className="ct-attachment ct-attachment-video">
+        {displaySrc ? (
+          <video
+            controls
+            preload="metadata"
+            src={displaySrc}
+            className="ct-chat-video"
+            style={{ maxWidth: '100%', maxHeight: '320px', borderRadius: '8px', background: '#000', display: 'block' }}
+          />
+        ) : placeholder ? (
+          <img src={placeholder} alt={a.name} className="ct-chat-image" />
+        ) : (
+          <span className="ct-chat-image-fallback">
+            <ControlIcon name="screen" size={24} />
+          </span>
+        )}
+        <div className="ct-attachment-info">
+          <div className="ct-attachment-text">
+            <strong>{a.name}</strong>
+            <small>{(a.size / 1024 / 1024).toFixed(2)} MB · Vídeo</small>
+          </div>
+          <button
+            type="button"
+            className="ct-download-btn"
+            title="Baixar vídeo"
+            aria-label={`Baixar vídeo ${a.name}`}
+            onClick={() => {
+              void window.contalkDesktop?.openStorageFile(a.storageId!).catch(() => {})
+            }}
+          >
+            <ControlIcon name="download" size={13} /> Baixar
+          </button>
+        </div>
+      </div>
+    )
+  }
+
+  if (isAudio) {
+    return (
+      <div className="ct-attachment ct-attachment-audio">
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px' }}>
+          <ControlIcon name="speaker" size={18} />
           <strong>{a.name}</strong>
-          <small>{(a.size / 1024 / 1024).toFixed(2)} MB · {a.type || 'Arquivo'}</small>
+        </div>
+        {displaySrc && (
+          <audio controls src={displaySrc} style={{ width: '100%', maxWidth: '380px', margin: '4px 0' }} />
+        )}
+        <div className="ct-attachment-info">
+          <small>{(a.size / 1024 / 1024).toFixed(2)} MB · Áudio</small>
+          <button
+            type="button"
+            className="ct-download-btn"
+            title="Baixar áudio"
+            aria-label={`Baixar áudio ${a.name}`}
+            onClick={() => {
+              void window.contalkDesktop?.openStorageFile(a.storageId!).catch(() => {})
+            }}
+          >
+            <ControlIcon name="download" size={13} /> Baixar
+          </button>
+        </div>
+      </div>
+    )
+  }
+
+  if (isPdf) {
+    return (
+      <div className="ct-attachment ct-attachment-pdf" style={{ borderLeft: '3px solid #ff4d4f' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+          <span
+            style={{
+              background: 'rgba(255, 77, 79, 0.15)',
+              color: '#ff4d4f',
+              padding: '6px 10px',
+              borderRadius: '6px',
+              fontWeight: 700,
+              fontSize: '12px'
+            }}
+          >
+            PDF
+          </span>
+          <div className="ct-attachment-text" style={{ flex: 1, minWidth: 0 }}>
+            <strong style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', display: 'block' }}>
+              {a.name}
+            </strong>
+            <small>{(a.size / 1024 / 1024).toFixed(2)} MB · Documento PDF</small>
+          </div>
+        </div>
+        <div className="ct-attachment-info" style={{ marginTop: '8px' }}>
+          <button
+            type="button"
+            className="ct-download-btn"
+            title="Abrir e visualizar documento"
+            aria-label={`Abrir ${a.name}`}
+            onClick={() => {
+              void window.contalkDesktop?.openStorageFile(a.storageId!).catch(() => {})
+            }}
+          >
+            <ControlIcon name="docs" size={13} /> Abrir
+          </button>
+          <button
+            type="button"
+            className="ct-download-btn"
+            title="Baixar documento"
+            aria-label={`Baixar ${a.name}`}
+            onClick={() => {
+              void window.contalkDesktop?.openStorageFile(a.storageId!).catch(() => {})
+            }}
+          >
+            <ControlIcon name="download" size={13} /> Baixar
+          </button>
+        </div>
+      </div>
+    )
+  }
+
+  if (isText) {
+    return (
+      <div className="ct-attachment ct-attachment-textdoc">
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+          <ControlIcon name="docs" size={16} />
+          <strong style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{a.name}</strong>
+          <small style={{ marginLeft: 'auto', flexShrink: 0 }}>
+            {a.size > 1024 * 1024 ? `${(a.size / 1024 / 1024).toFixed(2)} MB` : `${Math.max(1, Math.ceil(a.size / 1024))} KB`}
+          </small>
+        </div>
+        {textSnippet && (
+          <pre
+            style={{
+              margin: '6px 0',
+              padding: '8px 10px',
+              borderRadius: '6px',
+              background: 'rgba(0,0,0,0.3)',
+              border: '1px solid rgba(255,255,255,0.08)',
+              fontSize: '12px',
+              lineHeight: '1.4',
+              maxHeight: '160px',
+              overflow: 'auto',
+              whiteSpace: 'pre-wrap',
+              wordBreak: 'break-word',
+              fontFamily: 'monospace'
+            }}
+          >
+            {textSnippet}
+          </pre>
+        )}
+        <div className="ct-attachment-info">
+          <small>{a.type || 'Documento de texto'}</small>
+          <button
+            type="button"
+            className="ct-download-btn"
+            title="Baixar arquivo"
+            aria-label={`Baixar ${a.name}`}
+            onClick={() => {
+              void window.contalkDesktop?.openStorageFile(a.storageId!).catch(() => {})
+            }}
+          >
+            <ControlIcon name="download" size={13} /> Baixar
+          </button>
+        </div>
+      </div>
+    )
+  }
+
+  // All other documents / files
+  return (
+    <div className="ct-attachment ct-attachment-file" style={{ borderLeft: '3px solid var(--cx-accent, #5865f2)' }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+        <span
+          style={{
+            background: 'rgba(255, 255, 255, 0.1)',
+            color: 'var(--cx-fg, #fff)',
+            padding: '6px 8px',
+            borderRadius: '6px',
+            fontWeight: 700,
+            fontSize: '11px',
+            letterSpacing: '0.05em'
+          }}
+        >
+          {ext}
+        </span>
+        <div className="ct-attachment-text" style={{ flex: 1, minWidth: 0 }}>
+          <strong style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', display: 'block' }}>
+            {a.name}
+          </strong>
+          <small>{(a.size / 1024 / 1024).toFixed(2)} MB · Arquivo {ext}</small>
         </div>
         <button
           type="button"
           className="ct-download-btn"
+          title="Baixar arquivo"
+          aria-label={`Baixar ${a.name}`}
           onClick={() => {
             void window.contalkDesktop?.openStorageFile(a.storageId!).catch(() => {})
           }}
@@ -209,31 +410,107 @@ function StorageAttachmentPreview({ a }: { a: Attachment; preview: boolean }) {
   )
 }
 
-function AttachmentPreview({ attachment: a, preview }: { attachment: Attachment; preview?: boolean }) {
-  const [downloadError] = useState('')
+function AttachmentPreview({ attachment: a }: { attachment: Attachment }) {
   if (a.storageId) {
-    return <StorageAttachmentPreview a={a} preview={!!preview} />
+    return <StorageAttachmentPreview a={a} />
   }
-  const text = /^(text\/(plain|csv)|application\/json)$/.test(a.type)
-  let snippet = ''
-  if (text) {
+
+  const isImage = a.type.startsWith('image/') || /\.(png|jpe?g|gif|webp|svg|bmp|ico|avif)$/i.test(a.name)
+  const isVideo = a.type.startsWith('video/') || /\.(mp4|webm|mov|ogg|mkv|avi|m4v)$/i.test(a.name)
+  const isAudio = a.type.startsWith('audio/') || /\.(mp3|wav|ogg|m4a|flac|aac|opus)$/i.test(a.name)
+  const isPdf = a.type === 'application/pdf' || /\.pdf$/i.test(a.name)
+  const isText = a.type.startsWith('text/') || a.type === 'application/json' || /\.(txt|md|json|csv|log|js|ts|tsx|jsx|py|html|css|c|cpp|rs|go|java|php|sql|sh|bat|ps1|yml|yaml|xml)$/i.test(a.name)
+  const ext = (a.name.split('.').pop() || 'FILE').toUpperCase().slice(0, 5)
+
+  if (isImage && a.data) {
+    return <ImagePreview src={a.data} name={a.name} />
+  }
+
+  if (isVideo && a.data) {
+    return (
+      <div className="ct-attachment ct-attachment-video">
+        <video
+          controls
+          preload="metadata"
+          src={a.data}
+          style={{ maxWidth: '100%', maxHeight: '320px', borderRadius: '8px', background: '#000', display: 'block' }}
+        />
+        <div className="ct-attachment-info">
+          <strong>{a.name}</strong>
+          <a href={a.data} download={a.name} className="ct-download-btn">
+            <ControlIcon name="download" size={13} /> Baixar
+          </a>
+        </div>
+      </div>
+    )
+  }
+
+  if (isAudio && a.data) {
+    return (
+      <div className="ct-attachment ct-attachment-audio">
+        <strong>{a.name}</strong>
+        <audio controls src={a.data} style={{ width: '100%', maxWidth: '380px', margin: '4px 0' }} />
+        <a href={a.data} download={a.name} className="ct-download-btn">
+          <ControlIcon name="download" size={13} /> Baixar
+        </a>
+      </div>
+    )
+  }
+
+  let textSnippet = ''
+  if (isText && a.data) {
     try {
-      snippet = new TextDecoder().decode(
+      textSnippet = new TextDecoder().decode(
         Uint8Array.from(atob(a.data.split(',')[1]), c => c.charCodeAt(0))
-      ).slice(0, 600)
-    } catch {
-      /* No preview. */
-    }
+      ).slice(0, 800)
+    } catch {}
   }
+
   return (
     <div className="ct-attachment">
-      <a href={a.data} download={a.name} className="ct-download-link">
-        <ControlIcon name="download" size={13} />
-        <strong>{a.name}</strong>
-        <small>{Math.max(1, Math.ceil(a.size / 1024))} KB · {a.type || 'Arquivo'}</small>
-      </a>
-      {preview && snippet && <pre>{snippet}</pre>}
-      {downloadError && <p role="alert">{downloadError}</p>}
+      <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+        <span
+          style={{
+            background: isPdf ? 'rgba(255, 77, 79, 0.15)' : 'rgba(255, 255, 255, 0.1)',
+            color: isPdf ? '#ff4d4f' : 'var(--cx-fg, #fff)',
+            padding: '6px 8px',
+            borderRadius: '6px',
+            fontWeight: 700,
+            fontSize: '11px'
+          }}
+        >
+          {isPdf ? 'PDF' : ext}
+        </span>
+        <div className="ct-attachment-text" style={{ flex: 1, minWidth: 0 }}>
+          <strong style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', display: 'block' }}>
+            {a.name}
+          </strong>
+          <small>{Math.max(1, Math.ceil(a.size / 1024))} KB · {isPdf ? 'Documento PDF' : a.type || 'Arquivo'}</small>
+        </div>
+        <a href={a.data} download={a.name} className="ct-download-btn">
+          <ControlIcon name="download" size={13} /> Baixar
+        </a>
+      </div>
+      {textSnippet && (
+        <pre
+          style={{
+            margin: '6px 0',
+            padding: '8px 10px',
+            borderRadius: '6px',
+            background: 'rgba(0,0,0,0.3)',
+            border: '1px solid rgba(255,255,255,0.08)',
+            fontSize: '12px',
+            lineHeight: '1.4',
+            maxHeight: '160px',
+            overflow: 'auto',
+            whiteSpace: 'pre-wrap',
+            wordBreak: 'break-word',
+            fontFamily: 'monospace'
+          }}
+        >
+          {textSnippet}
+        </pre>
+      )}
     </div>
   )
 }
@@ -310,7 +587,7 @@ export function CodeBlock({ language, code }: { language: string; code: string }
 export function MessageContent({
   content,
   attachment,
-  preview = true,
+  preview: _preview = true,
   roleMentions = [],
   mentionsEveryone
 }: {
@@ -403,7 +680,7 @@ export function MessageContent({
                   )}
                 </p>
               )}
-              {preview && links.map(link => <LinkPreview key={link} url={link} />)}
+              {links.map(link => <LinkPreview key={link} url={link} />)}
             </span>
           )
         })}
@@ -419,7 +696,7 @@ export function MessageContent({
         }
         return renderTextBlock(item.text || '', idx)
       })}
-      {attachment && <AttachmentPreview attachment={attachment} preview={preview} />}
+      {attachment && <AttachmentPreview attachment={attachment} />}
     </div>
   )
 }
@@ -447,7 +724,6 @@ export function ChatComposer({
   const [expression, setExpression] = useState<CommunityExpression | null>(null)
   const [voiceRecorder, setVoiceRecorder] = useState(false)
   const [pollEditor, setPollEditor] = useState(false)
-  const [preview, setPreview] = useState(true)
   const [once, setOnce] = useState(false)
   const [tts, setTts] = useState(false)
 
@@ -672,7 +948,14 @@ export function ChatComposer({
     <div className="ct-chat-compose">
       {localFile && (
         <div className="ct-pending-attachment">
-          {preview && localFile.thumbnail && <ImagePreview src={'data:image/jpeg;base64,' + localFile.thumbnail} name={localFile.name} />}
+          {localFile.thumbnail ? (
+            <ImagePreview src={'data:image/jpeg;base64,' + localFile.thumbnail} name={localFile.name} />
+          ) : (
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '4px 0' }}>
+              <ControlIcon name="file" size={18} />
+              <span style={{ fontWeight: 500, fontSize: '13px' }}>{localFile.name}</span>
+            </div>
+          )}
           <strong>{localFile.name}</strong>
           <small>{(localFile.size / 1024 / 1024).toFixed(2)} MB</small>
           <button onClick={() => setLocalFile(undefined)}>Remover anexo</button>
@@ -680,9 +963,6 @@ export function ChatComposer({
       )}
 
       <div className="ct-send-options">
-        <label>
-          <input type="checkbox" checked={preview && canPreview} disabled={!canPreview} onChange={e => setPreview(e.target.checked)} /> Gerar prévia
-        </label>
                 <label>
           <input type="checkbox" aria-label="Enviar com leitura em voz" checked={tts} disabled={!canTts && !tts} onChange={event => setTts(event.target.checked)} /> Leitura em voz
         </label>
@@ -811,7 +1091,7 @@ export function ChatComposer({
               setLocalFile(undefined)
             }
             await onSend(text, uploaded, {
-              preview,
+              preview: canPreview,
               once,
               tts,
               expression: expression ? { serverId: expression.serverId, id: expression.id } : undefined
