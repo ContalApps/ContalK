@@ -955,6 +955,14 @@ export function ChatMessage({
   const [opened, setOpened] = useState(false)
   const [editing, setEditing] = useState(false)
   const [draft, setDraft] = useState(m.content)
+  const [confirmDelete, setConfirmDelete] = useState(false)
+  const cancelDeleteRef = useRef<HTMLButtonElement>(null)
+
+  useEffect(() => {
+    if (confirmDelete) {
+      cancelDeleteRef.current?.focus()
+    }
+  }, [confirmDelete])
   const [error, setError] = useState('')
   const [busy, setBusy] = useState(false)
 
@@ -1011,7 +1019,7 @@ export function ChatMessage({
         disabled={busy || !deleteAllowed}
         title="Apagar mensagem"
         aria-label="Apagar mensagem"
-        onClick={() => void change()}
+        onClick={() => setConfirmDelete(true)}
       >
         <ControlIcon name="delete" size={12} />
         <span>Apagar</span>
@@ -1065,6 +1073,83 @@ export function ChatMessage({
         body
       )}
       {m.editedAt && <small>Editada</small>}
+      {confirmDelete && (
+        <div className="ct-modal-backdrop" onClick={() => !busy && setConfirmDelete(false)}>
+          <section
+            className="ct-edit-dialog ct-delete-dialog"
+            role="alertdialog"
+            aria-modal="true"
+            aria-labelledby={'delete-message-title-' + m.id}
+            aria-describedby={'delete-message-desc-' + m.id}
+            onClick={e => e.stopPropagation()}
+            onKeyDown={e => {
+              if (e.key === 'Escape' && !busy) {
+                e.stopPropagation()
+                setConfirmDelete(false)
+              }
+              if (e.key === 'Tab') {
+                const buttons = [...e.currentTarget.querySelectorAll<HTMLButtonElement>('button:not(:disabled)')]
+                if (!buttons.length) return
+                if (e.shiftKey && document.activeElement === buttons[0]) {
+                  e.preventDefault()
+                  buttons[buttons.length - 1]?.focus()
+                } else if (!e.shiftKey && document.activeElement === buttons[buttons.length - 1]) {
+                  e.preventDefault()
+                  buttons[0]?.focus()
+                }
+              }
+            }}
+          >
+            <h2 id={'delete-message-title-' + m.id}>Excluir mensagem</h2>
+            <p id={'delete-message-desc-' + m.id}>
+              Tem certeza de que deseja excluir esta mensagem? Esta ação não pode ser desfeita.
+            </p>
+            {m.content && (
+              <div
+                style={{
+                  margin: '4px 0 12px',
+                  padding: '10px 12px',
+                  borderRadius: '6px',
+                  background: 'var(--ct-settings-bg, rgba(0, 0, 0, 0.25))',
+                  border: '1px solid var(--ct-settings-line, rgba(255, 255, 255, 0.08))',
+                  fontSize: '13px',
+                  lineHeight: '1.5',
+                  maxHeight: '140px',
+                  overflow: 'auto',
+                  wordBreak: 'break-word',
+                  color: 'var(--cx-fg-2, #ccc)'
+                }}
+              >
+                {m.content}
+              </div>
+            )}
+            {error && <p role="alert">{error}</p>}
+            <footer style={{ display: 'flex', justifyContent: 'flex-end', gap: '8px', marginTop: '8px' }}>
+              <button
+                type="button"
+                ref={cancelDeleteRef}
+                className="ct-secondary"
+                disabled={busy}
+                onClick={() => setConfirmDelete(false)}
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                className="ct-danger"
+                aria-label="Confirmar exclusão da mensagem"
+                disabled={busy}
+                onClick={async () => {
+                  await change()
+                  setConfirmDelete(false)
+                }}
+              >
+                {busy ? 'Excluindo…' : 'Excluir'}
+              </button>
+            </footer>
+          </section>
+        </div>
+      )}
       {!editing && <MessageTools message={m} onOpenChannel={onOpenChannel} actions={actions} />}
       {error && <p role="alert">{error}</p>}
     </div>
