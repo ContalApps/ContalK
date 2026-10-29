@@ -1,6 +1,5 @@
 import { CommunityEvents } from './CommunityEvents'
 import { ThreadCreate } from './ThreadCreate'
-import { ThreadList } from './ThreadList'
 import { ThreadHeader } from './ThreadHeader'
 import { threadArchived } from '../roles/permissions'
 import { PinnedMessages } from './PinnedMessages'
@@ -103,7 +102,7 @@ export function ConTALKLayout() {
   const [memberRoles, setMemberRoles] = useState<string | null>(null)
   const roles = useRoleStore()
   const [threadCreate, setThreadCreate] = useState<string | null>(null)
-  const [threadList, setThreadList] = useState<string | null>(null)
+  const [channelSettingsTab, setChannelSettingsTab] = useState<'general' | 'threads' | 'permissions'>('general')
   const [activeDevModal, setActiveDevModal] = useState<string | null>(null)
   const [devEditorOpen, setDevEditorOpen] = useState(false)
   const [saveNoteModalOpen, setSaveNoteModalOpen] = useState(false)
@@ -965,7 +964,7 @@ export function ConTALKLayout() {
                             channel={c}
                             active={channel.id === c.id}
                             onOpen={() => openChannel(c.id)}
-                            onSettings={() => setChannelSettings(c)}
+                            onSettings={() => { setChannelSettingsTab('general'); setChannelSettings(c) }}
                           />
                           {server.channels
                             .filter(
@@ -986,7 +985,7 @@ export function ConTALKLayout() {
                                   channel={child}
                                   active={channel.id === child.id}
                                   onOpen={() => openChannel(child.id)}
-                                  onSettings={() => setChannelSettings(child)}
+                                  onSettings={() => { setChannelSettingsTab('general'); setChannelSettings(child) }}
                                 />
                               </div>
                             ))}
@@ -1023,7 +1022,7 @@ export function ConTALKLayout() {
                               connected={isConnected}
                               count={occupants.length}
                               onOpen={() => void join(c.id, c.name)}
-                              onSettings={() => setChannelSettings(c)}
+                              onSettings={() => { setChannelSettingsTab('general'); setChannelSettings(c) }}
                             />
                             <div className="ct-channel-occupants">
                               {occupants.map(p => (
@@ -1275,7 +1274,11 @@ export function ConTALKLayout() {
                         <button
                           aria-label="Tópicos do canal"
                           title="Tópicos do canal"
-                          onClick={() => setThreadList(channel.parentId || channel.id)}
+                          onClick={() => {
+                          const target = channel.parentId ? server.channels.find(c => c.id === channel.parentId) || channel : channel
+                          setChannelSettingsTab('threads')
+                          setChannelSettings(target)
+                        }}
                         >
                           <ControlIcon name="thread" />
                         </button>
@@ -1313,7 +1316,10 @@ export function ConTALKLayout() {
                         className="ct-channel-header-settings"
                         aria-label={`Configurações de ${channel.name}`}
                         title="Configurações do canal"
-                        onClick={() => setChannelSettings(channel)}
+                        onClick={() => {
+                        setChannelSettingsTab('general')
+                        setChannelSettings(channel)
+                      }}
                       >
                         <Icon name="settings" />
                       </button>
@@ -1551,18 +1557,7 @@ export function ConTALKLayout() {
       {threadCreate && (
         <ThreadCreate parentId={threadCreate} onCreated={openChannel} onClose={() => setThreadCreate(null)} />
       )}
-      {threadList && (
-        <ThreadList
-          parentId={threadList}
-          onOpen={openChannel}
-          onCreate={() => {
-            setThreadCreate(threadList)
-            setThreadList(null)
-          }}
-          onClose={() => setThreadList(null)}
-        />
-      )}
-      {pinnedChannel && (
+            {pinnedChannel && (
         <PinnedMessages
           channelId={pinnedChannel}
           onOpenChannel={id => {
@@ -1572,7 +1567,18 @@ export function ConTALKLayout() {
           onClose={() => setPinnedChannel(null)}
         />
       )}
-      {channelSettings && <ChannelSettings channel={channelSettings} onClose={() => setChannelSettings(null)} />}
+      {channelSettings && (
+        <ChannelSettings
+          channel={channelSettings}
+          initialTab={channelSettingsTab}
+          onClose={() => {
+            setChannelSettings(null)
+            setChannelSettingsTab('general')
+          }}
+          onOpenChannel={openChannel}
+          onCreateThread={id => setThreadCreate(id)}
+        />
+      )}
       <SaveNoteModal
         isOpen={saveNoteModalOpen}
         onClose={() => setSaveNoteModalOpen(false)}

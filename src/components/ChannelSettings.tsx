@@ -2,7 +2,7 @@ import { ControlIcon } from './ControlIcon'
 import { VoiceModeSettings } from './VoiceModeSettings'
 import { WebhookManager } from './WebhookManager'
 import { VoiceStatusSettings } from './VoiceStatusSettings'
-import { can } from '../roles/permissions'
+import { can, threadArchived } from '../roles/permissions'
 import { ThreadSettings } from './ThreadSettings'
 import { SlowmodeSettings } from './SlowmodeSettings'
 import { useEffect, useRef, useState } from 'react'
@@ -12,11 +12,25 @@ import { DeleteChannel } from './DeleteChannel'
 import { ChannelPermissions } from './ChannelPermissions'
 import { useRoleStore } from '../store/useRoleStore'
 
-export function ChannelSettings({ channel, onClose }: { channel: Channel; onClose: () => void }) {
+export function ChannelSettings({
+  channel,
+  initialTab = 'general',
+  onClose,
+  onOpenChannel,
+  onCreateThread
+}: {
+  channel: Channel
+  initialTab?: 'general' | 'threads' | 'permissions'
+  onClose: () => void
+  onOpenChannel?: (id: string) => void
+  onCreateThread?: (parentId: string) => void
+}) {
   const roles = useRoleStore()
   const current = useAppStore(s => s.servers.find(server => server.id === channel.serverId)?.channels.find(c => c.id === channel.id))
   const [name, setName] = useState(current?.name || channel.name)
-  const [tab, setTab] = useState<'general' | 'permissions'>('general')
+  const [tab, setTab] = useState<'general' | 'threads' | 'permissions'>(initialTab)
+  const [archivedThreads, setArchivedThreads] = useState(false)
+  const [threadSearch, setThreadSearch] = useState('')
   const [confirm, setConfirm] = useState(false)
   const [busy, setBusy] = useState(false)
   const [status, setStatus] = useState('')
@@ -25,8 +39,11 @@ export function ChannelSettings({ channel, onClose }: { channel: Channel; onClos
 
   useEffect(() => () => previous.current?.focus(), [])
   useEffect(() => {
-    if (!confirm) panel.current?.querySelector<HTMLInputElement>('input')?.focus()
-  }, [confirm])
+    setTab(initialTab)
+  }, [initialTab])
+  useEffect(() => {
+    if (!confirm && tab === 'general') panel.current?.querySelector<HTMLInputElement>('input')?.focus()
+  }, [confirm, tab])
   useEffect(() => {
     if (!current) onClose()
   }, [current, onClose])
@@ -50,6 +67,18 @@ export function ChannelSettings({ channel, onClose }: { channel: Channel; onClos
       />
     )
   }
+
+  const channelThreads = roles.snapshot
+    ? roles.snapshot.channels.filter(
+        c =>
+          c.parentId === channel.id &&
+          !!roles.snapshot!.policy.threads?.[c.id] &&
+          threadArchived(roles.snapshot!.policy.threads[c.id], roles.snapshot!.serverNow) === archivedThreads &&
+          c.name.toLowerCase().includes(threadSearch.toLowerCase())
+      )
+    : (useAppStore.getState().servers.find(s => s.id === channel.serverId)?.channels || []).filter(
+        c => c.parentId === channel.id && c.name.toLowerCase().includes(threadSearch.toLowerCase())
+      )
 
   return (
     <div className="ct-modal-backdrop">
@@ -96,12 +125,90 @@ export function ChannelSettings({ channel, onClose }: { channel: Channel; onClos
           <button aria-current={tab === 'general' ? 'page' : undefined} onClick={() => setTab('general')}>
             Visão geral
           </button>
+          {channel.type === 'text' && (
+            <button aria-current={tab === 'threads' ? 'page' : undefined} onClick={() => setTab('threads')}>
+              Tópicos
+            </button>
+          )}
           <button aria-current={tab === 'permissions' ? 'page' : undefined} onClick={() => setTab('permissions')}>
             Permissões
           </button>
         </nav>
 
-        {tab === 'general' ? (
+        {tab === 'threads' ? (
+          <div className="ct-channel-threads">
+            <div style={{ display: 'flex', gap: '8px', marginBottom: '12px' }}>
+              <button
+                type="button"
+                className={!archivedThreads ? 'ct-primary' : ''}
+                aria-current={!archivedThreads ? 'page' : undefined}
+                onClick={() => setArchivedThreads(false)}
+              >
+                Ativos
+              </button>
+              <button
+                type="button"
+                className={archivedThreads ? 'ct-primary' : ''}
+                aria-current={archivedThreads ? 'page' : undefined}
+                onClick={() => setArchivedThreads(true)}
+              >
+                Arquivados
+              </button>
+              {(!roles.snapshot ||
+                ['CREATE_PUBLIC_THREADS', 'CREATE_PRIVATE_THREADS'].some(permission =>
+                  can(
+                    roles.snapshot!.policy,
+                    roles.snapshot!.actor,
+                    permission as 'CREATE_PUBLIC_THREADS' | 'CREATE_PRIVATE_THREADS',
+                    channel.id
+                  )
+                )) && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    onCreateThread?.(channel.id)
+                    onClose()
+                  }}
+                >
+                  Criar tópico…
+                </button>
+              )}
+            </div>
+            <input
+              type="search"
+              aria-label="Buscar tópico"
+              placeholder="Buscar tópico…"
+              value={threadSearch}
+              onChange={e => setThreadSearch(e.target.value)}
+              style={{ width: '100%', boxSizing: 'border-box', marginBottom: '10px' }}
+            />
+            <div className="ct-thread-list">
+              {channelThreads.map(c => {
+                const threadInfo = roles.snapshot?.policy.threads?.[c.id]
+                return (
+                  <button
+                    key={c.id}
+                    onClick={() => {
+                      onOpenChannel?.(c.id)
+                      onClose()
+                    }}
+                  >
+                    <strong>{c.name}</strong>
+                    <small>
+                      {threadInfo ? (threadInfo.private ? 'Privado' : 'Público') : 'Tópico'}
+                      {threadInfo ? ` · ${threadInfo.members.length} participantes` : ''}
+                    </small>
+                  </button>
+                )
+              })}
+            </div>
+            {!channelThreads.length && (
+              <p className="ct-muted" style={{ marginTop: '12px', fontSize: '13px' }}>
+                Nenhum tópico {archivedThreads ? 'arquivado' : 'ativo'} disponível.
+              </p>
+            )}
+          </div>
+        ) : tab === 'general' ? (
           <>
             <form
               onSubmit={async e => {
