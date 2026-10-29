@@ -19,6 +19,26 @@ import { centralAllows } from '../roles/transport'
 
 const fileUrlCache = new Map<string, string>()
 
+function ViewOnceIcon({ size = 18, active = false }: { size?: number; active?: boolean }) {
+  return (
+    <svg
+      width={size}
+      height={size}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth={active ? 2.2 : 1.8}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      <circle cx="12" cy="12" r="9.5" strokeDasharray={active ? 'none' : '3.5 2'} />
+      <path d="M10.5 10.5L12 9v6.5" />
+      <path d="M10.5 15.5h3" />
+    </svg>
+  )
+}
+
 function ImagePreview({ src, name }: { src: string; name: string }) {
   const [failed, setFailed] = useState(false)
   const [zoomed, setZoomed] = useState(false)
@@ -662,10 +682,7 @@ export function ChatComposer({
         <label>
           <input type="checkbox" checked={preview && canPreview} disabled={!canPreview} onChange={e => setPreview(e.target.checked)} /> Gerar prévia
         </label>
-        <label>
-          <input type="checkbox" checked={once} onChange={e => setOnce(e.target.checked)} /> Visualização única por pessoa
-        </label>
-        <label>
+                <label>
           <input type="checkbox" aria-label="Enviar com leitura em voz" checked={tts} disabled={!canTts && !tts} onChange={event => setTts(event.target.checked)} /> Leitura em voz
         </label>
         <select
@@ -880,6 +897,17 @@ export function ChatComposer({
             }
           }}
         />
+        <button
+          type="button"
+          className={`ct-view-once-btn ${once ? 'active' : ''}`}
+          aria-label={once ? 'Visualização única ativada' : 'Ativar visualização única'}
+          aria-pressed={once}
+          title={once ? 'Visualização única ativada: a mensagem só poderá ser vista uma vez' : 'Visualização única por pessoa'}
+          disabled={busy || disabled}
+          onClick={() => setOnce(!once)}
+        >
+          <ViewOnceIcon active={once} size={18} />
+        </button>
         <button
           className="ct-primary ct-composer-send-btn"
           disabled={busy || disabled || cooling || (!text.trim() && !attachment && !localFile && !expression)}

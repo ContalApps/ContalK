@@ -269,6 +269,41 @@
 
 
   /* botões e chips do composer estilo Codex */
+  
+  /* Botão de visualização única integrado ao composer */
+  .ct-view-once-btn {
+    width: 32px;
+    height: 32px;
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    border: 0 !important;
+    background: transparent !important;
+    color: var(--cx-fg-3, #8b949e) !important;
+    border-radius: 50% !important;
+    cursor: pointer !important;
+    transition: all 0.15s ease !important;
+    flex-shrink: 0 !important;
+    margin: 0 2px !important;
+  }
+  .ct-view-once-btn:hover {
+    background: var(--cx-hover, rgba(255, 255, 255, 0.08)) !important;
+    color: var(--cx-fg, #ededed) !important;
+  }
+  .ct-view-once-btn.active {
+    background: rgba(35, 134, 54, 0.22) !important;
+    color: #3fb950 !important;
+    box-shadow: 0 0 0 1px rgba(63, 185, 80, 0.4) !important;
+  }
+  .ct-view-once-btn.active:hover {
+    background: rgba(35, 134, 54, 0.35) !important;
+    color: #56d364 !important;
+  }
+  .ct-view-once-btn:disabled {
+    opacity: 0.35 !important;
+    cursor: not-allowed !important;
+  }
+
   .ct-composer-send-btn {
     display: inline-flex !important;
     align-items: center !important;
