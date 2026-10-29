@@ -34,7 +34,7 @@ export class Track {
     let stream = new MediaStream([this.mediaStreamTrack])
     if (this.kind === 'audio') {
       if (!this.context) {
-        this.context = new AudioContext(); this.gain = this.context.createGain()
+        this.context = new AudioContext({ latencyHint: 'interactive' }); this.gain = this.context.createGain()
         const destination = this.context.createMediaStreamDestination()
         this.context.createMediaStreamSource(stream).connect(this.gain).connect(destination)
         this.output = destination.stream; this.gain.gain.value = this.volume

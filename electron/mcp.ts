@@ -134,7 +134,7 @@ export class McpClient {
     await this.request('initialize', {
       protocolVersion: '2024-11-05',
       capabilities: {},
-      clientInfo: { name: 'ConTALK', version: '0.1.33' }
+      clientInfo: { name: 'ConTALK', version: '0.1.34' }
     })
     this.notify('notifications/initialized', {})
   }
