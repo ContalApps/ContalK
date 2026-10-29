@@ -8,7 +8,8 @@ import { PollCard } from './PollCard'
 import { ControlIcon } from './ControlIcon'
 import { LinkPreview } from './LinkPreview'
 import { MessageTools } from './MessageTools'
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useRef, useMemo } from 'react'
+import { Avatar } from './Avatar'
 import { useAuthStore } from '../store/useAuthStore'
 import { useCommunityStore } from '../store/useCommunityStore'
 import type { Message, MessageOptions, Attachment } from '../store/useAppStore'
@@ -430,6 +431,12 @@ export function ChatComposer({
   const [once, setOnce] = useState(false)
   const [tts, setTts] = useState(false)
 
+  const inputRef = useRef<HTMLInputElement>(null)
+  const mentionDropdownRef = useRef<HTMLDivElement>(null)
+  const [mentionActive, setMentionActive] = useState(false)
+  const [mentionQuery, setMentionQuery] = useState('')
+  const [selectedMentionIndex, setSelectedMentionIndex] = useState(0)
+
   const members = useCommunityStore(s => s.members)
   const snapshot = useRoleStore(s => s.snapshot)
   const self = useAuthStore(s => s.user?.username)
@@ -458,6 +465,144 @@ export function ChatComposer({
   const canTts = !!snapshot && !!channelId && centralAllows('SEND_TTS_MESSAGES', channelId) && centralAllows('SEND_MESSAGES', channelId)
   const canAttach = !channelId || centralAllows('ATTACH_FILES', channelId)
   const canPreview = !channelId || centralAllows('EMBED_LINKS', channelId)
+
+  const mentionCandidates = useMemo(() => {
+    const list: Array<{
+      kind: 'everyone' | 'here' | 'role' | 'member'
+      id: string
+      name: string
+      username?: string
+      description: string
+      insertText: string
+      color?: string | null
+    }> = []
+
+    if (channelId && snapshot && centralAllows('MENTION_EVERYONE', channelId)) {
+      list.push({
+        kind: 'everyone',
+        id: 'all:everyone',
+        name: 'everyone',
+        description: 'Notificar todos no canal',
+        insertText: '@everyone '
+      })
+      list.push({
+        kind: 'here',
+        id: 'all:here',
+        name: 'here',
+        description: 'Notificar membros online agora',
+        insertText: '@here '
+      })
+    }
+
+    for (const role of mentionRoles) {
+      list.push({
+        kind: 'role',
+        id: 'role:' + role.id,
+        name: role.name,
+        description: 'Cargo do servidor',
+        insertText: '<@&' + role.id + '> ',
+        color: role.color ?? undefined
+      })
+    }
+
+    for (const m of members) {
+      list.push({
+        kind: 'member',
+        id: m.username,
+        name: m.display_name,
+        username: m.username,
+        description: `@${m.username}${m.online ? ' • Online' : ''}`,
+        insertText: `@${m.username} `
+      })
+    }
+
+    return list
+  }, [channelId, snapshot, mentionRoles, members])
+
+  const filteredMentions = useMemo(() => {
+    if (!mentionActive) return []
+    const q = mentionQuery.toLowerCase()
+    if (!q) return mentionCandidates
+    return mentionCandidates.filter(
+      c => c.name.toLowerCase().includes(q) || (c.username && c.username.toLowerCase().includes(q))
+    )
+  }, [mentionActive, mentionQuery, mentionCandidates])
+
+  const checkMentionTrigger = (val: string, cursorPosition?: number) => {
+    const cursor = cursorPosition ?? (inputRef.current?.selectionStart ?? val.length)
+    const textBefore = val.slice(0, cursor)
+    const match = textBefore.match(/(?:^|\s)@([a-zA-Z0-9_À-ÿ-]*)$/)
+    if (match) {
+      setMentionActive(true)
+      setMentionQuery(match[1])
+      setSelectedMentionIndex(0)
+    } else {
+      setMentionActive(false)
+    }
+  }
+
+  const selectMention = (item: (typeof mentionCandidates)[0]) => {
+    const input = inputRef.current
+    const cursor = input?.selectionStart ?? text.length
+    const textBefore = text.slice(0, cursor)
+    const textAfter = text.slice(cursor)
+
+    const match = textBefore.match(/(?:^|\s)@([a-zA-Z0-9_À-ÿ-]*)$/)
+    if (!match) return
+
+    const atIndex = textBefore.lastIndexOf('@')
+    const newTextBefore = textBefore.slice(0, atIndex) + item.insertText
+    const newText = newTextBefore + textAfter
+    setText(newText)
+    setMentionActive(false)
+
+    requestAnimationFrame(() => {
+      if (input) {
+        input.focus()
+        const newCursor = newTextBefore.length
+        input.setSelectionRange(newCursor, newCursor)
+      }
+    })
+  }
+
+  const handleInputKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (mentionActive && filteredMentions.length > 0) {
+      if (e.key === 'ArrowDown') {
+        e.preventDefault()
+        setSelectedMentionIndex(i => (i + 1) % filteredMentions.length)
+        return
+      }
+      if (e.key === 'ArrowUp') {
+        e.preventDefault()
+        setSelectedMentionIndex(i => (i - 1 + filteredMentions.length) % filteredMentions.length)
+        return
+      }
+      if (e.key === 'Enter' || e.key === 'Tab') {
+        e.preventDefault()
+        selectMention(filteredMentions[selectedMentionIndex])
+        return
+      }
+      if (e.key === 'Escape') {
+        e.preventDefault()
+        setMentionActive(false)
+        return
+      }
+    }
+  }
+
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (
+        mentionDropdownRef.current &&
+        !mentionDropdownRef.current.contains(e.target as Node) &&
+        inputRef.current !== e.target
+      ) {
+        setMentionActive(false)
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside)
+    return () => document.removeEventListener('mousedown', handleClickOutside)
+  }, [])
 
   const choose = async (file?: File) => {
     if (disabled || !canAttach) {
@@ -525,7 +670,7 @@ export function ChatComposer({
         </label>
         <select
           aria-label="Mencionar pessoa"
-          className="ct-mention-select"
+          className="ct-mention-select" style={{ display: 'none' }}
           value=""
           onChange={e => {
             const val = e.target.value
@@ -575,6 +720,50 @@ export function ChatComposer({
         </div>
       )}
 
+      {mentionActive && filteredMentions.length > 0 && (
+        <div
+          ref={mentionDropdownRef}
+          className="ct-mention-dropdown"
+          role="listbox"
+          aria-label="Sugestões de menção"
+        >
+          <div className="ct-mention-dropdown-header">
+            <span>Mencionar: <strong>{mentionQuery ? `@${mentionQuery}` : '@...'}</strong></span>
+          </div>
+          <div className="ct-mention-dropdown-list">
+            {filteredMentions.slice(0, 8).map((item, idx) => (
+              <button
+                key={item.id}
+                type="button"
+                role="option"
+                aria-selected={idx === selectedMentionIndex}
+                className={`ct-mention-item ${idx === selectedMentionIndex ? 'active' : ''}`}
+                onMouseDown={e => {
+                  e.preventDefault()
+                  selectMention(item)
+                }}
+                onMouseEnter={() => setSelectedMentionIndex(idx)}
+              >
+                {item.kind === 'everyone' || item.kind === 'here' ? (
+                  <span className="ct-mention-badge ct-mention-everyone">@</span>
+                ) : item.kind === 'role' ? (
+                  <span className="ct-mention-badge ct-mention-role" style={{ color: item.color || '#58a6ff' }}>@</span>
+                ) : (
+                  <Avatar name={item.name} identity={item.username} />
+                )}
+                <div className="ct-mention-info">
+                  <div className="flex items-center gap-1.5">
+                    <span className="ct-mention-name">{item.name}</span>
+                    {item.kind === 'role' && <span className="text-[10px] px-1 rounded bg-sky-500/10 text-sky-400">Cargo</span>}
+                    {item.kind === 'everyone' && <span className="text-[10px] px-1 rounded bg-amber-500/10 text-amber-400">Todos</span>}
+                  </div>
+                  <span className="ct-mention-desc">{item.description}</span>
+                </div>
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
       <form
         className="ct-composer"
         onSubmit={async e => {
@@ -665,13 +854,24 @@ export function ChatComposer({
           <ControlIcon name="plus" size={18} />
         </button>
         <input
+          ref={inputRef}
           list="ct-mention-users"
           aria-label="Mensagem"
           maxLength={2000}
           placeholder={placeholder}
           value={text}
           disabled={busy || disabled}
-          onChange={e => setText(e.target.value)}
+          onChange={e => {
+            setText(e.target.value)
+            checkMentionTrigger(e.target.value, e.target.selectionStart ?? undefined)
+          }}
+          onKeyDown={handleInputKeyDown}
+          onClick={e => checkMentionTrigger(text, (e.target as HTMLInputElement).selectionStart ?? undefined)}
+          onKeyUp={e => {
+            if (e.key !== 'ArrowDown' && e.key !== 'ArrowUp' && e.key !== 'Enter') {
+              checkMentionTrigger(text, (e.target as HTMLInputElement).selectionStart ?? undefined)
+            }
+          }}
           onPaste={e => {
             const file = e.clipboardData.files[0]
             if (file) {
