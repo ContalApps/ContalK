@@ -1,5 +1,23 @@
 # Retomada do ConTALK
 
+## Entrega 0.1.38: Estabilidade Vocal (Priority Ducking Dinâmico e Nivelamento Web Audio) e Avisos Sonoros Nativos
+
+Em `dev/caliari`, foram implementadas as correções de áudio e novos avisos sonoros:
+- **Correção da Queda Involuntária de Volume na Comunicação:**
+  - O cálculo de atenuação (*Priority Ducking*) em `src/store/useVoiceStore.ts` agora só é ativado dinamicamente quando um orador prioritário está de fato vocalizando com voz ativa (`activeSpeakers`), restaurando 100% do volume imediatamente quando ele pausa.
+  - Eliminação de throttling e descarte pelo Chromium: o elemento `<audio>` auxiliar (*sink*) em `src/media/realtime.ts` agora permanece ancorado no DOM oculto (`#contalk-audio-tracks`), evitando que o garbage collector ou o gerenciamento de energia do Chromium suspendam o fluxo WebRTC.
+  - Nivelamento dinâmico de fala: adição de compressor dinâmico suave (`DynamicsCompressorNode`) na cadeia Web Audio para nivelar vozes baixas e evitar cortes ou estouros em picos sonoros.
+- **Avisos Sonoros Nativos de Entrada em Canal:**
+  - Sintetizador harmônico puro construído com a Web Audio API nativa (`src/media/sounds.ts`), com latência zero e sem dependências de arquivos de áudio externos.
+  - Chime harmônico de entrada (`playChannelJoinSound`): emitido com suavidade sempre que um novo membro entra no canal de voz ativo.
+  - Confirmação harmônica de conexão (`playSelfJoinSound`): tom sutil emitido quando o usuário se conecta com sucesso a um canal de voz.
+  - Respeito integral ao modo ensurdecido (*deafened*) e ao dispositivo de saída de áudio selecionado.
+- **Validação e Entrega:**
+  - Tipos verificados sem erros (`npm run typecheck`), 284 testes unitários e de integração aprovados (`npm test`), build de produção concluído.
+  - PR #35 aberto de `dev/caliari` para `main`, verificado nos checks e integrado via merge.
+  - Tag `v0.1.38` gerada e enviada.
+  - Instalador Windows gerado e release publicada no GitHub com os três arquivos (`ConTALK-Setup-0.1.38.exe`, `ConTALK-Setup-0.1.38.exe.blockmap` e `latest.yml`), marcada como Latest.
+
 ## Entrega 0.1.31: Co-browsing no Palco, Blindagem de Senhas, Google Workspace e Automação Web
 
 Em `dev/caliari`, foram implementadas e concluídas as seguintes capacidades para o ConTALK:

@@ -1,3 +1,22 @@
+# ConTALK 0.1.39
+
+Acessibilidade de Configurações da Comunidade, Silêncio Absoluto em Canais de Voz (Zero Chiado) e Refinamento Visual com a Skill Unslop.
+
+- **Correção da Acessibilidade das Configurações da Comunidade:**
+  - Reestruturação do banner do servidor com layout flexbox (`.ct-server-banner-header`), eliminando a sobreposição de camadas em que o título bloqueava cliques na engrenagem.
+  - O botão de engrenagem (`.ct-server-role-settings`) agora conta com área confortável de toque de 28x28px, `z-index: 10`, cursor de ponteiro explícito e feedback visual sutil de hover.
+  - Adicionado suporte a atalho direto: clique com o botão direito do mouse em qualquer área do banner da comunidade abre instantaneamente o painel de configurações gerais.
+- **Eliminação do Chiado Contínuo em Silêncio nos Canais de Voz:**
+  - Remoção do compressor dinâmico de saída Web Audio (`DynamicsCompressorNode`), que gerava ganho automático de até +18 dB sobre o ruído de fundo da sala em momentos de silêncio.
+  - O ConTALK restaura a fidelidade 1:1 transparente do WebRTC Opus com cancelamento de eco e supressão acústica nativas sem inflar o chão de ruído.
+  - Isolamento do elemento auxiliar de áudio (*sink*) em container exclusivo (`#contalk-audio-sinks`) com volume zero e mudo travado, impedindo interferências e desmutamentos paralelos.
+  - Fechamento imediato do canal da placa de som (`ctx.close()`) após os avisos sonoros de entrada tocarem, liberando os canais WASAPI e restabelecendo silêncio absoluto.
+- **Skill Unslop e Refinamento Visual:**
+  - Integração da skill `unslop` para identificação de vícios visuais de IA e consolidação da identidade estética do ConTALK (técnica, ágil, escura e focada em comunicação).
+  - Remoção de emojis residuais em metadados de cartões e substituição por ícones vetoriais padronizados da família Lucide.
+
+Validação: tipos verificados sem erros (`npm run typecheck`), 284 testes unitários e de integração aprovados (`npm test`) e build de produção Vite e Electron concluídos com sucesso.
+
 # ConTALK 0.1.38
 
 Estabilidade e Inteligência de Áudio Vocal (Correção de Atenuação Indevida e Nivelamento Dinâmico) e Avisos Sonoros Nativos de Entrada em Canal.

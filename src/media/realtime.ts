@@ -36,19 +36,20 @@ export class Track {
       if (!this.context) {
         this.context = new AudioContext({ latencyHint: 0 }); this.gain = this.context.createGain()
         const destination = this.context.createMediaStreamDestination()
-        const compressor = this.context.createDynamicsCompressor()
-        compressor.threshold.setValueAtTime(-24, this.context.currentTime)
-        compressor.knee.setValueAtTime(12, this.context.currentTime)
-        compressor.ratio.setValueAtTime(4, this.context.currentTime)
-        compressor.attack.setValueAtTime(0.003, this.context.currentTime)
-        compressor.release.setValueAtTime(0.2, this.context.currentTime)
-        this.context.createMediaStreamSource(stream).connect(this.gain).connect(compressor).connect(destination)
+        this.context.createMediaStreamSource(stream).connect(this.gain).connect(destination)
         this.output = destination.stream; this.gain.gain.value = this.volume
-        // Chromium feeds a remote WebRTC track into Web Audio only while a media element also plays it; without this the gain output is silent.
-        this.sink = new Audio(); this.sink.muted = true; this.sink.srcObject = stream
+        // Chromium feeds a remote WebRTC track into Web Audio only while a media element also plays it.
+        // Keep sink isolated in #contalk-audio-sinks with zero volume and muted so it never produces output or phase comb hiss.
+        this.sink = new Audio(); this.sink.muted = true; this.sink.volume = 0; this.sink.srcObject = stream
         if (typeof document !== 'undefined') {
-          const container = document.getElementById('contalk-audio-tracks') || document.body
-          container?.appendChild(this.sink)
+          let container = document.getElementById('contalk-audio-sinks')
+          if (!container) {
+            container = document.createElement('div')
+            container.id = 'contalk-audio-sinks'
+            container.style.display = 'none'
+            document.body.appendChild(container)
+          }
+          container.appendChild(this.sink)
         }
         void this.sink.play().catch(() => {})
       }
