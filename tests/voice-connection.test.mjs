@@ -22,6 +22,7 @@ function fixture({metadataFailure=false,connectFailure=false,firstConnectGate,au
   '../roles/transport':{centralEnabled:()=>!!authority,centralOccupants:occupants,centralAllows:()=>speak,centralVoiceToken:async()=>{if(authorityError)throw new Error('central denied');return authority}},
   zustand:{create},'../media/realtime':{Room,RoomEvent:events,ParticipantEvent:{IsSpeakingChanged:'IsSpeakingChanged'},Track:{Source:{Camera:'camera',ScreenShare:'screen',ScreenShareAudio:'screen-audio',Microphone:'microphone'},Kind:{Audio:'audio'}}},
   '../media/microphone':{microphoneOptions:()=>({}),setSafeMicrophoneEnabled:async(room,enabled)=>{room.localParticipant.isMicrophoneEnabled=enabled;return 'test microphone'},publishSafeMicrophone:async room=>{room.localParticipant.isMicrophoneEnabled=true;return 'test microphone'}},
+  '../media/sounds':{playChannelJoinSound(){},playSelfJoinSound(){}},
   '../media/screenShare':{stopScreenShare:async()=>{},startScreenShare:async()=>{}},
  },{window:{},localStorage:{getItem:()=>null,setItem(){}},document:{getElementById:()=>container},console:{error(){},warn(){}}}).useVoiceStore
  return {store,rooms,roleState}

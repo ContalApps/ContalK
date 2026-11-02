@@ -1,4 +1,5 @@
 import { priorityAudioGain } from '../media/priority-audio'
+import { playChannelJoinSound, playSelfJoinSound } from '../media/sounds'
 import type { VoiceInputMode } from '../media/voice-input'
 import { useRoleStore } from './useRoleStore'
 import { create } from 'zustand'
@@ -89,7 +90,9 @@ interface VoiceState {
 
 function voicePlaybackLevel(state:VoiceState,identity:string,source:string,deafened=state.isDeafened||state.isServerDeafened){
   const volume=(source===Track.Source.ScreenShareAudio?state.streamVolumes:state.userVolumes)[identity]??100,priority=state.currentRoom?.prioritySpeakers
-  return priorityAudioGain(volume,deafened,source===Track.Source.Microphone,!!priority?.size,priority?.has(identity)===true)
+  const isTargetPriority=priority?.has(identity)===true
+  const priorityActive=Boolean(priority&&priority.size>0&&state.activeSpeakers.some(speakerId=>speakerId!==identity&&priority.has(speakerId)))
+  return priorityAudioGain(volume,deafened,source===Track.Source.Microphone,priorityActive,isTargetPriority)
 }
 
 function getAudioContainer(): HTMLElement {
@@ -341,6 +344,9 @@ export const useVoiceStore = create<VoiceState>((set, get) => ({
       // 3. Configurar eventos de conexão e mídia
       on(RoomEvent.Connected, () => {
         set({ connectionStatus: 'connected', currentRoom: connection, error: null })
+        if (!get().isDeafened && !get().isServerDeafened) {
+          playSelfJoinSound(get().outputDeviceId)
+        }
         triggerUpdate()
       })
 
@@ -367,6 +373,12 @@ export const useVoiceStore = create<VoiceState>((set, get) => ({
       let moderatorDisconnected=false
       on(RoomEvent.ServerVoiceDisconnected,()=>{moderatorDisconnected=true})
       on(RoomEvent.ParticipantConnected, () => triggerUpdate())
+      on(RoomEvent.ParticipantJoined, () => {
+        if (!get().isDeafened && !get().isServerDeafened) {
+          playChannelJoinSound(get().outputDeviceId)
+        }
+        triggerUpdate()
+      })
       on(RoomEvent.ParticipantDisconnected, () => triggerUpdate())
 
       on(RoomEvent.TrackPublished, () => triggerUpdate())
@@ -413,6 +425,13 @@ export const useVoiceStore = create<VoiceState>((set, get) => ({
       on(RoomEvent.ActiveSpeakersChanged, (speakers: Participant[]) => {
         const identities = speakers.map((s) => s.identity)
         set({ activeSpeakers: identities })
+        if (connection.prioritySpeakers.size > 0) {
+          connection.remoteParticipants.forEach((participant) => {
+            participant.audioTrackPublications.forEach((pub) => {
+              pub.audioTrack?.setVolume(voicePlaybackLevel(get(), participant.identity, pub.source))
+            })
+          })
+        }
         triggerUpdate()
       })
 
