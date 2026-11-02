@@ -11,7 +11,7 @@ class Events {
   emit(event: string, ...args: any[]) { this.handlers.get(event)?.forEach(callback => callback(...args)) }
   removeAllListeners() { this.handlers.clear() }
 }
-export const RoomEvent = Object.fromEntries(['Connected','Disconnected','Reconnecting','Reconnected','ParticipantConnected','ParticipantDisconnected','ParticipantMetadataChanged','ParticipantNameChanged','DataReceived','TrackPublished','TrackUnpublished','LocalTrackPublished','LocalTrackUnpublished','TrackSubscribed','TrackUnsubscribed','TrackMuted','TrackUnmuted','ActiveSpeakersChanged','ServerModerationChanged','ServerMoved','ServerVoiceDisconnected','PrioritySpeakersChanged','Soundboard','SoundboardStopped','StageChanged'].map(name => [name,name]))
+export const RoomEvent = Object.fromEntries(['Connected','Disconnected','Reconnecting','Reconnected','ParticipantConnected','ParticipantDisconnected','ParticipantJoined','ParticipantMetadataChanged','ParticipantNameChanged','DataReceived','TrackPublished','TrackUnpublished','LocalTrackPublished','LocalTrackUnpublished','TrackSubscribed','TrackUnsubscribed','TrackMuted','TrackUnmuted','ActiveSpeakersChanged','ServerModerationChanged','ServerMoved','ServerVoiceDisconnected','PrioritySpeakersChanged','Soundboard','SoundboardStopped','StageChanged'].map(name => [name,name]))
 export type RoomEvent = string
 export const ParticipantEvent = { IsSpeakingChanged: 'IsSpeakingChanged' }
 export type AudioCaptureOptions = MediaTrackConstraints
@@ -36,10 +36,21 @@ export class Track {
       if (!this.context) {
         this.context = new AudioContext({ latencyHint: 0 }); this.gain = this.context.createGain()
         const destination = this.context.createMediaStreamDestination()
-        this.context.createMediaStreamSource(stream).connect(this.gain).connect(destination)
+        const compressor = this.context.createDynamicsCompressor()
+        compressor.threshold.setValueAtTime(-24, this.context.currentTime)
+        compressor.knee.setValueAtTime(12, this.context.currentTime)
+        compressor.ratio.setValueAtTime(4, this.context.currentTime)
+        compressor.attack.setValueAtTime(0.003, this.context.currentTime)
+        compressor.release.setValueAtTime(0.2, this.context.currentTime)
+        this.context.createMediaStreamSource(stream).connect(this.gain).connect(compressor).connect(destination)
         this.output = destination.stream; this.gain.gain.value = this.volume
         // Chromium feeds a remote WebRTC track into Web Audio only while a media element also plays it; without this the gain output is silent.
-        this.sink = new Audio(); this.sink.muted = true; this.sink.srcObject = stream; void this.sink.play().catch(() => {})
+        this.sink = new Audio(); this.sink.muted = true; this.sink.srcObject = stream
+        if (typeof document !== 'undefined') {
+          const container = document.getElementById('contalk-audio-tracks') || document.body
+          container?.appendChild(this.sink)
+        }
+        void this.sink.play().catch(() => {})
       }
       stream = this.output!; void this.context.resume()
     }
@@ -51,7 +62,7 @@ export class Track {
   setVolume(volume: number) { this.volume = Math.max(0,Math.min(2,volume)); if (this.gain) this.gain.gain.value = this.volume }
   async mute() { this.isMuted = true; this.mediaStreamTrack.enabled = false; await this.onMute?.(true) }
   async unmute() { await this.onMute?.(false); this.isMuted = false; this.mediaStreamTrack.enabled = true }
-  stop() { this.detach().forEach(element => element.remove()); this.mediaStreamTrack.stop(); if (this.sink) this.sink.srcObject = null; this.sink = undefined; void this.context?.close(); this.context = undefined }
+  stop() { this.detach().forEach(element => element.remove()); this.mediaStreamTrack.stop(); if (this.sink) { this.sink.srcObject = null; this.sink.remove?.(); this.sink = undefined }; void this.context?.close(); this.context = undefined }
 }
 export type RemoteTrack = Track
 type Publication = { source: string; track: Track; audioTrack?: Track; isMuted: boolean; producerId: string; options?: any }
@@ -256,7 +267,7 @@ export class Room extends Events {
     if(event==='moderation'){Object.assign(this.localParticipant,data);if(data.serverMuted||data.serverDeafened||data.canPublishMicrophone===false||data.canUseVoiceActivity===false&&this.inputMode!=='push-to-talk'||data.canUseVoiceActivity===true&&this.inputMode!==this.desiredInputMode){await this.setPushToTalk(false).catch(()=>{});if(data.canUseVoiceActivity!==undefined)await this.setInputMode(this.desiredInputMode).catch(()=>{})}this.emit(RoomEvent.ServerModerationChanged,data)}
     if(event==='moved'){this.emit(RoomEvent.ServerMoved,data);await this.disconnect()}
     if(event==='moderatorDisconnected'){this.emit(RoomEvent.ServerVoiceDisconnected);await this.disconnect()}
-    if (event === 'joined' && data.identity !== this.localParticipant.identity) this.addPeer(data)
+    if (event === 'joined' && data.identity !== this.localParticipant.identity) { const peer = this.addPeer(data); this.emit(RoomEvent.ParticipantJoined, peer) }
     if (event === 'left') { const peer = this.remoteParticipants.get(data.identity); if (peer) for (const pub of peer.trackPublications.values()) { pub.track.stop(); this.emit(RoomEvent.TrackUnsubscribed,pub.track) }; this.remoteParticipants.delete(data.identity); this.emit(RoomEvent.ParticipantDisconnected,peer) }
     if (event === 'profile') { const peer = data.identity === this.localParticipant.identity ? this.localParticipant : this.remoteParticipants.get(data.identity); if (peer) Object.assign(peer,data); this.emit(RoomEvent.ParticipantMetadataChanged); this.emit(RoomEvent.ParticipantNameChanged) }
     if (event === 'data') { const peer = this.remoteParticipants.get(data.participant?.identity) || (data.participant ? this.addPeer(data.participant) : undefined); this.emit(RoomEvent.DataReceived,new TextEncoder().encode(data.payload),peer,undefined,data.topic) }

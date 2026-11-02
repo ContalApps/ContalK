@@ -1,3 +1,19 @@
+# ConTALK 0.1.38
+
+Estabilidade e Inteligência de Áudio Vocal (Correção de Atenuação Indevida e Nivelamento Dinâmico) e Avisos Sonoros Nativos de Entrada em Canal.
+
+- **Correção da Queda Involuntária de Volume na Comunicação:**
+  - Correção na lógica de *Priority Ducking*: a atenuação de 75% não é mais aplicada permanentemente pela simples presença de um orador prioritário na sala. O ducking agora é dinâmico e ativado exclusivamente enquanto o orador prioritário estiver falando com voz ativa (`activeSpeakers`), restaurando 100% do volume imediatamente quando ele pausa.
+  - Eliminação do congelamento de decodificação no Chromium: o elemento auxiliar de decodificação de áudio WebRTC (*sink*) agora permanece montado no DOM oculto (`#contalk-audio-tracks`), evitando que o coletor de lixo ou a economia de bateria do Chromium suspenda ou degrade a taxa de reprodução de voz durante a chamada.
+  - Processamento Dinâmico de Fala com Web Audio (`DynamicsCompressorNode`): adição de compressor de voz transparente nas faixas remotas de áudio para elevar falas sussurradas ou microfones baixos sem distorção em picos sonoros.
+- **Avisos Sonoros Nativos ao Entrar em Canais de Voz:**
+  - Sintetizador harmônico puro construído na Web Audio API (`src/media/sounds.ts`), com latência zero e sem dependências de arquivos de áudio externos.
+  - Chime harmônico de entrada (`playChannelJoinSound`): emitido com suavidade sempre que um novo membro entra no canal de voz ativo.
+  - Confirmação harmônica de conexão (`playSelfJoinSound`): tom sutil emitido quando o usuário se conecta com sucesso a um canal de voz.
+  - Respeito integral ao modo ensurdecido (*deafened*) e ao dispositivo de saída de áudio selecionado.
+
+Validação: tipos verificados sem erros (`npm run typecheck`), 284 testes unitários e de integração aprovados (`npm test`) e build de produção Vite e Electron concluídos com sucesso.
+
 # ConTALK 0.1.37
 
 Interface Minimalista Instantânea (Zero Delay), Bloco de Notas Integrado a Canais e DMs, Menções Automáticas com @, Prévias Nativas Universais e Confirmação de Exclusão.
