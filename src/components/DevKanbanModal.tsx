@@ -298,7 +298,7 @@ export function DevKanbanModal({
                         <div className="ct-kanban-card-footer">
                           {card.assignee && (
                             <span className="ct-card-assignee" title={`Responsável: ${card.assignee}`}>
-                              👤 {card.assignee}
+                              <ControlIcon name="user" size={12} /> {card.assignee}
                             </span>
                           )}
                           <div className="ct-card-move-actions">
