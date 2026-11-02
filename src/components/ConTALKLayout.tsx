@@ -496,7 +496,7 @@ export function ConTALKLayout() {
     try {
       const diag = {
         app: 'ConTALK',
-        version: '0.1.38',
+        version: '0.1.39',
         timestamp: new Date().toISOString(),
         view,
         server: { id: server.id, name: server.name },
