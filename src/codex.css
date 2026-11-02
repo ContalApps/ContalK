@@ -66,9 +66,13 @@
   .ct-person strong { font-size:14px; font-weight:500; }
   .ct-person small { font-size:12px; margin-top:1px; }
   .ct-friend-hint { color:var(--cx-fg-3); font-size:13px; margin:8px; }
-  .ct-server-banner { height:auto; min-height:44px; padding:6px 8px; margin-bottom:6px; border:0; border-radius:var(--cx-radius); background:transparent; }
-  .ct-server-banner strong { font-size:15px; font-weight:600; color:var(--cx-fg); }
-  .ct-server-banner small { font-size:12px; margin-top:2px; }
+  .ct-server-banner { height:auto; min-height:44px; padding:6px 8px; margin-bottom:6px; border:0; border-radius:var(--cx-radius); background:transparent; position:relative; }
+  .ct-server-banner-header { display:flex; align-items:center; justify-content:space-between; width:100%; position:relative; z-index:5; }
+  .ct-server-banner-header strong { font-size:15px; font-weight:600; color:var(--cx-fg); flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .ct-server-banner small { font-size:12px; margin-top:2px; display:flex; align-items:center; gap:6px; }
+  .ct-server-role-settings { position:relative; z-index:10; cursor:pointer; width:28px; height:28px; min-width:28px; min-height:28px; display:inline-flex; align-items:center; justify-content:center; border:0; background:transparent; color:var(--ct-muted, var(--cx-fg-3)); border-radius:6px; padding:0; margin-left:6px; flex-shrink:0; pointer-events:auto; transition:background .15s ease, color .15s ease; }
+  .ct-server-role-settings:hover { background:#ffffff14; color:var(--cx-fg, #fff); }
+  .ct-server-role-settings svg, .ct-server-role-settings .ct-glyph { pointer-events:none; width:16px; height:16px; }
   .ct-channel-letter { display:none; }
   .ct-unread-count { background:var(--cx-fg); color:#000!important; font-weight:600; }
   .ct-channel-occupants:not(:empty) { border-left:1px solid var(--cx-border); margin:0 8px 4px 16px; padding-left:8px; }

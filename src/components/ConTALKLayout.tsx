@@ -719,24 +719,27 @@ export function ConTALKLayout() {
                 </>
               ) : (
                 <>
-                  <div className="ct-server-banner">
-                    <strong title={server.description || server.name}>{server.name}</strong>
-                    {(!roles.snapshot ||
-                      centralAllows('VIEW_GUILD_INSIGHTS') ||
-                      centralAllows('MANAGE_GUILD') ||
-                      centralAllows('MANAGE_ROLES') ||
-                      centralAllows('BAN_MEMBERS') ||
-                      !!roles.snapshot.invites?.length ||
-                      roles.snapshot.channels.some(item => centralAllows('CREATE_INSTANT_INVITE', item.id))) && (
-                      <button
-                        className="ct-server-role-settings"
-                        title="Configurações do servidor"
-                        aria-label="Configurações do servidor"
-                        onClick={() => setRolesOpen(true)}
-                      >
-                        <ControlIcon name="settings" />
-                      </button>
-                    )}
+                  <div className="ct-server-banner" onContextMenu={e => { e.preventDefault(); setRolesOpen(true) }}>
+                    <div className="ct-server-banner-header">
+                      <strong title={server.description || server.name}>{server.name}</strong>
+                      {(!roles.snapshot ||
+                        centralAllows('VIEW_GUILD_INSIGHTS') ||
+                        centralAllows('MANAGE_GUILD') ||
+                        centralAllows('MANAGE_ROLES') ||
+                        centralAllows('BAN_MEMBERS') ||
+                        !!roles.snapshot.invites?.length ||
+                        roles.snapshot.channels.some(item => centralAllows('CREATE_INSTANT_INVITE', item.id))) && (
+                        <button
+                          type="button"
+                          className="ct-server-role-settings"
+                          title="Configurações da comunidade"
+                          aria-label="Configurações da comunidade"
+                          onClick={(e) => { e.stopPropagation(); setRolesOpen(true) }}
+                        >
+                          <ControlIcon name="settings" size={16} />
+                        </button>
+                      )}
+                    </div>
                     <small>
                       <i className="ct-online-dot" />{' '}
                       {community.status === 'online'

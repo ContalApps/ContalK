@@ -1,39 +1,25 @@
 /**
  * ConTALK auditory cues for voice channels.
  * Synthesized using Web Audio API: 0 network bytes, zero latency, pleasant harmonic profile.
+ * Each cue creates an interactive AudioContext that is closed upon sound completion
+ * to ensure hardware streams are fully closed, preventing DAC idle hiss on analog/USB headsets.
  */
-
-let sharedAudioContext: AudioContext | null = null
-
-function getAudioContext(outputDeviceId?: string): AudioContext | null {
-  if (typeof window === 'undefined' || typeof AudioContext === 'undefined') return null
-  try {
-    if (!sharedAudioContext || sharedAudioContext.state === 'closed') {
-      const AudioCtx = window.AudioContext || (window as any).webkitAudioContext
-      if (!AudioCtx) return null
-      sharedAudioContext = new AudioCtx({ latencyHint: 'interactive' })
-    }
-    if (sharedAudioContext.state === 'suspended') {
-      void sharedAudioContext.resume().catch(() => {})
-    }
-    if (outputDeviceId && outputDeviceId !== 'default' && 'setSinkId' in sharedAudioContext) {
-      void (sharedAudioContext as any).setSinkId(outputDeviceId).catch(() => {})
-    }
-    return sharedAudioContext
-  } catch {
-    return null
-  }
-}
 
 /**
  * Soft, elegant two-tone chime when another participant joins the voice channel.
  * Plays ascending fourth: Eb5 (622.25 Hz) -> Ab5 (830.61 Hz) with gentle exponential decay.
  */
 export function playChannelJoinSound(outputDeviceId?: string): void {
-  const ctx = getAudioContext(outputDeviceId)
-  if (!ctx) return
+  if (typeof window === 'undefined') return
+  const AudioCtx = window.AudioContext || (window as any).webkitAudioContext
+  if (!AudioCtx) return
 
   try {
+    const ctx = new AudioCtx({ latencyHint: 'interactive' })
+    if (outputDeviceId && outputDeviceId !== 'default' && 'setSinkId' in ctx) {
+      void (ctx as any).setSinkId(outputDeviceId).catch(() => {})
+    }
+
     const now = ctx.currentTime
     const masterGain = ctx.createGain()
     masterGain.gain.setValueAtTime(0.18, now)
@@ -46,7 +32,7 @@ export function playChannelJoinSound(outputDeviceId?: string): void {
     osc1.frequency.setValueAtTime(622.25, now)
     gain1.gain.setValueAtTime(0.001, now)
     gain1.gain.exponentialRampToValueAtTime(0.7, now + 0.02)
-    gain1.gain.exponentialRampToValueAtTime(0.001, now + 0.18)
+    gain1.gain.exponentialRampToValueAtTime(0.0001, now + 0.18)
     osc1.connect(gain1).connect(masterGain)
     osc1.start(now)
     osc1.stop(now + 0.2)
@@ -62,6 +48,12 @@ export function playChannelJoinSound(outputDeviceId?: string): void {
     osc2.connect(gain2).connect(masterGain)
     osc2.start(now + 0.09)
     osc2.stop(now + 0.4)
+
+    // Close the audio context completely when playback is done so no residual stream/hardware hiss remains
+    setTimeout(() => {
+      masterGain.disconnect()
+      void ctx.close().catch(() => {})
+    }, 450)
   } catch {
     // Audio synthesis failure should never crash the application
   }
@@ -72,10 +64,16 @@ export function playChannelJoinSound(outputDeviceId?: string): void {
  * Gentle rising triad: C5 (523.25 Hz) -> E5 (659.25 Hz) -> G5 (783.99 Hz).
  */
 export function playSelfJoinSound(outputDeviceId?: string): void {
-  const ctx = getAudioContext(outputDeviceId)
-  if (!ctx) return
+  if (typeof window === 'undefined') return
+  const AudioCtx = window.AudioContext || (window as any).webkitAudioContext
+  if (!AudioCtx) return
 
   try {
+    const ctx = new AudioCtx({ latencyHint: 'interactive' })
+    if (outputDeviceId && outputDeviceId !== 'default' && 'setSinkId' in ctx) {
+      void (ctx as any).setSinkId(outputDeviceId).catch(() => {})
+    }
+
     const now = ctx.currentTime
     const masterGain = ctx.createGain()
     masterGain.gain.setValueAtTime(0.12, now)
@@ -99,6 +97,12 @@ export function playSelfJoinSound(outputDeviceId?: string): void {
       osc.start(now + time)
       osc.stop(now + time + dur + 0.02)
     })
+
+    // Close the audio context completely when playback is done so no residual stream/hardware hiss remains
+    setTimeout(() => {
+      masterGain.disconnect()
+      void ctx.close().catch(() => {})
+    }, 450)
   } catch {
     // Audio synthesis failure should never crash the application
   }
