@@ -185,8 +185,19 @@ export class Room extends Events {
     if (!this.options.presence) {
       const capabilities = await this.request('capabilities')
       this.device = new Device(); await this.device.load(capabilities)
+      const defaultStun = [
+        { urls: ['stun:stun.l.google.com:19302', 'stun:stun1.l.google.com:19302', 'stun:stun.cloudflare.com:3478'] }
+      ]
       for (const direction of ['send','recv'] as const) {
         const config = await this.request('createTransport',{direction})
+        if (!config.iceServers || !Array.isArray(config.iceServers) || config.iceServers.length === 0) {
+          config.iceServers = defaultStun
+        } else {
+          const hasStun = config.iceServers.some((s: any) =>
+            (Array.isArray(s?.urls) ? s.urls : [s?.urls]).some((u: any) => typeof u === 'string' && u.startsWith('stun:'))
+          )
+          if (!hasStun) config.iceServers.push(...defaultStun)
+        }
         const transport = direction === 'send' ? this.device.createSendTransport(config) : this.device.createRecvTransport(config)
         transport.on('connect',({dtlsParameters},done,fail) => { this.request('connectTransport',{transportId:transport.id,dtlsParameters}).then(() => done()).catch(fail) })
         transport.on('connectionstatechange',state => { if (state === 'failed' && !this.ended) { this.socket?.close(); void this.reconnect() } })

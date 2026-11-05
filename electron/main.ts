@@ -1,7 +1,7 @@
 import { app, BrowserWindow, ipcMain, desktopCapturer, shell, screen } from 'electron'
 import path from 'node:path'
 import fs from 'node:fs'
-import { randomUUID } from 'node:crypto'
+import { randomUUID, createHash } from 'node:crypto'
 import { fileURLToPath } from 'node:url'
 import { setupSingleInstance, showMainWindow } from './single-instance'
 import { setupStorage } from './storage'
@@ -153,72 +153,228 @@ ipcMain.handle('auth-social-unlink', (_event, provider: 'google' | 'instagram' |
   return publicUser(current)
 })
 
-ipcMain.handle('auth-social-login', async (_event, { provider, accountData }: { provider: 'google' | 'instagram' | 'linkedin'; accountData?: { email?: string; username?: string; displayName?: string; accountId?: string; avatarUrl?: string } }) => {
+async function syncSocialCommunityAccount(provider: string, email: string, displayName: string) {
+  const cleanEmail = email.trim().toLowerCase()
+  const cleanBase = (cleanEmail.split('@')[0] || displayName || 'user')
+    .toLowerCase()
+    .replace(/[^a-z0-9_-]/g, '')
+    .slice(0, 24)
+  let baseUsername = cleanBase.length >= 3 ? cleanBase : `${cleanBase}user`
+
+  const socialSecret = createHash('sha256')
+    .update(`${provider}:${cleanEmail}:contalk-social-secret-v1`)
+    .digest('hex')
+
   try {
-    const users = loadUsers()
-    const allUsers = Object.values(users)
-    const data = accountData || {}
-    let matched = allUsers.find(u => {
-      const linked = u.linkedAccounts?.[provider]
-      if (linked) {
-        if (data.accountId && linked.accountId === data.accountId) return true
-        if (data.email && linked.email?.toLowerCase() === data.email.toLowerCase()) return true
-        if (data.username && linked.username?.toLowerCase() === data.username.toLowerCase()) return true
-        if (!data.accountId && !data.email && !data.username) return true
+    return await signInCommunity(cleanEmail, socialSecret)
+  } catch (loginErr: any) {
+    let attemptUsername = baseUsername
+    let counter = 1
+    while (counter <= 10) {
+      try {
+        return await signUpCommunity(attemptUsername, cleanEmail, socialSecret)
+      } catch (regErr: any) {
+        const msg = String(regErr?.message || '')
+        if (/já está em uso/i.test(msg) && /e-mail/i.test(msg)) {
+          return await signInCommunity(attemptUsername, socialSecret)
+        }
+        if (/já está em uso/i.test(msg)) {
+          attemptUsername = `${baseUsername}${counter++}`
+          continue
+        }
+        throw regErr
       }
-      if (data.email && u.email?.toLowerCase() === data.email.toLowerCase()) return true
-      return false
+    }
+    throw loginErr
+  }
+}
+
+ipcMain.handle('auth-social-popup', async (_event, provider: 'google' | 'instagram' | 'linkedin') => {
+  return new Promise(resolve => {
+    let resolved = false
+    const finish = (result: any) => {
+      if (!resolved) {
+        resolved = true
+        try { if (!authWin.isDestroyed()) authWin.close() } catch {}
+        resolve(result)
+      }
+    }
+
+    const titles: Record<string, string> = {
+      google: 'Google',
+      instagram: 'Instagram',
+      linkedin: 'LinkedIn'
+    }
+    const urls: Record<string, string> = {
+      google: 'https://accounts.google.com/signin/v2/identifier?flowName=GlifWebSignIn&hl=pt-BR',
+      instagram: 'https://www.instagram.com/accounts/login/',
+      linkedin: 'https://www.linkedin.com/login'
+    }
+
+    const authWin = new BrowserWindow({
+      width: 520,
+      height: 680,
+      title: `Entrar com ${titles[provider]} - ConTALK`,
+      parent: win || undefined,
+      modal: true,
+      autoHideMenuBar: true,
+      webPreferences: {
+        nodeIntegration: false,
+        contextIsolation: true,
+        sandbox: true,
+      }
     })
-    if (!matched) {
-      const baseName = (data.username || data.email?.split('@')[0] || data.displayName || provider).replace(/[^A-Za-z0-9_-]/g, '').toLowerCase() || `user_${Date.now()}`
-      let usernameCandidate = baseName
-      let counter = 1
-      while (users[usernameCandidate]) {
-        usernameCandidate = `${baseName}${counter++}`
-      }
-      const email = data.email || `${usernameCandidate}@${provider}.social`
-      const displayName = data.displayName || data.username || usernameCandidate
-      const newStored: StoredUser = {
-        id: `usr_${Date.now()}`,
-        username: usernameCandidate,
-        display_name: displayName,
-        email,
-        password_hash: '',
-        avatar: data.avatarUrl,
-        created_at: new Date().toISOString(),
-        server: true,
-        linkedAccounts: {
-          [provider]: {
-            provider,
-            accountId: data.accountId || email,
-            email: data.email,
-            username: data.username,
-            displayName,
-            avatarUrl: data.avatarUrl,
-            linkedAt: new Date().toISOString()
+
+    authWin.webContents.setUserAgent('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36')
+
+    authWin.loadURL(urls[provider]).catch(() => {
+      finish({ type: 'Error', data: 'fallback_to_modal' })
+    })
+
+    const checkSuccess = async () => {
+      if (resolved || authWin.isDestroyed()) return
+      const currentUrl = authWin.webContents.getURL()
+
+      if (provider === 'google') {
+        const isOutsideLogin = currentUrl.includes('myaccount.google.com') ||
+          (currentUrl.includes('google.com') && !currentUrl.includes('/signin') && !currentUrl.includes('/ServiceLogin') && !currentUrl.includes('/v2/') && !currentUrl.includes('/v3/'))
+
+        const cookies = await authWin.webContents.session.cookies.get({ domain: '.google.com' }).catch(() => [])
+        const hasSession = cookies.some(c => c.name === 'SID' || c.name === 'SAPISID')
+
+        if (isOutsideLogin || hasSession) {
+          const profile = await authWin.webContents.executeJavaScript(`(() => {
+            try {
+              const el = document.querySelector('[data-email]') || document.querySelector('a[aria-label*="@"]');
+              const email = el?.getAttribute('data-email') || el?.getAttribute('aria-label')?.match(/[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}/)?.[0] || '';
+              const h = document.querySelector('h1, h2')?.textContent || '';
+              return { email, name: h };
+            } catch { return { email: '', name: '' }; }
+          })()`).catch(() => ({ email: '', name: '' }))
+
+          const email = profile.email || cookies.find(c => c.name === 'ACCOUNT_CHOOSER')?.value?.match(/[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/)?.[0]
+          if (email) {
+            try {
+              const remote = await syncSocialCommunityAccount('google', email, profile.name || email.split('@')[0])
+              const users = loadUsers()
+              const current: StoredUser = users[remote.username] || {
+                id: `usr_${Date.now()}`,
+                username: remote.username,
+                display_name: profile.name || remote.username,
+                email: remote.email,
+                password_hash: '',
+                created_at: new Date().toISOString(),
+                server: true,
+                linkedAccounts: {}
+              }
+              if (!current.linkedAccounts) current.linkedAccounts = {}
+              current.linkedAccounts.google = {
+                provider: 'google',
+                accountId: email,
+                email,
+                displayName: profile.name || remote.username,
+                linkedAt: new Date().toISOString()
+              }
+              users[remote.username] = current
+              saveUsers(users)
+              const token = issueSession(remote.username)
+              finish({ type: 'Success', data: { token, user: publicUser(current) } })
+              return
+            } catch (err: any) {
+              finish({ type: 'Error', data: err?.message || 'Falha ao vincular com a comunidade.' })
+              return
+            }
+          } else {
+            finish({ type: 'Error', data: 'fallback_to_modal' })
+            return
           }
         }
+      } else if (provider === 'instagram') {
+        if (!currentUrl.includes('/accounts/login/') && currentUrl.includes('instagram.com')) {
+          const cookies = await authWin.webContents.session.cookies.get({ domain: '.instagram.com' }).catch(() => [])
+          const dsUser = cookies.find(c => c.name === 'ds_user_id')?.value
+          if (dsUser) {
+            finish({ type: 'Error', data: 'fallback_to_modal' })
+            return
+          }
+        }
+      } else if (provider === 'linkedin') {
+        if (currentUrl.includes('/feed') || currentUrl.includes('/in/')) {
+          finish({ type: 'Error', data: 'fallback_to_modal' })
+          return
+        }
       }
-      users[usernameCandidate] = newStored
-      saveUsers(users)
-      matched = newStored
-    } else {
-      if (!matched.linkedAccounts) matched.linkedAccounts = {}
-      matched.linkedAccounts[provider] = {
-        provider,
-        accountId: data.accountId || data.email || data.username || matched.email,
-        email: data.email || matched.email,
-        username: data.username,
-        displayName: data.displayName || matched.display_name,
-        avatarUrl: data.avatarUrl || matched.avatar,
-        linkedAt: matched.linkedAccounts[provider]?.linkedAt || new Date().toISOString()
-      }
-      saveUsers(users)
     }
-    const token = issueSession(matched.username)
-    return { type: 'Success', data: { token, user: publicUser(matched) } }
+
+    const checkInterval = setInterval(checkSuccess, 1000)
+
+    authWin.webContents.on('did-navigate', () => { void checkSuccess() })
+    authWin.webContents.on('did-navigate-in-page', () => { void checkSuccess() })
+
+    authWin.on('closed', () => {
+      clearInterval(checkInterval)
+      if (!resolved) {
+        resolved = true
+        resolve({ type: 'Cancelled', error: 'Autenticação cancelada pelo usuário.' })
+      }
+    })
+  })
+})
+
+ipcMain.handle('auth-social-login', async (_event, { provider, accountData }: { provider: 'google' | 'instagram' | 'linkedin'; accountData?: { email?: string; username?: string; displayName?: string; accountId?: string; avatarUrl?: string } }) => {
+  try {
+    const data = accountData || {}
+    const rawEmail = data.email || (data.accountId?.includes('@') ? data.accountId : '')
+    const rawUsername = data.username || (!data.accountId?.includes('@') ? data.accountId : '')
+    const displayName = data.displayName || rawUsername || rawEmail.split('@')[0] || ''
+
+    if (!rawEmail && !rawUsername && !displayName) {
+      const users = loadUsers()
+      const existing = Object.values(users).find(u => u.linkedAccounts?.[provider])
+      if (existing) {
+        const token = issueSession(existing.username)
+        return { type: 'Success', data: { token, user: publicUser(existing) } }
+      }
+      return { type: 'Error', data: 'Nenhuma conta vinculada encontrada. Autentique-se com sua conta para continuar.' }
+    }
+
+    const cleanUsername = (rawUsername || rawEmail.split('@')[0] || 'user').toLowerCase().replace(/[^a-z0-9_-]/g, '')
+    const email = rawEmail || `${cleanUsername}@${provider}.social`
+    const finalDisplayName = displayName || cleanUsername
+
+    const remote = await syncSocialCommunityAccount(provider, email, finalDisplayName)
+
+    const users = loadUsers()
+    const current: StoredUser = users[remote.username] || {
+      id: `usr_${Date.now()}`,
+      username: remote.username,
+      display_name: finalDisplayName,
+      email: remote.email,
+      password_hash: '',
+      created_at: new Date().toISOString(),
+      server: true,
+      linkedAccounts: {}
+    }
+
+    if (!current.linkedAccounts) current.linkedAccounts = {}
+    current.linkedAccounts[provider] = {
+      provider,
+      accountId: data.accountId || email,
+      email: remote.email,
+      username: rawUsername || undefined,
+      displayName: finalDisplayName,
+      avatarUrl: data.avatarUrl,
+      linkedAt: new Date().toISOString()
+    }
+    current.display_name = finalDisplayName
+    current.email = remote.email
+    users[remote.username] = current
+    saveUsers(users)
+
+    const token = issueSession(remote.username)
+    return { type: 'Success', data: { token, user: publicUser(current) } }
   } catch (error) {
-    return { type: 'Error', data: error instanceof Error ? error.message : 'Falha na autenticação vinculada.' }
+    return { type: 'Error', data: error instanceof Error ? error.message : 'Falha ao autenticar com rede social.' }
   }
 })
 

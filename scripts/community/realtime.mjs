@@ -153,10 +153,13 @@ export function createCommunityVoice({ url, announcedAddress = '127.0.0.1', medi
       if (!sessions.has(session)) { transport.close(); throw new Error('Sessão encerrada.') }
       session.transports.set(transport.id, transport)
       transport.on('dtlsstatechange', state => { if (state === 'closed') transport.close() })
-      let iceServers = []
+      const stunServers = [
+        { urls: ['stun:stun.l.google.com:19302', 'stun:stun1.l.google.com:19302', 'stun:stun.cloudflare.com:3478'] }
+      ]
+      let iceServers = [...stunServers]
       if (turnUrls.length && turnSecret) {
         const username = `${Math.floor(Date.now() / 1000) + 3600}:${session.actor}`
-        iceServers = [{ urls: turnUrls, username, credential: createHmac('sha1', turnSecret).update(username).digest('base64') }]
+        iceServers.push({ urls: turnUrls, username, credential: createHmac('sha1', turnSecret).update(username).digest('base64') })
       }
       return { id: transport.id, iceParameters: transport.iceParameters, iceCandidates: transport.iceCandidates, dtlsParameters: transport.dtlsParameters, iceServers }
     }
