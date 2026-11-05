@@ -269,6 +269,13 @@ export function setupCommunity(window: BrowserWindow, getUsername: () => string 
     'community-unsubscribe': () => {
       stream?.abort()
       stream = undefined
+    },
+    'community-search-users': async (query: string) => {
+      if (typeof query !== 'string') return []
+      const clean = query.trim()
+      if (clean.length < 2) return []
+      const res = await request(`/users/search?q=${encodeURIComponent(clean)}`).catch(() => ({ users: [] }))
+      return Array.isArray(res.users) ? res.users : []
     }
   }
 

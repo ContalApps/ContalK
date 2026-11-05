@@ -496,7 +496,15 @@ export const useVoiceStore = create<VoiceState>((set, get) => ({
         isServerMuted:false,isServerDeafened:false,isDeafened:false,
         participants: [], isScreenSharing: false, isCameraOn: false, isMicMuted: true,
         channelOccupants: Object.fromEntries(Object.entries(get().channelOccupants).map(([id, users]) => [id, users.filter(p => p.identity !== user.username)])),
-        error: /websocket|signal|connection refused/i.test(err?.message || '') ? 'Não foi possível conectar ao servidor de voz. Verifique o domínio de voz, HTTPS e WebSocket no Coolify.' : /ICE|peer connection/i.test(err?.message || '') ? 'O transporte de mídia falhou. Verifique as portas UDP/TCP e TURN da VPS.' : String(err?.message || 'Falha ao conectar ao servidor de voz.').replace(/eyJ[\w-]+\.[\w-]+\.[\w-]+/g, '[token removido]'),
+        error: /session replaced|replaced|conectada em outro/i.test(err?.message || '')
+          ? 'Esta conta foi conectada na sala de voz em outro computador. Para que você e seu amigo entrem juntos na mesma chamada, cada um deve usar sua própria conta no ConTALK.'
+          : /não está conectada à comunidade|Sua sessão terminou/i.test(err?.message || '')
+          ? 'Sua conta não possui sessão ativa na comunidade. Saia e entre novamente no ConTALK ou crie uma conta para acessar a voz.'
+          : /websocket|signal|connection refused/i.test(err?.message || '')
+          ? 'Não foi possível conectar ao servidor de voz. Verifique o domínio de voz, HTTPS e WebSocket no Coolify.'
+          : /ICE|peer connection/i.test(err?.message || '')
+          ? 'O transporte de mídia falhou. Verifique as portas UDP/TCP e TURN da VPS.'
+          : String(err?.message || 'Falha ao conectar ao servidor de voz.').replace(/eyJ[\w-]+\.[\w-]+\.[\w-]+/g, '[token removido]'),
       })
       return false
     }

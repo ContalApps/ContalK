@@ -1,5 +1,40 @@
 # Retomada do ConTALK
 
+## Entrega 0.1.40: Conexão WebRTC LAN (STUN Nativo), Busca Remota de Amigos e Login Social Real
+
+Em `dev/caliari`, foram implementadas as seguintes soluções e melhorias:
+- **Resolução de Conexão de Voz na Mesma Rede (LAN/Wi-Fi):**
+  - Injeção de servidores STUN padrão de alta disponibilidade (`stun.l.google.com:19302`, `stun1.l.google.com:19302`, `stun.cloudflare.com:3478`) no backend Mediasoup (`scripts/community/realtime.mjs`) e no cliente WebRTC (`src/media/realtime.ts`), permitindo NAT traversal em roteadores residenciais e CGNAT.
+  - Mensagens claras no `useVoiceStore.ts` alertando quando a mesma conta tentar entrar na mesma sala em dois dispositivos simultaneamente (*session replaced*).
+- **Busca Remota e Adição Direta de Amigos:**
+  - Criação de rotas de pesquisa de usuários na comunidade (`GET /users/search?q=...` e `GET /users/:username`) e método `accounts.search`.
+  - Exposição segura via Electron IPC (`community-search-users`) e preload.
+  - Reformulação completa da aba "Adicionar amigo" em `src/components/HomeView.tsx` com envio direto para `@username`, busca assíncrona com debounce e avisos claros de status e validação.
+- **Autenticação Social Real e Sincronizada (Google, Instagram, LinkedIn):**
+  - Eliminação de contas mock/falsas; janela nativa do Electron (`auth-social-popup`) com User-Agent oficial do Chrome para login autêntico nos provedores.
+  - Sincronização e provisionamento automático no backend da comunidade (`syncSocialCommunityAccount`), gerando sessão criptografada (`community-<hash>.enc`) e liberando acesso total a voz, canais e servidores.
+- **Validação e Entrega:**
+  - Tipos TypeScript verificados sem erros (`npm run typecheck`), 284 testes unitários e de integração aprovados (`npm test`), build Vite e Electron concluídos com sucesso.
+  - PR integrado na `main`, tag `v0.1.40` criada e enviada, release publicada no GitHub com instalador Windows, blockmap e latest.yml, verificada como pública e Latest.
+
+## Entrega 0.1.39: Acessibilidade de Configurações, Silêncio Absoluto em Voz e Skill Unslop
+
+Em `dev/caliari`, foram implementadas as seguintes melhorias e correções:
+- **Correção da Acessibilidade das Configurações da Comunidade:**
+  - Reestruturação do banner do servidor em `src/components/ConTALKLayout.tsx`, `src/codex.css` e `src/roles.css` usando layout flexbox (`.ct-server-banner-header`). O título e textos agora ficam em um bloco separado, liberando a área de clique para o botão de engrenagem (`.ct-server-role-settings`).
+  - O botão de engrenagem agora tem dimensões confortáveis de 28x28px, `z-index: 10`, `cursor: pointer` e feedback visual hover.
+  - Adicionado atalho contextual: clique com o botão direito do mouse em qualquer parte do banner da comunidade abre instantaneamente o painel de configurações gerais.
+- **Eliminação do Chiado Contínuo em Silêncio nos Canais de Voz:**
+  - Identificada a causa raiz: o compressor dinâmico Web Audio (`DynamicsCompressorNode`) aplicava ganho automático de até +18 dB sobre ruídos térmicos e ambiente durante o silêncio. O nó foi removido da cadeia remota de áudio em `src/media/realtime.ts`, restaurando fidelidade transparente 1:1 com cancelamento nativo de ruído do WebRTC Opus.
+  - O elemento de áudio auxiliar de decodificação (*sink*) foi isolado em container dedicado `#contalk-audio-sinks` com volume zerado e mute permanente, impedindo interferências acidentais.
+  - Em `src/media/sounds.ts`, o contexto de áudio é fechado (`ctx.close()`) 450ms após tocar os chimes harmônicos de entrada, liberando as streams da placa de som (WASAPI) e garantindo silêncio absoluto.
+- **Instalação e Execução da Skill Unslop:**
+  - Skill `unslop` instalada e integrada nas configurações globais e de workspace do projeto.
+  - Auditoria estética realizada com aplicação de refinamento (eliminação de emojis residuais em cartões substituídos por ícones Lucide).
+- **Validação e Entrega:**
+  - Tipos TypeScript verificados sem erros (`npm run typecheck`), 284 testes unitários e de integração aprovados (`npm test`), build Electron concluído com sucesso.
+  - PR #36 integrado na `main` (`7fb62bd`), tag `v0.1.39` criada e enviada, release publicada no GitHub com instalador Windows, blockmap e latest.yml, verificada como pública e marcada como Latest.
+
 ## Entrega 0.1.38: Estabilidade Vocal (Priority Ducking Dinâmico e Nivelamento Web Audio) e Avisos Sonoros Nativos
 
 Em `dev/caliari`, foram implementadas as correções de áudio e novos avisos sonoros:

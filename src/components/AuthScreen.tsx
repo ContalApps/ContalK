@@ -12,17 +12,40 @@ export function AuthScreen() {
   const [socialModal, setSocialModal] = useState<{ provider: SocialProvider; name: string } | null>(null)
   const [socialInput, setSocialInput] = useState('')
   const [socialName, setSocialName] = useState('')
+  const [socialLoading, setSocialLoading] = useState<SocialProvider | null>(null)
   const { login, register, loginWithSocial, isLoading, error, clearError } = useAuthStore()
 
   const handleSocialClick = async (provider: SocialProvider, name: string) => {
     clearError()
-    // First try automatic 1-click login if an account is already linked locally
-    const success = await loginWithSocial(provider)
-    if (!success) {
-      // If no local account matched yet, open the quick social sign-in dialog
+    setSocialLoading(provider)
+    try {
+      const electron = (window as any).contalkDesktop
+      if (electron?.socialPopup) {
+        const res = await electron.socialPopup(provider)
+        if (res.type === 'Success') {
+          localStorage.setItem('contalspeak_token', res.data.token)
+          localStorage.setItem('contalspeak_current_user', JSON.stringify(res.data.user))
+          useAuthStore.setState({
+            user: res.data.user,
+            token: res.data.token,
+            isAuthenticated: true,
+            isLoading: false
+          })
+          return
+        }
+        if (res.type === 'Cancelled') {
+          return
+        }
+      }
       setSocialModal({ provider, name })
       setSocialInput('')
       setSocialName('')
+    } catch {
+      setSocialModal({ provider, name })
+      setSocialInput('')
+      setSocialName('')
+    } finally {
+      setSocialLoading(null)
     }
   }
 
@@ -31,11 +54,15 @@ export function AuthScreen() {
     const val = socialInput.trim()
     if (!val) return
     const isInstagram = socialModal.provider === 'instagram'
+    const cleanHandle = isInstagram ? val.replace(/^@/, '') : undefined
+    const email = !isInstagram && val.includes('@') ? val : isInstagram ? `${cleanHandle}@instagram.social` : `${val.replace(/[^a-z0-9_-]/gi, '')}@${socialModal.provider}.com`
+    const displayName = socialName.trim() || (isInstagram ? cleanHandle : val.split('@')[0]) || val
+
     const success = await loginWithSocial(socialModal.provider, {
       accountId: val,
-      email: !isInstagram && val.includes('@') ? val : undefined,
-      username: isInstagram ? val.replace(/^@/, '') : undefined,
-      displayName: socialName.trim() || undefined
+      email,
+      username: cleanHandle,
+      displayName
     })
     if (success) {
       setSocialModal(null)
@@ -103,34 +130,34 @@ export function AuthScreen() {
           <button
             type="button"
             className="ct-social-btn ct-social-google"
-            disabled={isLoading}
+            disabled={isLoading || !!socialLoading}
             onClick={() => void handleSocialClick('google', 'Google')}
             title="Entrar com conta Google"
           >
             <GoogleLogo size={18} />
-            <span>Google</span>
+            <span>{socialLoading === 'google' ? 'Conectando...' : 'Google'}</span>
           </button>
 
           <button
             type="button"
             className="ct-social-btn ct-social-linkedin"
-            disabled={isLoading}
+            disabled={isLoading || !!socialLoading}
             onClick={() => void handleSocialClick('linkedin', 'LinkedIn')}
             title="Entrar com conta LinkedIn"
           >
             <LinkedInLogo size={18} />
-            <span>LinkedIn</span>
+            <span>{socialLoading === 'linkedin' ? 'Conectando...' : 'LinkedIn'}</span>
           </button>
 
           <button
             type="button"
             className="ct-social-btn ct-social-instagram"
-            disabled={isLoading}
+            disabled={isLoading || !!socialLoading}
             onClick={() => void handleSocialClick('instagram', 'Instagram')}
             title="Entrar com conta Instagram"
           >
             <InstagramLogo size={18} />
-            <span>Instagram</span>
+            <span>{socialLoading === 'instagram' ? 'Conectando...' : 'Instagram'}</span>
           </button>
         </div>
 

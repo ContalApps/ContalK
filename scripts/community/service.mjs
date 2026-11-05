@@ -946,6 +946,20 @@ export function createCommunityService({ tokens, storage, initialState, voice, f
         json(response,200,{models});return
       }
       if (request.method === 'POST' && url.pathname === '/logout') { accounts.revoke(token); json(response, 200, {}); return }
+      if (request.method === 'GET' && url.pathname === '/users/search') {
+        const query = url.searchParams.get('q') || '';
+        const users = accounts?.search ? accounts.search(query, actor) : [];
+        json(response, 200, { users });
+        return;
+      }
+      const userRoute = /^\/users\/([a-z0-9_-]{3,32})$/.exec(url.pathname);
+      if (request.method === 'GET' && userRoute) {
+        const target = userRoute[1].toLowerCase();
+        const exists = accounts?.has ? accounts.has(target) : userExists(target);
+        if (!exists) throw new CommunityError(404, 'Usuário não encontrado.');
+        json(response, 200, { user: { username: target, display_name: target } });
+        return;
+      }
       if (request.method === 'POST' && url.pathname === '/servers') { const body = await readBody(request); requireValue(body && typeof body === 'object', 'Solicitação inválida.'); json(response, 200, await createServer(actor, body.name)); return }
       if (localFiles) {
         const fileRoute = /^\/(files|links|views)(?:\/([0-9a-f-]{36})(?:\/(share))?)?$/.exec(url.pathname)

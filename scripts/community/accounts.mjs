@@ -49,6 +49,20 @@ export function createAccounts({ file } = {}) {
   const byEmail = email => Object.keys(data.accounts).find(name => data.accounts[name].email === email)
   return {
     has: username => Object.hasOwn(data.accounts, String(username).toLowerCase()),
+    search(query, requester, limit = 20) {
+      const q = String(query || '').trim().toLowerCase();
+      if (!q || q.length < 2) return [];
+      const current = String(requester || '').toLowerCase();
+      const matches = [];
+      for (const [name, acc] of Object.entries(data.accounts)) {
+        if (name === current) continue;
+        if (name.includes(q) || acc.email === q) {
+          matches.push({ username: name, display_name: name });
+          if (matches.length >= limit) break;
+        }
+      }
+      return matches;
+    },
     async register(username, email, secret, client, taken = () => false) {
       need(typeof username === 'string' && USERNAME.test(username.toLowerCase()), 400, 'Use de 3 a 32 letras, números, _ ou - no nome de usuário.')
       need(typeof email === 'string' && EMAIL.test(email.trim()), 400, 'Informe um e-mail válido.')

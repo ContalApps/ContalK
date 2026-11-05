@@ -46,6 +46,7 @@ export interface DesktopBridge {
   communityVoiceToken: (serverId: string, channelId: string) => Promise<{ url: string; token: string }>
   communityPresenceToken: (name: string) => Promise<{ url: string; token: string }>
   communityOccupants: (serverId: string) => Promise<Record<string, import('../store/useVoiceStore').VoiceParticipant[]>>
+  communitySearchUsers?: (query: string) => Promise<Array<{ username: string; display_name: string }>>
   subscribeCommunity: (serverId: string) => Promise<void>
   unsubscribeCommunity: () => Promise<void>
   onCommunityState: (listener: (event: import('../roles/types').CommunityEvent) => void) => () => void
@@ -97,6 +98,7 @@ export interface DesktopBridge {
   socialLink: (provider: 'google' | 'instagram' | 'linkedin', accountData: Record<string, unknown>) => Promise<import('../store/useAuthStore').User>
   socialUnlink: (provider: 'google' | 'instagram' | 'linkedin') => Promise<import('../store/useAuthStore').User>
   socialLogin: (provider: 'google' | 'instagram' | 'linkedin', accountData?: Record<string, unknown>) => Promise<{ type: 'Success'; data: { token: string; user: import('../store/useAuthStore').User } } | { type: 'Error'; data: string }>
+  socialPopup: (provider: 'google' | 'instagram' | 'linkedin') => Promise<{ type: 'Success'; data: { token: string; user: import('../store/useAuthStore').User } } | { type: 'Cancelled'; error?: string } | { type: 'Error'; data: string }>
   login: (params: { identifier: string; password: string }) => Promise<any>
   register: (params: { username: string; email: string; password: string }) => Promise<any>
   getUpdateState: () => Promise<UpdateState>

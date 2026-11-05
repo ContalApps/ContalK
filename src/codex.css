@@ -590,6 +590,18 @@ body { background:#000; color:#ededed; font-family:'Segoe UI',system-ui,sans-ser
   .ct-people-toolbar>div button { border:0; background:transparent; color:var(--cx-fg-2); padding:5px 12px; border-radius:999px; font-size:13px; }
   .ct-people-toolbar>div button.active { background:#ffffff1f; color:var(--cx-fg); }
   .ct-people-toolbar input { margin-left:auto; width:220px; background:var(--cx-field); border:1px solid var(--cx-field-border); border-radius:999px; padding:7px 14px; color:var(--cx-fg); font:inherit; font-size:13px; outline:0; }
+  .ct-add-friend-panel { background:var(--cx-card); border:1px solid var(--cx-border-light); border-radius:var(--cx-radius-lg,12px); padding:16px; margin:12px 0 16px; display:flex; flex-direction:column; gap:12px; }
+  .ct-add-friend-header h3 { font-size:14px; font-weight:600; margin:0 0 4px; color:var(--cx-fg); }
+  .ct-add-friend-header p { font-size:12px; color:var(--cx-fg-3); margin:0; }
+  .ct-add-friend-form { display:flex; flex-direction:column; gap:8px; }
+  .ct-add-friend-input-wrapper { display:flex; gap:8px; align-items:center; }
+  .ct-add-friend-input { flex:1; background:var(--cx-field); border:1px solid var(--cx-field-border); border-radius:var(--cx-radius); padding:8px 12px; color:var(--cx-fg); font:inherit; font-size:13px; outline:none; transition:border-color 0.15s ease; }
+  .ct-add-friend-input:focus { border-color:var(--cx-accent,#6366f1); }
+  .ct-add-friend-feedback { font-size:12px; margin:0; padding:6px 10px; border-radius:var(--cx-radius); }
+  .ct-feedback-success { background:rgba(34,197,94,0.12); color:#4ade80; border:1px solid rgba(34,197,94,0.25); }
+  .ct-feedback-error { background:rgba(239,68,68,0.12); color:#f87171; border:1px solid rgba(239,68,68,0.25); }
+  .ct-feedback-info { background:rgba(59,130,246,0.12); color:#60a5fa; border:1px solid rgba(59,130,246,0.25); }
+  .ct-friend-search-status { font-size:12px; font-weight:500; color:var(--cx-fg-2); margin:12px 4px 8px; }
   .ct-people-list { list-style:none; margin:0; padding:0; display:flex; flex-direction:column; }
   .ct-person-row { display:flex; align-items:center; gap:12px; padding:6px 8px; margin:0 -8px; border-radius:12px; }
   .ct-person-row:hover { background:var(--cx-hover); }
