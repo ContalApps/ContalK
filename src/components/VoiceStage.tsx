@@ -51,24 +51,43 @@ function ScreenShareViewer({
   onFocus,
   onMinimize,
   isSpotlight = false,
+  isTheater = false,
   onFullscreen,
+  objectFit = 'contain',
+  onToggleObjectFit,
 }: {
   participant: VoiceParticipant
   onFocus?: () => void
   onMinimize?: () => void
   isSpotlight?: boolean
+  isTheater?: boolean
   onFullscreen?: () => void
+  objectFit?: 'contain' | 'cover'
+  onToggleObjectFit?: () => void
 }) {
-  const [ready,setReady]=useState(false)
-  useEffect(()=>setReady(false),[participant.screenTrack])
+  const [ready, setReady] = useState(false)
+  useEffect(() => setReady(false), [participant.screenTrack])
 
   return (
     <div
       onDoubleClick={onFocus || onMinimize}
-      className="ct-share-view relative flex-1 w-full h-full overflow-hidden flex flex-col items-center justify-center group min-h-0 select-none"
+      className={`ct-share-view relative flex-1 w-full h-full overflow-hidden flex flex-col items-center justify-center group min-h-0 select-none ${isTheater ? 'ct-theater-view' : ''}`}
     >
-      {participant.screenTrack&&<VideoTrackView track={participant.screenTrack} isLocal={participant.isLocal} className="ct-share-video w-full h-full object-contain" onReady={()=>setReady(true)}/>}
-      {!ready&&<div className="ct-share-waiting"><span><ControlIcon name="screen"/></span><strong>Aguardando transmissão</strong><p>A tela de {voiceName(participant)} aparecerá aqui assim que os primeiros quadros chegarem.</p></div>}
+      {participant.screenTrack && (
+        <VideoTrackView
+          track={participant.screenTrack}
+          isLocal={participant.isLocal}
+          className={`ct-share-video w-full h-full ${objectFit === 'cover' ? 'object-cover' : 'object-contain'}`}
+          onReady={() => setReady(true)}
+        />
+      )}
+      {!ready && (
+        <div className="ct-share-waiting">
+          <span><ControlIcon name="screen"/></span>
+          <strong>Aguardando transmissão</strong>
+          <p>A tela de {voiceName(participant)} aparecerá aqui assim que os primeiros quadros chegarem.</p>
+        </div>
+      )}
       {/* Top Header Overlay */}
       <div className="ct-share-header">
         <div className="ct-share-label">
@@ -76,13 +95,32 @@ function ScreenShareViewer({
             <span className="w-1.5 h-1.5 rounded-full bg-white animate-pulse" />
             AO VIVO
           </span>
-          <span data-profile-identity={participant.identity} data-profile-name={voiceName(participant)} title="Botão direito para opções da pessoa" className="text-white text-xs font-semibold tracking-wide">
+          <span
+            data-profile-identity={participant.identity}
+            data-profile-name={voiceName(participant)}
+            title="Botão direito para opções da pessoa"
+            className="text-white text-xs font-semibold tracking-wide"
+          >
             {participant.isLocal ? 'Sua Transmissão de Tela' : `Tela de ${voiceName(participant)}`}
           </span>
         </div>
 
         <div className="ct-share-tools">
-          {/* Botão de alternar Foco / Grade */}
+          {onToggleObjectFit && (
+            <button
+              onClick={(e) => {
+                e.stopPropagation()
+                onToggleObjectFit()
+              }}
+              className="bg-black/80 hover:bg-black text-neutral-200 px-2.5 py-1 rounded-xl border border-neutral-500/30 text-xs font-semibold transition shadow-md flex items-center gap-1.5 cursor-pointer"
+              title={objectFit === 'contain' ? 'Preencher toda a tela (sem barras)' : 'Ajustar à tela (proporção original)'}
+              aria-label={objectFit === 'contain' ? 'Preencher tela' : 'Ajustar proporção'}
+            >
+              <ControlIcon name={objectFit === 'contain' ? 'expand' : 'shrink'} size={14} />
+              <span>{objectFit === 'contain' ? 'Preencher' : 'Ajustar'}</span>
+            </button>
+          )}
+
           {isSpotlight && onMinimize && (
             <button
               onClick={(e) => {
@@ -104,25 +142,25 @@ function ScreenShareViewer({
                 onFocus()
               }}
               className="bg-black/80 hover:bg-black text-neutral-200 px-3 py-1 rounded-xl border border-neutral-500/30 text-xs font-semibold transition shadow-md flex items-center gap-1.5 cursor-pointer"
-              title="Maximizar esta tela (Foco)"
+              title="Maximizar esta tela (Modo Teatro)"
             >
-              <ControlIcon name="expand"/>
-              <span>Focar</span>
+              <ControlIcon name="screen" size={13} />
+              <span>Modo Teatro</span>
             </button>
           )}
 
-          {onFullscreen && <button
-            onClick={onFullscreen}
-            className="bg-black/80 hover:bg-black text-neutral-200 p-1.5 rounded-xl border border-neutral-500/30 text-xs font-semibold transition shadow-md cursor-pointer"
-            title="Tela cheia · selecionar transmissões"
-            aria-label={`Tela cheia: ${voiceName(participant)}`}
-          >
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" aria-hidden="true"><path d="M8 3H3v5M16 3h5v5M3 16v5h5M16 21h5v-5"/></svg>
-          </button>}
+          {onFullscreen && (
+            <button
+              onClick={onFullscreen}
+              className="bg-black/80 hover:bg-black text-neutral-200 p-1.5 rounded-xl border border-neutral-500/30 text-xs font-semibold transition shadow-md cursor-pointer"
+              title="Tela cheia (F11)"
+              aria-label={`Tela cheia: ${voiceName(participant)}`}
+            >
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" aria-hidden="true"><path d="M8 3H3v5M16 3h5v5M3 16v5h5M16 21h5v-5"/></svg>
+            </button>
+          )}
         </div>
       </div>
-
-
     </div>
   )
 }
@@ -259,8 +297,9 @@ export function VoiceStage({
   // Telas compartilhadas ativas
   const screenShares = participants.filter((p) => p.isScreenShareEnabled && p.screenTrack)
 
-  // Modo de exibição: 'grid' (grade lado a lado) ou 'spotlight' (foco em 1 tela)
-  const [stageViewMode, setStageViewMode] = useState<'grid' | 'spotlight'>('grid')
+  // Modo de exibição: 'theater' (modo teatro padrão sem bordas) ou 'grid' (grade lado a lado)
+  const [stageViewMode, setStageViewMode] = useState<'theater' | 'grid'>('theater')
+  const [objectFit, setObjectFit] = useState<'contain' | 'cover'>('contain')
   const [spotlightScreenId, setSpotlightScreenId] = useState<string | null>(null)
   const [pinnedParticipantId, setPinnedParticipantId] = useState<string | null>(null)
 
@@ -316,7 +355,11 @@ export function VoiceStage({
   }
 
   return (
-    <div ref={stageRef} data-sharing-count={screenShares.length} className="ct-voice-stage flex-1 flex flex-col h-full relative overflow-hidden select-none min-w-0">
+    <div
+      ref={stageRef}
+      data-sharing-count={screenShares.length}
+      className={`ct-voice-stage flex-1 flex flex-col h-full relative overflow-hidden select-none min-w-0 ${screenShares.length > 0 ? 'has-screenshare' : ''} ${stageViewMode === 'theater' && screenShares.length > 0 ? 'ct-theater-active' : ''}`}
+    >
       {isFullscreen ? <>
         <header className="ct-fullscreen-toolbar">
           <strong>Transmissões · {visibleScreens.length} de {screenShares.length}</strong>
@@ -363,20 +406,20 @@ export function VoiceStage({
               </button>
               <button
                 onClick={() => {
-                  setStageViewMode('spotlight')
+                  setStageViewMode('theater')
                   if (!spotlightScreenId && screenShares.length > 0) {
                     setSpotlightScreenId(screenShares[0].identity)
                   }
                 }}
                 className={`px-3 py-1 rounded-lg text-xs font-bold transition flex items-center gap-1.5 ${
-                  stageViewMode === 'spotlight'
+                  stageViewMode === 'theater'
                     ? 'bg-white text-black!'
                     : 'text-neutral-300 hover:text-white'
                 }`}
-                title="Focar em uma tela única"
+                title="Modo Teatro (tela dedicada sem bordas)"
               >
-                <ControlIcon name="expand"/>
-                <span>Modo Foco</span>
+                <ControlIcon name="screen" size={13}/>
+                <span>Modo Teatro</span>
               </button>
             </div>
           )}
@@ -417,7 +460,7 @@ export function VoiceStage({
       </header>
 
       {/* Área Central: Grade Multi-Telas / Transmissão em Foco / Grade de Usuários */}
-      <div className="ct-voice-content flex-1 overflow-hidden flex flex-col justify-center min-h-0">
+      <div className={`ct-voice-content flex-1 overflow-hidden flex flex-col min-h-0 w-full h-full ${screenShares.length > 0 ? 'p-0! m-0! justify-stretch' : 'justify-center'}`}>
         {connectionStatus === 'connecting' ? (
           <div className="text-center text-neutral-300/70 space-y-3 m-auto">
             <ControlIcon name="audio" size={28}/>
@@ -444,7 +487,7 @@ export function VoiceStage({
             <p className="text-white font-medium">Você está na sala!</p>
             <p className="text-xs text-neutral-400/60">Aguardando outros participantes entrarem...</p>
           </div>
-        ) : stageViewMode === 'grid' && screenShares.length > 0 ? (
+        ) : stageViewMode === 'grid' && screenShares.length > 1 ? (
           /* ═══════════════════════════════════════════════════════════════════ */
           /* MODO GRADE: TRANSMISSÕES DE TELA LADO A LADO                       */
           /* ═══════════════════════════════════════════════════════════════════ */
@@ -460,27 +503,45 @@ export function VoiceStage({
                     onFullscreen={() => void openFullscreen(p.identity)}
                     onFocus={() => {
                       setSpotlightScreenId(p.identity)
-                      setStageViewMode('spotlight')
+                      setStageViewMode('theater')
                     }}
                     isSpotlight={false}
+                    objectFit={objectFit}
+                    onToggleObjectFit={() => setObjectFit(fit => fit === 'contain' ? 'cover' : 'contain')}
                   />
                 </div>
               ))}
             </div>
           </div>
-        ) : screenShares.length > 0 && stageViewMode === 'spotlight' && focusedScreen ? (
+        ) : screenShares.length > 0 && focusedScreen ? (
           /* ═══════════════════════════════════════════════════════════════════ */
-          /* MODO FOCO (SPOTLIGHT EM UMA TELA ESPECÍFICA)                        */
+          /* MODO TEATRO PADRÃO: TRANSMISSÃO OCUPANDO TODO O ESPAÇO SEM BORDAS  */
           /* ═══════════════════════════════════════════════════════════════════ */
-          <div className="flex-1 flex flex-col gap-3 min-h-0 w-full max-w-6xl mx-auto h-full">
+          <div className="ct-theater-stage flex-1 flex flex-col min-h-0 w-full h-full relative overflow-hidden select-none bg-black">
             <ScreenShareViewer
               participant={focusedScreen}
               onFullscreen={() => void openFullscreen(focusedScreen.identity)}
-              onMinimize={() => setStageViewMode('grid')}
+              onMinimize={screenShares.length > 1 ? () => setStageViewMode('grid') : undefined}
               isSpotlight={true}
+              isTheater={true}
+              objectFit={objectFit}
+              onToggleObjectFit={() => setObjectFit(fit => fit === 'contain' ? 'cover' : 'contain')}
             />
-
-
+            {screenShares.length > 1 && (
+              <div className="ct-theater-thumbs">
+                {screenShares.map(p => (
+                  <button
+                    key={p.identity}
+                    className={`ct-theater-thumb ${p.identity === focusedScreen.identity ? 'active' : ''}`}
+                    onClick={() => setSpotlightScreenId(p.identity)}
+                    title={`Assistir transmissão de ${voiceName(p)}`}
+                  >
+                    <VideoTrackView track={p.screenTrack!} isLocal={p.isLocal} className="w-full h-full object-cover" />
+                    <span>{voiceName(p)}</span>
+                  </button>
+                ))}
+              </div>
+            )}
           </div>
         ) : pinnedParticipant ? (
           /* ═══════════════════════════════════════════════════════════════════ */
@@ -496,7 +557,7 @@ export function VoiceStage({
                 onMaximize={() => setPinnedParticipantId(null)}
                 onViewScreen={() => {
                   setSpotlightScreenId(pinnedParticipant.identity)
-                  setStageViewMode('spotlight')
+                    setStageViewMode('theater')
                 }}
               />
             </div>
@@ -551,7 +612,7 @@ export function VoiceStage({
                   onMaximize={() => setPinnedParticipantId(p.identity)}
                   onViewScreen={() => {
                     setSpotlightScreenId(p.identity)
-                    setStageViewMode('spotlight')
+                    setStageViewMode('theater')
                   }}
                 />
               ))}
