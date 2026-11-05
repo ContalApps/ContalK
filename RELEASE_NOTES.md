@@ -1,3 +1,23 @@
+# ConTALK 0.1.40
+
+Conexão WebRTC LAN Robusta (STUN Nativo), Busca Remota e Direta de Amigos na Comunidade e Login Social Oficial (Google, Instagram e LinkedIn).
+
+- **Conexão WebRTC na Mesma Rede Local (LAN / Wi-Fi):**
+  - Injeção de servidores STUN padrão de alta disponibilidade (`stun.l.google.com:19302`, `stun1.l.google.com:19302`, `stun.cloudflare.com:3478`) no backend Mediasoup (`scripts/community/realtime.mjs`) e como fallback automático no cliente (`src/media/realtime.ts`).
+  - Dispositivos na mesma rede residencial ou comercial (notebook e PC atrás do mesmo roteador NAT/CGNAT) agora geram candidatos `srflx` e fecham canais ICE com a SFU sem bloqueios.
+  - Alertas claros em português ao usuário quando a mesma conta tentar entrar na mesma sala em dois computadores simultaneamente (*session replaced*), orientando cada amigo a utilizar sua própria conta.
+- **Busca e Adição de Amigos na Comunidade:**
+  - Novo mecanismo de busca de contas no servidor (`accounts.search`) e rotas `GET /users/search?q=...` e `GET /users/:username` no serviço da comunidade.
+  - Bridge segura IPC no Electron (`communitySearchUsers`) conectando a busca da comunidade diretamente ao aplicativo.
+  - Nova aba "Adicionar amigo" reformulada em `src/components/HomeView.tsx` com formulário para envio de pedido por `@username` exato e pesquisa em tempo real de qualquer usuário registrado no ConTALK.
+  - Feedback visual imediato com alertas estilizados para confirmação de envio, avisos de amizade existente e prevenção de auto-adicionar.
+- **Login e Criação Oficial com Redes Sociais:**
+  - Janela nativa modal de autenticação oficial (`auth-social-popup`) no Electron com User-Agent Chrome autêntico para Google, Instagram e LinkedIn.
+  - Sincronização automática com a comunidade (`syncSocialCommunityAccount`), gerando credenciais seguras e sessão oficial criptografada (`community-<hash>.enc`).
+  - Eliminação de qualquer mock ou conta local fictícia; as contas sociais agora possuem acesso integral e imediato a voz, canais e servidores.
+
+Validação: tipos verificados sem erros (`npm run typecheck`), 284 testes unitários e de integração aprovados (`npm test`) e build de produção Vite e Electron concluídos com sucesso.
+
 # ConTALK 0.1.39
 
 Acessibilidade de Configurações da Comunidade, Silêncio Absoluto em Canais de Voz (Zero Chiado) e Refinamento Visual com a Skill Unslop.
