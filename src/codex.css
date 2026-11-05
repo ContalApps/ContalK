@@ -1745,3 +1745,148 @@ select option:hover, select option:focus, select option:checked {
 *:not([class*="pulse"]):not([class*="shimmer"]):not([class*="spin"]):not([class*="live"]):not(.ring-green-500) {
   animation-duration: 0s !important;
 }
+
+
+/* Modo Teatro para Transmissão de Tela (Zero bordas, 100% do espaço dedicado) */
+.ct-voice-stage.ct-theater-active > .ct-voice-toolbar,
+.ct-voice-stage[data-sharing-count='1'] > .ct-voice-toolbar {
+  display: none !important;
+}
+
+.ct-voice-stage.ct-theater-active,
+.ct-voice-stage.has-screenshare {
+  background: #000000 !important;
+}
+
+.ct-voice-stage.ct-theater-active > .ct-voice-content,
+.ct-voice-stage.has-screenshare > .ct-voice-content,
+.ct-voice-stage[data-sharing-count]:not([data-sharing-count='0']) > .ct-voice-content {
+  padding: 0 !important;
+  margin: 0 !important;
+  width: 100% !important;
+  height: 100% !important;
+  background: #000000 !important;
+  overflow: hidden !important;
+  display: flex !important;
+  flex-direction: column !important;
+  justify-content: stretch !important;
+  align-items: stretch !important;
+}
+
+.ct-stage:has(.has-screenshare),
+.ct-stage:has(.ct-theater-active),
+.ct-stage:has([data-sharing-count]:not([data-sharing-count='0'])) {
+  background: #000000 !important;
+  padding: 0 !important;
+  margin: 0 !important;
+}
+
+.ct-theater-stage {
+  width: 100% !important;
+  height: 100% !important;
+  flex: 1 1 0% !important;
+  min-width: 0 !important;
+  min-height: 0 !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+  background: #000000 !important;
+  position: relative !important;
+  display: flex !important;
+  flex-direction: column !important;
+}
+
+.ct-theater-view {
+  width: 100% !important;
+  height: 100% !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+  background: #000000 !important;
+  box-shadow: none !important;
+}
+
+.ct-theater-view .ct-share-video {
+  width: 100% !important;
+  height: 100% !important;
+  background: #000000 !important;
+}
+
+.ct-share-video.object-cover {
+  object-fit: cover !important;
+}
+.ct-share-video.object-contain {
+  object-fit: contain !important;
+}
+
+.ct-theater-view .ct-share-header {
+  top: 14px;
+  left: 16px;
+  right: 16px;
+  opacity: 0;
+  transition: opacity 0.2s ease;
+}
+
+.ct-theater-view:hover .ct-share-header,
+.ct-theater-view:focus-within .ct-share-header {
+  opacity: 1;
+}
+
+.ct-theater-thumbs {
+  position: absolute;
+  bottom: 14px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  gap: 8px;
+  z-index: 10;
+  padding: 6px 8px;
+  background: rgba(12, 12, 12, 0.88);
+  backdrop-filter: blur(10px);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 12px;
+  max-width: calc(100% - 32px);
+  overflow-x: auto;
+}
+
+.ct-theater-thumb {
+  position: relative;
+  width: 96px;
+  height: 54px;
+  border-radius: 8px;
+  overflow: hidden;
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  background: #111111;
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: transform 0.15s ease, border-color 0.15s ease;
+  padding: 0;
+}
+
+.ct-theater-thumb:hover {
+  transform: scale(1.04);
+  border-color: rgba(255, 255, 255, 0.5);
+}
+
+.ct-theater-thumb.active {
+  border-color: #ffffff;
+  box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.35);
+}
+
+.ct-theater-thumb span {
+  position: absolute;
+  bottom: 2px;
+  left: 3px;
+  right: 3px;
+  font-size: 9px;
+  color: #fff;
+  background: rgba(0, 0, 0, 0.75);
+  border-radius: 3px;
+  padding: 1px 4px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  pointer-events: none;
+}
