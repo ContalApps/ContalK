@@ -1,3 +1,26 @@
+# ConTALK 0.1.41
+
+Modo Teatro Padrão na Transmissão de Tela (100% da Área Dedicada sem Bordas) e Controle Flexível de Proporção.
+
+- **Modo Teatro Padrão em Transmissões de Tela:**
+  - O Modo Teatro agora é o comportamento padrão ao visualizar compartilhamentos de tela no ConTALK.
+  - Eliminação de restrições de largura fixa (`max-w-6xl` de 1152px) e margens centralizadas que causavam faixas vazias ao redor da transmissão.
+  - O palco de transmissão (`ct-theater-stage` / `ct-theater-view`) ocupa 100% da largura e altura dedicadas da janela (do cabeçalho do canal até a base da interface).
+  - Preenchimento externo (`padding`) e espaçamentos removidos em transmissões ativas, eliminando bordas em qualquer resolução ou estado das barras laterais.
+  - Fundo em preto absoluto (`#000000`) para integração visual contínua sem cartões ou molduras cinzas.
+- **Adaptação Total a Formatos Horizontais e Verticais:**
+  - Transmissões de desktop/widescreen (16:9) expandem-se por toda a extensão horizontal do palco sem compressão em caixas menores.
+  - Transmissões verticais (smartphones / vídeos 9:16) aproveitam 100% da altura vertical da área de trabalho, encostando exatamente abaixo do cabeçalho do canal e no rodapé da janela.
+- **Novo Controle de Visualização "Ajustar / Preencher":**
+  - Botão interativo no overlay de ferramentas da transmissão permitindo alternar dinamicamente entre:
+    - *Ajustar (`contain`):* Exibe a transmissão na sua proporção nativa sem nenhum corte.
+    - *Preencher (`cover`):* Preenche toda a área útil sem barras pretas.
+- **Barra Flutuante de Múltiplas Transmissões e Interface Limpa:**
+  - Controles e cabeçalhos flutuantes com esmaecimento automático suave no hover para visualização limpa e desobstruída.
+  - Quando há mais de uma pessoa transmitindo na sala, miniaturas flutuantes na base do palco permitem trocar o foco imediatamente ou alternar para o Modo Grade.
+
+Validação: tipos verificados sem erros (`npm run typecheck`), 284 testes unitários e de integração aprovados (`npm test`) e build de produção Vite e Electron concluídos com sucesso.
+
 # ConTALK 0.1.40
 
 Conexão WebRTC LAN Robusta (STUN Nativo), Busca Remota e Direta de Amigos na Comunidade e Login Social Oficial (Google, Instagram e LinkedIn).

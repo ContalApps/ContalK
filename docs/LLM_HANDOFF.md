@@ -1,5 +1,28 @@
 # Retomada do ConTALK
 
+## Entrega 0.1.41: Modo Teatro Padrão na Transmissão de Tela e Zero Bordas
+
+Em `dev/caliari`, foram implementadas as seguintes soluções e melhorias:
+- **Modo Teatro Padrão em Transmissões de Tela:**
+  - O Modo Teatro agora é o comportamento padrão ao assistir compartilhamentos de tela no ConTALK (`VoiceStage.tsx`).
+  - Removidas restrições artificiais de largura (`max-w-6xl` de 1152px) e margens centralizadas que aprisionavam a transmissão em um card reduzido.
+  - O palco de transmissão (`ct-theater-stage` / `ct-theater-view`) ocupa 100% da largura e altura dedicadas da janela (do cabeçalho do canal até a base da janela).
+  - Preenchimento externo (`padding: 16px/20px`) do container central é zerado em transmissões ativas, eliminando bordas em volta da tela compartilhada.
+  - O fundo é preenchido em preto absoluto (`#000000`), integrando perfeitamente o enquadramento de vídeo sem molduras ou cartões cinzas.
+- **Adaptação Total a Formatos Horizontais e Verticais:**
+  - Transmissões de desktop/widescreen (16:9) expandem-se por toda a extensão horizontal do palco sem compressão em caixas menores.
+  - Transmissões verticais (smartphones / vídeos 9:16) aproveitam 100% da altura vertical da área de trabalho, encostando exatamente abaixo do cabeçalho do canal e no rodapé da janela.
+- **Novo Controle de Visualização "Ajustar / Preencher":**
+  - Botão interativo no overlay de ferramentas da transmissão permitindo alternar dinamicamente entre:
+    - *Ajustar (`contain`):* Exibe a transmissão na sua proporção nativa sem nenhum corte.
+    - *Preencher (`cover`):* Preenche toda a área útil sem barras pretas.
+- **Barra Flutuante de Múltiplas Transmissões e Interface Limpa:**
+  - Controles e cabeçalhos flutuantes com esmaecimento automático suave no hover para visualização limpa e desobstruída.
+  - Quando há mais de uma pessoa transmitindo na sala, miniaturas flutuantes na base do palco permitem trocar o foco imediatamente ou alternar para o Modo Grade.
+- **Validação e Entrega:**
+  - Tipos TypeScript verificados sem erros (`npm run typecheck`), 284 testes unitários e de integração aprovados (`npm test`), build Vite e Electron concluídos com sucesso.
+  - PR integrado na `main`, tag `v0.1.41` criada e enviada, release publicada no GitHub com instalador Windows, blockmap e latest.yml, verificada como pública e Latest.
+
 ## Entrega 0.1.40: Conexão WebRTC LAN (STUN Nativo), Busca Remota de Amigos e Login Social Real
 
 Em `dev/caliari`, foram implementadas as seguintes soluções e melhorias:
