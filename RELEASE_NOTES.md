@@ -1,3 +1,8 @@
+# ConTALK 0.1.44
+
+- No **Modo Grade**, as transmissões começam fechadas e sem som. Use **Assistir** para abrir a imagem e o áudio de um card e **Fechar** para parar de assistir àquela transmissão.
+- Transmissões que começam depois também entram fechadas na grade. O controle é individual para cada espectador.
+
 # ConTALK 0.1.43
 
 - O compartilhamento de tela no Windows ganhou o modo **Todos os aplicativos**. Ele transmite o som de vários aplicativos ao mesmo tempo, mesmo quando a imagem vem de uma única janela.

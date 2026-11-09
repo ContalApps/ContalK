@@ -35,7 +35,8 @@ export function RightPanel({ onOpenChannel, members }: { onOpenChannel: (id: str
                 title={`Abrir a tela de ${p.serverNickname || p.name}`}
               >
                 <span className="ct-rp-thumb">
-                  <VideoTrackView track={p.screenTrack!} isLocal={p.isLocal} className="ct-rp-video" />
+                  {(!voice.gridScreenTracks || voice.gridScreenTracks.has(p.screenTrack!)) &&
+                    <VideoTrackView track={p.screenTrack!} isLocal={p.isLocal} className="ct-rp-video" />}
                   <span className="ct-live-badge">AO VIVO</span>
                 </span>
                 <strong>{p.isLocal ? 'Você' : p.serverNickname || p.name}</strong>

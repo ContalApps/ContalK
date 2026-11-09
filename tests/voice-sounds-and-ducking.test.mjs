@@ -169,3 +169,56 @@ test('priority ducking only lowers microphone volume while a priority speaker is
 
   await store.getState().leaveChannel()
 })
+
+test('grid playback gates each stream audio across volume changes and new publications', async () => {
+  const { store, rooms } = fixture()
+  await store.getState().joinChannel('voice-1', 'Voice 1', user)
+  const room = rooms[0]
+  const audioTrack = () => ({
+    kind: 'audio',
+    gain: 1,
+    setVolume(value) { this.gain = value },
+    attach() { assert.equal(this.gain, 0); return {} },
+  })
+  const addPeer = identity => {
+    const screen = { detach: () => [] }
+    const audio = audioTrack()
+    const mic = audioTrack()
+    const audioPublication = { source: 'screen-audio', audioTrack: audio }
+    const peer = {
+      identity,
+      isScreenShareEnabled: true,
+      screen,
+      audioTrackPublications: new Map([['stream', audioPublication], ['mic', { source: 'microphone', audioTrack: mic }]]),
+      getTrackPublication(source) { return source === 'screen' && this.screen ? { track: this.screen } : undefined },
+    }
+    room.remoteParticipants.set(identity, peer)
+    return { peer, screen, audio, mic, audioPublication }
+  }
+  const alice = addPeer('alice')
+  const bob = addPeer('bob')
+
+  store.getState().setGridScreenTracks(new Set())
+  assert.deepEqual([alice.audio.gain, bob.audio.gain, alice.mic.gain], [0, 0, 1])
+  store.getState().setGridScreenTracks(new Set([alice.screen]))
+  assert.deepEqual([alice.audio.gain, bob.audio.gain], [1, 0])
+  store.getState().setStreamVolume('bob', 150)
+  room.emit('ServerModerationChanged')
+  assert.equal(bob.audio.gain, 0)
+
+  const carol = addPeer('carol')
+  room.emit('TrackSubscribed', carol.audio, carol.audioPublication, carol.peer)
+  assert.equal(carol.audio.gain, 0)
+  alice.peer.screen = null
+  room.emit('TrackUnsubscribed', alice.screen)
+  assert.equal(alice.audio.gain, 0)
+  assert.equal(store.getState().gridScreenTracks.size, 0)
+
+  store.getState().setGridScreenTracks(new Set([bob.screen]))
+  assert.deepEqual([alice.audio.gain, bob.audio.gain, carol.audio.gain], [0, 1.5, 0])
+  store.getState().setGridScreenTracks(new Set())
+  assert.equal(bob.audio.gain, 0)
+  store.getState().setGridScreenTracks(null)
+  assert.deepEqual([bob.audio.gain, carol.audio.gain], [1.5, 1])
+  await store.getState().leaveChannel()
+})
