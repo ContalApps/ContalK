@@ -6,6 +6,7 @@ function fixture({ audioFailure = false, publicationFailure = false } = {}) {
   const tracks = ['video', 'audio'].map(kind => ({ kind, stopped: false, onended: null, stop() { this.stopped = true } }))
   const stream = { getTracks: () => [tracks[0]], getVideoTracks: () => [tracks[0]], getAudioTracks: () => [] }
   let audioStopped = false
+  let audioMode
   let captureConstraints
   let failed
   const source = { id: 'window:123:0', source_type: 'window', width: 1920, height: 1080 }
@@ -22,9 +23,9 @@ function fixture({ audioFailure = false, publicationFailure = false } = {}) {
   }
   const api = loadTypescript('src/media/screenShare.ts', {
     './realtime': { Track: { Source: { ScreenShare: 'screen', ScreenShareAudio: 'screen-audio' } }, AudioPresets: { musicStereo: {} } },
-    './isolatedAudio': { captureIsolatedAudio: async (_id, onError) => { failed = onError; if (audioFailure) throw new Error('Isolated audio unavailable'); return { track: tracks[1], stop: async () => { audioStopped = true; tracks[1].stop() } } } },
+    './isolatedAudio': { captureIsolatedAudio: async (_id, onError, mode = 'isolated') => { failed = onError; audioMode = mode; if (audioFailure) throw new Error('Isolated audio unavailable'); return { track: tracks[1], stop: async () => { audioStopped = true; tracks[1].stop() } } } },
   }, { window: { contalkDesktop: {} }, navigator: { mediaDevices: { getUserMedia: async constraints => { captureConstraints = constraints; return stream } } } })
-  return { ...api, room, source, tracks, get audioStopped() { return audioStopped }, get constraints() { return captureConstraints }, fail: message => failed(message) }
+  return { ...api, room, source, tracks, get audioMode() { return audioMode }, get audioStopped() { return audioStopped }, get constraints() { return captureConstraints }, fail: message => failed(message) }
 }
 const options = { audio: true, resolution: '1080', fps: 30 }
 test('desktop video never requests system audio; stopping removes both publications', async () => {
@@ -32,12 +33,22 @@ test('desktop video never requests system audio; stopping removes both publicati
   let ended = 0
   await f.startScreenShare(f.room, f.source, options, () => ended++, () => {})
   assert.equal(f.constraints.audio, false)
+  assert.equal(f.audioMode, 'isolated')
   assert.equal(f.room.localParticipant.trackPublications.size, 2)
   await f.stopScreenShare(f.room)
   assert.ok(f.audioStopped)
   assert.ok(f.tracks.every(track => track.stopped))
   assert.equal(f.room.localParticipant.trackPublications.size, 0)
   assert.equal(ended, 0)
+})
+test('all-app audio is opt-in and uses the native audio track independently of the shared window', async () => {
+  const f = fixture()
+  await f.startScreenShare(f.room, f.source, { ...options, audioMode: 'all-apps' }, () => {}, () => {})
+  assert.equal(f.constraints.audio, false)
+  assert.equal(f.audioMode, 'all-apps')
+  assert.equal(f.room.localParticipant.trackPublications.get('audio').source, 'screen-audio')
+  await f.stopScreenShare(f.room)
+  assert.ok(f.audioStopped)
 })
 test('isolated audio failure aborts without a system-audio fallback', async () => {
   const f = fixture({ audioFailure: true })

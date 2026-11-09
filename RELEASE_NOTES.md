@@ -1,3 +1,8 @@
+# ConTALK 0.1.43
+
+- O compartilhamento de tela no Windows ganhou o modo **Todos os aplicativos**. Ele transmite o som de vários aplicativos ao mesmo tempo, mesmo quando a imagem vem de uma única janela.
+- O modo exclui o áudio do ConTALK e pode incluir notificações e som de outros monitores. A captura por aplicativo ou tela continua sendo a opção padrão.
+
 # ConTALK 0.1.42
 
 - Administradores podem definir de 1 a 16 vagas por canal de voz na aba **Visão geral** das configurações do canal. O padrão é 8.

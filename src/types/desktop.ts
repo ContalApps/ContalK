@@ -30,6 +30,8 @@ export interface LinkPreviewData {
   siteName?: string
   favicon?: string
 }
+export type CaptureAudioMode = 'isolated' | 'all-apps'
+
 export interface DesktopBridge {
   fetchLinkPreview?: (url: string) => Promise<LinkPreviewData | null>
   getStorageFileUrl?: (id: string) => Promise<string>
@@ -106,7 +108,7 @@ export interface DesktopBridge {
   downloadUpdate: () => Promise<void>
   installUpdate: () => Promise<void>
   onUpdateState: (listener: (state: UpdateState) => void) => () => void
-  startCaptureAudio: (sourceId: string) => Promise<{ sessionId: string; sampleRate: number; channels: number }>
+  startCaptureAudio: (sourceId: string, mode?: CaptureAudioMode) => Promise<{ sessionId: string; sampleRate: number; channels: number }>
   stopCaptureAudio: (sessionId: string) => Promise<void>
   onCaptureAudioData: (listener: (event: { sessionId: string; data: Uint8Array }) => void) => () => void
   onCaptureAudioError: (listener: (event: { sessionId: string; error: string }) => void) => () => void

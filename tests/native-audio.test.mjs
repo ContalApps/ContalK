@@ -3,9 +3,12 @@ import { spawn } from 'node:child_process'
 import { existsSync } from 'node:fs'
 import { test } from 'node:test'
 
-test('Windows isolated loopback helper initializes and streams aligned stereo PCM', { skip: process.platform !== 'win32' || !existsSync('native/bin/contalk-audio.exe'), timeout: 12000 }, async () => {
+for (const [mode, args] of [
+  ['isolated', ['--probe', String(process.pid)]],
+  ['all apps with an excluded process', ['--all-apps', '--exclude', String(process.pid)]],
+]) test(`Windows loopback helper streams aligned stereo PCM for ${mode}`, { skip: process.platform !== 'win32' || !existsSync('native/bin/contalk-audio.exe'), timeout: 12000 }, async () => {
   await new Promise((resolve, reject) => {
-    const child = spawn('native/bin/contalk-audio.exe', ['--probe', String(process.pid)], { windowsHide: true })
+    const child = spawn('native/bin/contalk-audio.exe', args, { windowsHide: true })
     let ready = false
     let bytes = 0
     let diagnostics = ''

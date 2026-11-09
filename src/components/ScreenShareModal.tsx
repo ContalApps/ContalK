@@ -1,5 +1,7 @@
 import { ControlIcon } from './ControlIcon'
 import { useEffect, useState } from 'react'
+import type { ShareOptions } from '../media/screenShare'
+import type { CaptureAudioMode } from '../types/desktop'
 
 export interface CaptureSource {
   id: string
@@ -16,7 +18,7 @@ export interface CaptureSource {
 interface ScreenShareModalProps {
   isOpen: boolean
   onClose: () => void
-  onStartShare: (source: CaptureSource | null, options: { audio: boolean; fps: number; resolution: string }) => Promise<void>
+  onStartShare: (source: CaptureSource | null, options: ShareOptions) => Promise<void>
 }
 
 export function ScreenShareModal({ isOpen, onClose, onStartShare }: ScreenShareModalProps) {
@@ -26,7 +28,7 @@ export function ScreenShareModal({ isOpen, onClose, onStartShare }: ScreenShareM
   const [isLoading, setIsLoading] = useState(true)
 
   // Opções de áudio e qualidade
-  const [shareAudio, setShareAudio] = useState(true)
+  const [audioMode, setAudioMode] = useState<CaptureAudioMode | 'off'>('isolated')
   const [fps, setFps] = useState<number>(30)
   const [resolution, setResolution] = useState<'720' | '1080' | 'source'>('1080')
   const [isStarting, setIsStarting] = useState(false)
@@ -41,6 +43,7 @@ export function ScreenShareModal({ isOpen, onClose, onStartShare }: ScreenShareM
     setStartError(null)
     setActiveTab('screens')
     setSelectedSource(null)
+    setAudioMode(mode => mode === 'all-apps' ? 'isolated' : mode)
 
     const fetchSources = async () => {
       try {
@@ -110,7 +113,8 @@ export function ScreenShareModal({ isOpen, onClose, onStartShare }: ScreenShareM
     setStartError(null)
     try {
       await onStartShare(selectedSource, {
-        audio: shareAudio,
+        audio: audioMode !== 'off',
+        audioMode: audioMode === 'off' ? undefined : audioMode,
         fps,
         resolution,
       })
@@ -245,21 +249,26 @@ export function ScreenShareModal({ isOpen, onClose, onStartShare }: ScreenShareM
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
-              <label className="flex items-center gap-2.5 p-2 rounded-xl bg-[#151515] border border-neutral-900/30 cursor-pointer hover:border-neutral-500/40 transition-colors">
-                <input
-                  type="checkbox"
-                  checked={shareAudio}
-                  onChange={(e) => setShareAudio(e.target.checked)}
-                  className="rounded accent-neutral-500 w-4 h-4 cursor-pointer"
-                />
-                <div className="min-w-0">
-                  <span className="font-semibold text-white block">{selectedSource?.source_type === 'monitor' ? 'Áudio dos programas desta tela' : 'Áudio do aplicativo'}</span>
-                  <span className="text-[10px] text-neutral-300/60 block">Captura isolada, sem o áudio do ConTALK</span>
-                </div>
+              <label className="flex flex-col gap-1.5 p-2 rounded-xl bg-[#151515] border border-neutral-900/40">
+                <span className="font-semibold text-white">Áudio da transmissão</span>
+                <select
+                  value={audioMode}
+                  onChange={event => setAudioMode(event.target.value as typeof audioMode)}
+                  disabled={isStarting}
+                  className="min-w-0 rounded-md bg-[#212121] px-2 py-1.5 text-white"
+                >
+                  <option value="off">Sem áudio</option>
+                  <option value="isolated">{useBrowserPicker ? 'Áudio da aba' : selectedSource?.source_type === 'monitor' ? 'Aplicativos desta tela' : 'Aplicativo selecionado'}</option>
+                  {!useBrowserPicker && <option value="all-apps">Todos os aplicativos</option>}
+                </select>
               </label>
 
               <div className="p-2 rounded-xl bg-[#151515] border border-neutral-900/30 text-[10px] text-neutral-200/80 leading-relaxed">
-                O áudio é separado por aplicativo. Janelas e abas que usam o mesmo processo podem compartilhar áudio entre si, mesmo em monitores diferentes. Para isolar o YouTube, compartilhe a aba pelo navegador.
+                {audioMode === 'all-apps'
+                  ? 'Inclui notificações e som de outros monitores. O áudio do ConTALK fica de fora.'
+                  : audioMode === 'isolated' && (useBrowserPicker
+                    ? 'Escolha uma aba com áudio no seletor do navegador.'
+                    : 'O áudio é capturado por aplicativo. Janelas e abas que usam o mesmo processo podem compartilhar áudio entre si.')}
               </div>
             </div>
 

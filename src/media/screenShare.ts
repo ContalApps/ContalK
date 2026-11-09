@@ -1,7 +1,8 @@
 import { Room, Track, AudioPresets } from './realtime'
 import { captureIsolatedAudio, type IsolatedAudio } from './isolatedAudio'
+import type { CaptureAudioMode } from '../types/desktop'
 
-export interface ShareOptions { audio: boolean; fps: number; resolution: string }
+export interface ShareOptions { audio: boolean; audioMode?: CaptureAudioMode; fps: number; resolution: string }
 export interface ShareSource { id: string; source_type: 'monitor' | 'window'; width: number; height: number }
 let active: { room: Room; stream: MediaStream; isolated?: IsolatedAudio } | null = null
 let busy = false
@@ -36,7 +37,7 @@ export async function startScreenShare(room: Room, source: ShareSource | null, o
         audio: false,
         video: { mandatory: { chromeMediaSource: 'desktop', chromeMediaSourceId: source.id, ...(options.resolution === 'source' ? {} : { maxWidth: width, maxHeight: height }), maxFrameRate: fps } } as MediaTrackConstraints,
       })
-      if (options.audio) isolated = await captureIsolatedAudio(source.id, failed)
+      if (options.audio) isolated = await captureIsolatedAudio(source.id, failed, options.audioMode)
     } else {
       // Browser picker may supply tab audio, but never request the system mix.
       stream = await navigator.mediaDevices.getDisplayMedia({

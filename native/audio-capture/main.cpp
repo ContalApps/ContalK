@@ -49,11 +49,13 @@ class Capture {
     std::deque<float> samples;
 public:
     bool failed = false;
-    HRESULT start(DWORD pid) {
+    HRESULT start(DWORD pid, bool excludeTarget = false) {
         AUDIOCLIENT_ACTIVATION_PARAMS activation{};
         activation.ActivationType = AUDIOCLIENT_ACTIVATION_TYPE_PROCESS_LOOPBACK;
         activation.ProcessLoopbackParams.TargetProcessId = pid;
-        activation.ProcessLoopbackParams.ProcessLoopbackMode = PROCESS_LOOPBACK_MODE_INCLUDE_TARGET_PROCESS_TREE;
+        activation.ProcessLoopbackParams.ProcessLoopbackMode = excludeTarget
+            ? PROCESS_LOOPBACK_MODE_EXCLUDE_TARGET_PROCESS_TREE
+            : PROCESS_LOOPBACK_MODE_INCLUDE_TARGET_PROCESS_TREE;
         PROPVARIANT params{};
         params.vt = VT_BLOB;
         params.blob.cbSize = sizeof(activation);
@@ -108,6 +110,7 @@ struct Selection {
     HWND window = nullptr;
     RECT monitor{};
     bool isMonitor = false;
+    bool allApps = false;
     DWORD excluded = 0;
     DWORD probe = 0;
     std::set<DWORD> pids;
@@ -138,6 +141,7 @@ struct Selection {
         if (pid && !belongsTo(pid, excluded) && !belongsTo(excluded, pid)) pids.insert(pid);
     }
     std::set<DWORD> refresh() {
+        if (allApps) return {excluded};
         parents.clear(); pids.clear();
         HANDLE snapshot = CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0);
         PROCESSENTRY32 entry{}; entry.dwSize = sizeof(entry);
@@ -158,6 +162,11 @@ struct Selection {
 int wmain(int argc, wchar_t** argv) {
     Selection selection;
     if (argc == 3 && wcscmp(argv[1], L"--probe") == 0) selection.probe = wcstoul(argv[2], nullptr, 10);
+    else if (argc == 4 && wcscmp(argv[1], L"--all-apps") == 0 && wcscmp(argv[2], L"--exclude") == 0) {
+        selection.excluded = wcstoul(argv[3], nullptr, 10);
+        if (!selection.excluded) { fprintf(stderr,"{\"error\":\"Processo de audio invalido.\"}\n"); return 1; }
+        selection.allApps = true;
+    }
     else if (argc == 5 && wcscmp(argv[1], L"--window") == 0 && wcscmp(argv[3], L"--exclude") == 0) {
         selection.window = reinterpret_cast<HWND>(static_cast<uintptr_t>(_wcstoui64(argv[2], nullptr, 10)));
         selection.excluded = wcstoul(argv[4], nullptr, 10);
@@ -182,9 +191,9 @@ int wmain(int argc, wchar_t** argv) {
         for (DWORD pid : pids) {
             if (captures.count(pid)) continue;
             auto capture = std::make_unique<Capture>();
-            hr = capture->start(pid);
+            hr = capture->start(pid, selection.allApps);
             if (FAILED(hr)) {
-                fprintf(stderr,"{\"error\":\"Falha na captura isolada de audio. E necessario Windows 10 build 20348 ou Windows 11. Nenhum audio geral foi capturado.\",\"code\":%ld}\n", static_cast<long>(hr));
+                fprintf(stderr,"{\"error\":\"Falha na captura de audio. E necessario Windows 10 build 20348 ou Windows 11.\",\"code\":%ld}\n", static_cast<long>(hr));
                 return false;
             }
             captures[pid] = std::move(capture);
@@ -204,7 +213,7 @@ int wmain(int argc, wchar_t** argv) {
     std::vector<float> output(BlockFrames * Channels);
     float gain = 1.0f;
     while (true) {
-        if (!selection.isMonitor && !selection.probe && !IsWindow(selection.window)) break;
+        if (!selection.allApps && !selection.isMonitor && !selection.probe && !IsWindow(selection.window)) break;
         if (std::chrono::steady_clock::now() >= refreshAt) {
             if (!update()) return 2;
             refreshAt = std::chrono::steady_clock::now() + std::chrono::seconds(1);
