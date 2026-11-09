@@ -38,6 +38,7 @@ export type CommunityAction =
   | {type:'project-delete';id:string}
   | {type:'project-restore';id:string}
   | {type:'channel-voice-mode';channelId:string;mode:'conversation'|'stage'}
+  | {type:'channel-voice-capacity';channelId:string;capacity:number}
   | {type:'stage-request';channelId:string;enabled:boolean}
   | {type:'stage-invite'|'stage-decline'|'stage-audience';channelId:string;member:string}
   | {type:'stage-accept'|'stage-join';channelId:string}

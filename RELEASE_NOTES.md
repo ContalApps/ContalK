@@ -1,3 +1,9 @@
+# ConTALK 0.1.42
+
+- Administradores podem definir de 1 a 16 vagas por canal de voz na aba **Visão geral** das configurações do canal. O padrão é 8.
+- O limite vale para entradas e movimentações entre canais. Reduzir a capacidade mantém quem já está na chamada. Quando acabam as vagas, o aplicativo informa que o canal está cheio.
+- A presença online da comunidade deixou de usar o limite de quatro participantes dos canais de voz.
+
 # ConTALK 0.1.41
 
 Modo Teatro Padrão na Transmissão de Tela (100% da Área Dedicada sem Bordas) e Controle Flexível de Proporção.

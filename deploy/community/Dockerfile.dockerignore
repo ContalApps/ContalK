@@ -14,6 +14,7 @@ src/roles/**
 !src/roles/commands.ts
 !src/roles/invites.ts
 !src/roles/voice-moderation.ts
+!src/roles/voice-capacity.ts
 !src/roles/nicknames.ts
 !src/roles/chat.ts
 !src/roles/polls.ts

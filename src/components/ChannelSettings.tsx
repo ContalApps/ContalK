@@ -1,5 +1,6 @@
 import { ControlIcon } from './ControlIcon'
 import { VoiceModeSettings } from './VoiceModeSettings'
+import { VoiceCapacitySettings } from './VoiceCapacitySettings'
 import { WebhookManager } from './WebhookManager'
 import { VoiceStatusSettings } from './VoiceStatusSettings'
 import { can, threadArchived } from '../roles/permissions'
@@ -238,6 +239,7 @@ export function ChannelSettings({
 
             {channel.type === 'voice' && (
               <>
+                <VoiceCapacitySettings channelId={channel.id} serverId={channel.serverId} />
                 <VoiceModeSettings channelId={channel.id} />
                 <VoiceStatusSettings channelId={channel.id} />
               </>

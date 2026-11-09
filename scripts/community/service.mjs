@@ -12,6 +12,7 @@ import { EventEmitter } from 'node:events'
 import { createHash, randomUUID, randomBytes } from 'node:crypto'
 import fs from 'node:fs'
 import path from 'node:path'
+import packageInfo from '../../package.json' with { type: 'json' }
 import { applyRoleCommand } from '../../src/roles/commands.ts'
 import { can, canActOnMember, canMentionRole, initialPolicy, permissionsFor, readMask, threadArchived } from '../../src/roles/permissions.ts'
 import { validFileId, validInternalToken } from './files.mjs'
@@ -23,6 +24,7 @@ import { normalizePoll, pollOpen } from '../../src/roles/polls.ts'
 import { MAX_PINS, MAX_REACTIONS, normalizeReaction, slowmodeDeadline } from '../../src/roles/chat.ts'
 import { canSetNickname, normalizeNickname } from '../../src/roles/nicknames.ts'
 import { canModerateVoice } from '../../src/roles/voice-moderation.ts'
+import { MAX_VOICE_CAPACITY } from '../../src/roles/voice-capacity.ts'
 
 const identifier = value => typeof value === 'string' && /^[\w:-]{1,100}$/.test(value) && !['__proto__', 'constructor', 'prototype'].includes(value)
 const own = (object, key) => Object.prototype.hasOwnProperty.call(object, key)
@@ -420,6 +422,16 @@ export function createCommunityService({ tokens, storage, initialState, voice, f
           let status;try{status=normalizeVoiceStatus(action.status)}catch(error){throw new CommunityError(400,error.message)}
           channel.voiceStatus=status;channel.voiceStatusUpdatedAt=Math.max(Date.now(),(channel.voiceStatusUpdatedAt||0)+1)
           target=channel.id;event=action.type;reason=status?'Status: '+status:'Status removido';auditThread={parentId:channel.id,private:false};break
+        }
+        case 'channel-voice-capacity': {
+          requirePermission(server, actor, 'ADMINISTRATOR')
+          const channel = server.channels.find(channel => channel.id === action.channelId && channel.type === 'voice')
+          requireValue(channel, 'Canal de voz não encontrado.', 404)
+          requireValue(Number.isInteger(action.capacity) && action.capacity >= 1 && action.capacity <= MAX_VOICE_CAPACITY,
+            `Use um limite de 1 a ${MAX_VOICE_CAPACITY} participantes.`)
+          channel.voiceCapacity = action.capacity
+          target = channel.id; event = action.type; reason = `Limite de participantes: ${action.capacity}`
+          break
         }
         case 'server-edit':{
           requirePermission(server,actor,'MANAGE_GUILD')
@@ -907,7 +919,7 @@ export function createCommunityService({ tokens, storage, initialState, voice, f
       const authorization = request.headers.authorization || ''
       const token = authorization.startsWith('Bearer ') ? authorization.slice(7) : ''
       const url = new URL(request.url, 'http://localhost')
-      if(request.method==='GET'&&url.pathname==='/health'){json(response,200,{service:'ConTALK Community',status:'ok'});return}
+      if(request.method==='GET'&&url.pathname==='/health'){json(response,200,{service:'ConTALK Community',status:'ok',version:packageInfo.version});return}
       const landing=/^\/invite\/([a-f0-9]{48})$/.exec(url.pathname)
       if(request.method==='GET'&&landing){
         let name,status=200

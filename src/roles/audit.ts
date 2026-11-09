@@ -3,6 +3,7 @@ export const auditLabels:Record<string,string>={
   'expression-create':'Expressão criada','expression-edit':'Expressão renomeada','expression-delete':'Expressão excluída',
   'webhook-create':'Integração criada','webhook-edit':'Integração renomeada','webhook-rotate':'Chave de integração renovada','webhook-delete':'Integração excluída',
   'voice-status':'Status do canal de voz atualizado',
+  'channel-voice-capacity':'Limite de participantes do canal alterado',
   'event-create':'Evento agendado','event-edit':'Evento atualizado','event-status':'Estado do evento atualizado','event-delete':'Evento excluído',
   'thread-create':'Tópico criado','thread-edit':'Tópico atualizado','thread-delete':'Tópico excluído','thread-member-add':'Participante adicionado ao tópico','thread-member-remove':'Participante removido do tópico',
   'poll-close':'Enquete encerrada pelo autor',

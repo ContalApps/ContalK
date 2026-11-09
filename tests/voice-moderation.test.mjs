@@ -6,6 +6,7 @@ import { createCommunityService,createCommunityState } from '../scripts/communit
 import { createCommunityVoice,voicePermissions } from '../scripts/community/realtime.mjs'
 import { initialPolicy,mask } from '../src/roles/permissions.ts'
 import { canModerateVoice } from '../src/roles/voice-moderation.ts'
+import { MAX_VOICE_CAPACITY, VOICE_ROOM_FULL_CLOSE_CODE } from '../src/roles/voice-capacity.ts'
 
 const members=['alice','bob','carol','dan','eve','frank'],keys=Object.fromEntries(members.map((name,index)=>[name,String(index).repeat(40)]))
 function seed(){const state=createCommunityState(members),policy=initialPolicy('group',members);policy.ownerIds=['alice'];state.servers.group={id:'group',name:'Voice',revision:0,policy,channels:['one','two'].map(id=>({id,serverId:'group',name:id,type:'voice'})),messages:{},audit:[]};return state}
@@ -25,6 +26,7 @@ async function fixture(t,options={}){
   return {voice,request,command,connect}
 }
 const action=(type='voice-mute',extra={})=>({type,member:'bob',channelId:'one',enabled:true,...extra})
+const voiceCapacity = (channelId, capacity) => ({type:'channel-voice-capacity', channelId, capacity})
 const packet=(socket,event)=>new Promise(resolve=>{const listener=value=>{const data=JSON.parse(value);if(data.event===event){socket.off('message',listener);resolve(data.data)}};socket.on('message',listener)})
 
 test('voice permissions use the channel rather than role position, and never change HQ co-ownership',()=>{
@@ -47,6 +49,34 @@ test('real HTTP moderation rejects unprivileged, disconnected, invalid and stale
   assert.equal((await f.command('alice',action('voice-mute',{reason:'x'.repeat(513)}))).status,400)
   assert.equal((await f.command('alice',action('voice-move',{destinationId:'one'}))).status,400)
   assert.equal((await f.command('alice',action('voice-move',{destinationId:'missing'}))).status,404)
+})
+
+test('an administrator role can persist a channel capacity and the fifth user can join', async t => {
+  let saved
+  const f = await fixture(t, {storage:{load:()=>null, save:state=>{saved=structuredClone(state)}}})
+  const role = command => f.command('alice', {type:'role', command})
+  assert.equal((await role({type:'create', id:'admin', name:'Admin'})).status, 200)
+  assert.equal((await role({type:'edit', id:'admin', patch:{permissions:mask(['ADMINISTRATOR']).toString()}})).status, 200)
+  assert.equal((await role({type:'assign', id:'admin', member:'bob'})).status, 200)
+  assert.equal((await f.command('carol', voiceCapacity('one', 5))).status, 403)
+  for (const capacity of [0, 1.5, '5', MAX_VOICE_CAPACITY + 1]) {
+    assert.equal((await f.command('bob', voiceCapacity('one', capacity))).status, 400)
+  }
+  assert.equal((await f.command('bob', voiceCapacity('missing', 5))).status, 404)
+  const result = await f.command('bob', voiceCapacity('one', 5))
+  assert.equal(result.status, 200)
+  assert.equal(result.data.channels.find(channel => channel.id === 'one').voiceCapacity, 5)
+  assert.equal(result.data.audit[0].event, 'channel-voice-capacity')
+  assert.equal(saved.servers.group.channels.find(channel => channel.id === 'one').voiceCapacity, 5)
+  const joined = await Promise.all(members.slice(0, 5).map(actor => f.connect(actor)))
+  assert.deepEqual(joined.map(peer => peer.result.data.self.identity), members.slice(0, 5))
+  assert.equal((await f.connect('frank')).result.closed, VOICE_ROOM_FULL_CLOSE_CODE)
+  assert.equal((await f.connect('frank', 'two')).result.data.self.identity, 'frank')
+
+  assert.equal((await f.command('bob', voiceCapacity('one', 3))).status, 200)
+  assert.ok(members.slice(0, 5).every(actor => f.voice.hasParticipant('group', actor, 'one')))
+  assert.equal((await f.connect('frank')).result.closed, VOICE_ROOM_FULL_CLOSE_CODE)
+  assert.equal((await f.connect('carol')).result.data.self.identity, 'carol')
 })
 
 test('mute and deafen are persisted, audited and present in a fresh media session; unmute never creates a producer',async t=>{
@@ -86,6 +116,7 @@ test('legacy media clients can be disconnected but cannot be moved into an incom
 
 test('full rooms reject movement without dropping the source call; failed persistence rolls back a reserved ticket',async t=>{
   let fail=false;const f=await fixture(t,{storage:{load:()=>null,save:()=>{if(fail)throw Error('disk unavailable')}}}),bob=await f.connect('bob')
+  assert.equal((await f.command('alice', voiceCapacity('two', 4))).status, 200)
   for(const member of ['carol','dan','eve','frank'])await f.connect(member,'two')
   assert.equal((await f.command('alice',action('voice-move',{destinationId:'two'}))).status,409)
   assert.equal(f.voice.hasParticipant('group','bob','one'),true)
@@ -105,11 +136,12 @@ test('a move reserves its destination before saving so a racing connection canno
  let pause=false
  const f=await fixture(t,{storage:{load:()=>null,save:async()=>{if(pause){entered();await gate}}}})
  t.after(()=>release())
+ assert.equal((await f.command('alice', voiceCapacity('two', 4))).status, 200)
  const bob=await f.connect('bob');for(const member of ['carol','dan','eve'])await f.connect(member,'two')
  pause=true
  const moving=packet(bob.socket,'moved'),command=f.command('alice',action('voice-move',{destinationId:'two'}))
  await saving
- assert.equal((await f.connect('frank','two')).result.closed,4003)
+ assert.equal((await f.connect('frank','two')).result.closed,VOICE_ROOM_FULL_CLOSE_CODE)
  assert.equal(f.voice.hasParticipant('group','bob','one'),true)
  release();assert.equal((await command).status,200)
  const event=await moving
