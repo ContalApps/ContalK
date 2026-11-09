@@ -5,6 +5,7 @@ import { WebSocket } from 'ws'
 import { createCommunityVoice, voicePermissions, mediaListenInfos } from '../scripts/community/realtime.mjs'
 import { createCommunityService, createCommunityState } from '../scripts/community/service.mjs'
 import { initialPolicy, mask } from '../src/roles/permissions.ts'
+import { DEFAULT_VOICE_CAPACITY, VOICE_ROOM_FULL_CLOSE_CODE } from '../src/roles/voice-capacity.ts'
 
 test('sources are granted independently and unknown identities cannot connect', () => {
   const policy = initialPolicy('test', ['alice','bob'])
@@ -27,8 +28,8 @@ test('private relay candidates use a real IPv4 interface while retaining the pub
   assert.throws(()=>mediaListenInfos({...config,interfaces:{},exposeInternalIp:true}),/IPv4 interno/)
 })
 
-test('real WebSocket tickets are single use, enforce identity, four-person limit, targeted data and CONNECT revocation', async t => {
-  const members = ['alice','bob','carol','dan','eve']
+test('real WebSocket tickets enforce the default voice capacity, identity, targeted data and CONNECT revocation', async t => {
+  const members = ['alice','bob','carol','dan','eve','frank','grace','heidi','ivan']
   const initialState = createCommunityState(members)
   const group = structuredClone(initialState.servers['srv-1']); group.id = 'test'; group.policy = initialPolicy('test',members); group.policy.ownerIds=['alice']; group.channels=[{id:'voice',type:'voice',name:'Test',serverId:'test'}]
   initialState.servers.test = group
@@ -41,18 +42,25 @@ test('real WebSocket tickets are single use, enforce identity, four-person limit
     const socket = new WebSocket(url); sockets.push(socket); await once(socket,'open')
     const message=once(socket,'message'), closed=once(socket,'close')
     socket.send(JSON.stringify({id:1,method:'auth',token}))
-    const result=await Promise.race([message.then(([value])=>JSON.parse(value)),closed.then(([code])=>({closed:code}))]); return {socket,result}
+    const result=await Promise.race([message.then(([value])=>JSON.parse(value)),closed.then(([code,reason])=>({closed:code,reason:String(reason)}))]); return {socket,result}
   }
   const ticket = await voice.token(group,'bob','voice')
   assert.match(ticket.token,/^[a-f0-9]{64}$/)
   const bob = await connect(ticket.token); assert.equal(bob.result.data.self.identity,'bob')
   assert.equal((await connect(ticket.token)).result.closed,4003)
-  for (const actor of ['alice','carol','dan']) assert.ok((await connect((await voice.token(group,actor,'voice')).token)).result.data)
-  assert.equal((await connect((await voice.token(group,'eve','voice')).token)).result.closed,4003)
+  for (const actor of members.slice(0, DEFAULT_VOICE_CAPACITY).filter(actor => actor !== 'bob')) {
+    assert.equal((await connect((await voice.token(group,actor,'voice')).token)).result.data.self.identity, actor)
+  }
+  const rejected = await connect((await voice.token(group, 'ivan', 'voice')).token)
+  assert.equal(rejected.result.closed, VOICE_ROOM_FULL_CLOSE_CODE)
+  assert.match(rejected.result.reason, /Canal de voz cheio/)
   const revoked=structuredClone(group); revoked.policy.overwrites.voice=[{id:'bob',type:'member',allow:'0',deny:mask(['CONNECT']).toString()}]
   const closed=once(bob.socket,'close'); await voice.reconcile(group,revoked); assert.equal((await closed)[0],4003)
   await assert.rejects(()=>voice.token(revoked,'bob','voice'),/conectar/)
-  // Presence uses the same authenticated protocol but cannot create media transports.
+  // Presence shares signaling without the per-channel voice capacity.
+  for (const actor of members.slice(2, DEFAULT_VOICE_CAPACITY)) {
+    assert.equal((await connect((await voice.presenceToken(actor, actor)).token)).result.data.self.identity, actor)
+  }
   const alice=await connect((await voice.presenceToken('alice','Alice')).token)
   const peer=await connect((await voice.presenceToken('bob','Bob')).token)
   const data=new Promise(resolve=>peer.socket.on('message',value=>{const packet=JSON.parse(value);if(packet.event==='data')resolve(packet.data)}))

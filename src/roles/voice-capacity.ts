@@ -1,0 +1,3 @@
+export const DEFAULT_VOICE_CAPACITY = 8
+export const MAX_VOICE_CAPACITY = 16
+export const VOICE_ROOM_FULL_CLOSE_CODE = 4004

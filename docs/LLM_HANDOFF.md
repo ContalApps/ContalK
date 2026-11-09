@@ -1,5 +1,11 @@
 # Retomada do ConTALK
 
+## Versão 0.1.42
+
+Na `dev/vg`, administradores podem configurar de 1 a 16 vagas em cada canal de voz, com 8 por padrão. O serviço aplica a capacidade ao entrar e ao mover participantes, com reserva de vaga para a movimentação. Quem já está conectado permanece na chamada quando o limite é reduzido. A presença online usa apenas o limite global de conexões.
+
+Após o merge, confira a versão em `https://comunidade.contalapps.com.br/health` para validar a implantação e confira os três arquivos da versão estável no GitHub.
+
 ## Entrega 0.1.41: Modo Teatro Padrão na Transmissão de Tela e Zero Bordas
 
 Em `dev/caliari`, foram implementadas as seguintes soluções e melhorias:

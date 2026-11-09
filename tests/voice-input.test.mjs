@@ -3,6 +3,7 @@ import assert from 'node:assert/strict'
 import {EventEmitter} from 'node:events'
 import {loadTypescript} from './load-typescript.mjs'
 import {pushToTalkKeys,validInputMode,validPushToTalkKey} from '../src/media/voice-input.ts'
+import * as voiceCapacity from '../src/roles/voice-capacity.ts'
 import {createCommunityService,createCommunityState} from '../scripts/community/service.mjs'
 
 const tick=()=>new Promise(resolve=>setImmediate(resolve))
@@ -22,7 +23,10 @@ test('the voice authority checks current membership without copying or exposing 
 })
 
 function roomFixture(){
- const {Room,Track}=loadTypescript('src/media/realtime.ts',{'mediasoup-client':{Device:class{}}})
+ const {Room,Track}=loadTypescript('src/media/realtime.ts',{
+  'mediasoup-client':{Device:class{}},
+  '../roles/voice-capacity':voiceCapacity,
+ })
  const room=new Room(),media={enabled:true,kind:'audio',stop(){}},track=new Track(media),pub={source:'microphone',producerId:'mic',isMuted:false,track}
  room.localParticipant.trackPublications.set('mic',pub);room.inputMode='push-to-talk';room.producers.set('mic',{pause(){},resume(){}})
  return {room,track,media,pub}

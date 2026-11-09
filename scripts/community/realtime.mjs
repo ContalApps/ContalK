@@ -5,8 +5,10 @@ import { networkInterfaces } from 'node:os'
 import { WebSocketServer } from 'ws'
 import { createWorker } from 'mediasoup'
 import { can } from '../../src/roles/permissions.ts'
+import { DEFAULT_VOICE_CAPACITY, MAX_VOICE_CAPACITY, VOICE_ROOM_FULL_CLOSE_CODE } from '../../src/roles/voice-capacity.ts'
 
 const sources = ['microphone', 'camera', 'screen_share', 'screen_share_audio']
+const maxConsumers = (MAX_VOICE_CAPACITY - 1) * sources.length
 export function voicePermissions(policy, actor, channel, sessionId) {
   const connect = can(policy, actor, 'VIEW_CHANNEL', channel) && can(policy, actor, 'CONNECT', channel)
   const speaker=isStageSpeaker(policy,actor,channel,sessionId)
@@ -43,6 +45,12 @@ export function createCommunityVoice({ url, announcedAddress = '127.0.0.1', medi
   const viewStage=session=>session.room==='presence'?null:stageView(snapshotFor(session.actor,session.serverId).policy,session.actor,session.channelId,member=>participantSession(session.serverId,member,session.channelId))
   const refreshStages=(serverId,channelId)=>{for(const session of sessions)if(session.serverId===serverId&&(!channelId||session.channelId===channelId))event(session,'stage',viewStage(session))}
   const roomMembers = session => [...sessions].filter(peer => peer.room === session.room)
+  const hasVoiceSeat = (room, capacity) => {
+    const now = Date.now()
+    const reserved = [...tickets.values()].filter(ticket => ticket.room === room && ticket.reserved && ticket.expires >= now)
+    return roomMembers({ room }).length + reserved.length < capacity
+  }
+  const roomFullMessage = capacity => `Canal de voz cheio (limite de ${capacity}).`
   const broadcast = (session, name, data) => roomMembers(session).forEach(peer => event(peer, name, data))
   const moderation = session => {const grant=permission(session),policy=session.room==='presence'?null:snapshotFor(session.actor,session.serverId).policy;return {canCreateExpressions:!!policy&&can(policy,session.actor,'CREATE_GUILD_EXPRESSIONS'),canManageExpressions:!!policy&&can(policy,session.actor,'MANAGE_GUILD_EXPRESSIONS'),serverMuted:!!grant.serverMuted,serverDeafened:!!grant.serverDeafened,canStream:grant.canPublishSources.includes('screen_share'),canPublishMicrophone:grant.canPublishSources.includes('microphone'),canUseVoiceActivity:!!grant.canUseVoiceActivity,canPrioritySpeaker:!!grant.canPrioritySpeaker,canUseSoundboard:!!grant.canUseSoundboard,canUseExternalSounds:!!grant.canUseExternalSounds}}
   const profile = session => ({ identity: session.actor, name:session.name,serverNickname:session.room==='presence'?null:snapshotFor(session.actor,session.serverId).nicknames?.[session.actor]||null, metadata: session.metadata || '',...moderation(session) })
@@ -89,7 +97,7 @@ export function createCommunityVoice({ url, announcedAddress = '127.0.0.1', medi
       ] })
       // Room creation runs inside the per-socket queue, but different sockets can race.
       try {
-        const observer = await router.createAudioLevelObserver({ maxEntries: 4, threshold: -55, interval: 200 })
+        const observer = await router.createAudioLevelObserver({ maxEntries: MAX_VOICE_CAPACITY, threshold: -55, interval: 200 })
         const room = { router, observer }; rooms.set(name, room)
         observer.on('volumes', volumes => {
           const identities = volumes.map(({ producer }) => producer.appData.identity)
@@ -190,7 +198,7 @@ export function createCommunityVoice({ url, announcedAddress = '127.0.0.1', medi
     }
     if (method === 'consume') {
       const owner = roomMembers(session).find(peer => peer !== session && peer.producers.has(data.producerId))
-      if (!owner || !transport || transport.appData.direction !== 'recv' || session.consumers.size >= 16 || !room.router.canConsume({ producerId: data.producerId, rtpCapabilities: data.rtpCapabilities })) throw new Error('Recepção não autorizada.')
+      if (!owner || !transport || transport.appData.direction !== 'recv' || session.consumers.size >= maxConsumers || !room.router.canConsume({ producerId: data.producerId, rtpCapabilities: data.rtpCapabilities })) throw new Error('Recepção não autorizada.')
       const consumer = await transport.consume({ producerId: data.producerId, rtpCapabilities: data.rtpCapabilities, paused: true })
       if(!sessions.has(session)||!permission(session).canSubscribe){consumer.close();throw new Error('Sessão encerrada.')}
       session.consumers.set(consumer.id, consumer)
@@ -219,8 +227,9 @@ export function createCommunityVoice({ url, announcedAddress = '127.0.0.1', medi
       if(destinationId){
         if(!source.features.includes('voice-move-v1'))throw new Error('O participante precisa atualizar o aplicativo para ser movido.')
         const room=serverId+'/'+destinationId
-        const reserved=[...tickets.values()].filter(ticket=>ticket.room===room&&ticket.reserved&&ticket.expires>=Date.now()).length
-        if([...sessions].filter(peer=>peer.room===room).length+reserved>=4)throw new Error('O destino já tem quatro participantes ou vagas reservadas.')
+        const destination = snapshotFor(member, serverId).channels.find(channel => channel.id === destinationId)
+        const capacity = destination?.voiceCapacity ?? DEFAULT_VOICE_CAPACITY
+        if (!hasVoiceSeat(room, capacity)) throw new Error(roomFullMessage(capacity))
         authority=issue(member,room,source.name,true);source.pendingMove=authority.token
       }
       let finished=false
@@ -280,13 +289,19 @@ export function createCommunityVoice({ url, announcedAddress = '127.0.0.1', medi
                 const ticket = tickets.get(message.token); tickets.delete(message.token)
                 if (message.method !== 'auth' || !ticket || ticket.expires < Date.now()) throw new Error('Sessão expirada. Reconecte a comunidade.')
                 const [serverId, channelId] = ticket.room.split('/')
+                const previous = roomMembers(ticket).find(peer => peer.actor === ticket.actor)
                 if (ticket.room !== 'presence') {
                   const current = snapshotFor(ticket.actor, serverId)
-                  if (!current.channels.some(channel => channel.id === channelId && channel.type === 'voice') || !voicePermissions(current.policy, ticket.actor, channelId).canSubscribe) throw new Error('Acesso negado.')
+                  const channel = current.channels.find(channel => channel.id === channelId && channel.type === 'voice')
+                  if (!channel || !voicePermissions(current.policy, ticket.actor, channelId).canSubscribe) throw new Error('Acesso negado.')
+                  const capacity = channel.voiceCapacity ?? DEFAULT_VOICE_CAPACITY
+                  // Existing sessions and reserved moves already hold a seat.
+                  if (!previous && !ticket.reserved && !hasVoiceSeat(ticket.room, capacity)) {
+                    socket.close(VOICE_ROOM_FULL_CLOSE_CODE, roomFullMessage(capacity))
+                    return
+                  }
                 }
-                const sameRoom = [...sessions].filter(peer => peer.room === ticket.room)
-                for (const peer of sameRoom) if (peer.actor === ticket.actor) { cleanup(peer); peer.socket.close(4009, 'Session replaced') }
-                if ([...sessions].filter(peer => peer.room === ticket.room).length + [...tickets.values()].filter(value=>value.room===ticket.room&&value.reserved&&value.expires>=Date.now()).length >= 4) throw new Error('A sala já tem quatro participantes.')
+                if (previous) { cleanup(previous); previous.socket.close(4009, 'Session replaced') }
                 session = { ...ticket, sessionId:randomUUID(),serverId, channelId, socket, features:Array.isArray(message.features)&&message.features.includes('voice-move-v1')?['voice-move-v1']:[], inputMode:'voice-activity',holdUntil:0,priority:false,metadata: '', transports: new Map(), producers: new Map(), consumers: new Map() }
                 sessions.add(session); clearTimeout(timer)
                 send(session, { id: message.id, data: { self: profile(session), stage:viewStage(session),peers: roomMembers(session).filter(peer => peer !== session).map(profile) } })

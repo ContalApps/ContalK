@@ -1,5 +1,6 @@
 import type {StageView} from '../roles/stages'
 import type { VoiceInputMode } from './voice-input'
+import { VOICE_ROOM_FULL_CLOSE_CODE } from '../roles/voice-capacity'
 import { Device } from 'mediasoup-client'
 import type { types } from 'mediasoup-client'
 
@@ -169,9 +170,11 @@ export class Room extends Events {
     }
     socket.onclose = event => {
       if (this.socket !== socket) return
-      for (const pending of this.pending.values()) { clearTimeout(pending.timer); pending.reject(new Error('Conexão encerrada.')) }; this.pending.clear()
+      const roomFull = event.code === VOICE_ROOM_FULL_CLOSE_CODE
+      const reason = roomFull ? event.reason || 'Canal de voz cheio.' : 'Conexão encerrada.'
+      for (const pending of this.pending.values()) { clearTimeout(pending.timer); pending.reject(new Error(reason)) }; this.pending.clear()
       if (this.ended) return
-      if ([4003,4009].includes(event.code)) { void this.disconnect(); return }
+      if (roomFull || [4003,4009].includes(event.code)) { void this.disconnect(); return }
       void this.reconnect()
     }
     // Auth uses the first frame; no tickets appear in URLs/proxy access logs.

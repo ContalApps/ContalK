@@ -7,6 +7,7 @@ import net from 'node:net'
 import { once } from 'node:events'
 import { spawn } from 'node:child_process'
 import { fileURLToPath } from 'node:url'
+import packageInfo from '../package.json' with { type: 'json' }
 import { prepareCommunityDeployment } from '../scripts/community-setup.mjs'
 
 function temporary(t,beforeCleanup=async()=>{}){
@@ -59,6 +60,7 @@ test('the production entry point starts from zero without personal keys and keep
     return {status:response.status,data:await response.json()}
   }
   await start()
+  assert.equal((await request(null,'/health')).data.version,packageInfo.version)
   assert.equal((await request(legacy,'/identity')).status,401)
   const alice=(await request(null,'/register',{username:'alice',email:'alice@teste.dev',password:'senha-forte-1'})).data.token
   assert.ok(alice)

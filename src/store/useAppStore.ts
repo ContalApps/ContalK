@@ -22,6 +22,7 @@ export interface Channel {
   slowmodeSeconds?:number
   nameUpdatedAt?:number
   voiceMode?:'conversation'|'stage'
+  voiceCapacity?:number
   voiceStatus?:string|null
   voiceStatusUpdatedAt?:number
 }
