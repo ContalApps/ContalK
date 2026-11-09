@@ -5,7 +5,7 @@ import { useRoleStore } from './useRoleStore'
 import { create } from 'zustand'
 import { publishSafeMicrophone, setSafeMicrophoneEnabled } from '../media/microphone'
 import { centralAllows, centralEnabled, centralOccupants, centralVoiceToken } from '../roles/transport'
-import { startScreenShare, stopScreenShare } from '../media/screenShare'
+import { startScreenShare, stopScreenShare, type ShareOptions, type ShareSource } from '../media/screenShare'
 import {
   Room,
   RoomEvent,
@@ -83,8 +83,8 @@ interface VoiceState {
   toggleCamera: () => Promise<void>
   toggleScreenShare: () => Promise<void>
   startScreenShareWithOptions: (
-    source: any,
-    options: { audio: boolean; fps: number; resolution: string }
+    source: ShareSource | null,
+    options: ShareOptions
   ) => Promise<void>
 }
 

@@ -1,5 +1,9 @@
 # Retomada do ConTALK
 
+## Versão 0.1.43
+
+Na `dev/vg`, o seletor de compartilhamento no Windows permite transmitir áudio de **Todos os aplicativos**. O helper WASAPI exclui a árvore de processos do ConTALK. A opção deve ser selecionada em cada compartilhamento e pode incluir notificações e áudio de outros monitores. Os testes locais verificam a inicialização do helper e a publicação da faixa. A escuta com o Reprodutor do Windows e o outro aplicativo na chamada real ainda precisa ser confirmada.
+
 ## Versão 0.1.42
 
 Na `dev/vg`, administradores podem configurar de 1 a 16 vagas em cada canal de voz, com 8 por padrão. O serviço aplica a capacidade ao entrar e ao mover participantes, com reserva de vaga para a movimentação. Quem já está conectado permanece na chamada quando o limite é reduzido. A presença online usa apenas o limite global de conexões.

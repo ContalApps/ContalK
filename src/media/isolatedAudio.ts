@@ -1,9 +1,11 @@
+import type { CaptureAudioMode } from '../types/desktop'
+
 export interface IsolatedAudio {
   track: MediaStreamTrack
   stop: () => Promise<void>
 }
 
-export async function captureIsolatedAudio(sourceId: string, onError: (error: string) => void): Promise<IsolatedAudio> {
+export async function captureIsolatedAudio(sourceId: string, onError: (error: string) => void, mode: CaptureAudioMode = 'isolated'): Promise<IsolatedAudio> {
   const desktop = window.contalkDesktop
   if (!desktop?.startCaptureAudio) throw new Error('Instale a versão mais recente do ConTALK para transmitir áudio isolado.')
   const context = new AudioContext({ sampleRate: 48000, latencyHint: 0 })
@@ -32,7 +34,7 @@ export async function captureIsolatedAudio(sourceId: string, onError: (error: st
     unsubscribeError = desktop.onCaptureAudioError(event => {
       if (event.sessionId === sessionId && !stopped) { onError(event.error); void stop() }
     })
-    const capture = await desktop.startCaptureAudio(sourceId)
+    const capture = await desktop.startCaptureAudio(sourceId, mode)
     sessionId = capture.sessionId
     if (capture.sampleRate !== 48000 || capture.channels !== 2) throw new Error('Formato de áudio incompatível.')
     await context.resume()

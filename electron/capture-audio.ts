@@ -15,11 +15,12 @@ export function setupCaptureAudio(window: BrowserWindow) {
   const trusted = (event: Electron.IpcMainInvokeEvent) => {
     if (event.sender !== window.webContents || event.senderFrame !== window.webContents.mainFrame) throw new Error('Origem inválida.')
   }
-  ipcMain.handle('capture-audio-start', async (event, sourceId: unknown) => {
+  ipcMain.handle('capture-audio-start', async (event, sourceId: unknown, mode: unknown = 'isolated') => {
     trusted(event)
     if (starting) throw new Error('A captura de áudio já está iniciando.')
     if (process.platform !== 'win32') throw new Error('A captura isolada está disponível no Windows.')
     if (typeof sourceId !== 'string') throw new Error('Fonte de captura inválida.')
+    if (mode !== 'isolated' && mode !== 'all-apps') throw new Error('Modo de captura de áudio inválido.')
     starting = true
     try {
       stop()
@@ -27,7 +28,9 @@ export function setupCaptureAudio(window: BrowserWindow) {
       const source = sources.find(s => s.id === sourceId)
       if (!source) throw new Error('A janela ou tela selecionada não está mais disponível.')
       let args: string[]
-      if (source.id.startsWith('window:')) {
+      if (mode === 'all-apps') {
+        args = ['--all-apps', '--exclude', String(process.pid)]
+      } else if (source.id.startsWith('window:')) {
         const handle = source.id.split(':')[1]
         if (!/^\d+$/.test(handle)) throw new Error('Janela inválida.')
         args = ['--window', handle, '--exclude', String(process.pid)]
