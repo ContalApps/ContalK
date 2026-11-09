@@ -68,6 +68,7 @@ interface VoiceState {
   profileError: string | null
   userVolumes: Record<string, number>
   streamVolumes: Record<string, number>
+  gridScreenTracks: ReadonlySet<Track> | null
   channelOccupants: Record<string, VoiceParticipant[]>
 
   // Actions
@@ -77,6 +78,7 @@ interface VoiceState {
   refreshParticipants: () => void
   setUserVolume: (identity: string, volume: number) => void
   setStreamVolume: (identity: string, volume: number) => void
+  setGridScreenTracks: (tracks: ReadonlySet<Track> | null) => void
   fetchChannelOccupants: (channelList: Array<{ id: string; name: string }>) => Promise<void>
   toggleMic: () => Promise<void>
   toggleDeafen: () => Promise<void>
@@ -89,7 +91,12 @@ interface VoiceState {
 }
 
 function voicePlaybackLevel(state:VoiceState,identity:string,source:string,deafened=state.isDeafened||state.isServerDeafened){
-  const volume=(source===Track.Source.ScreenShareAudio?state.streamVolumes:state.userVolumes)[identity]??100,priority=state.currentRoom?.prioritySpeakers
+  const isStreamAudio = source === Track.Source.ScreenShareAudio
+  if (isStreamAudio && state.gridScreenTracks) {
+    const screen = state.currentRoom?.remoteParticipants.get(identity)?.getTrackPublication(Track.Source.ScreenShare)?.track
+    if (!screen || !state.gridScreenTracks.has(screen)) return 0
+  }
+  const volume=(isStreamAudio?state.streamVolumes:state.userVolumes)[identity]??100,priority=state.currentRoom?.prioritySpeakers
   const isTargetPriority=priority?.has(identity)===true
   const priorityActive=Boolean(priority&&priority.size>0&&state.activeSpeakers.some(speakerId=>speakerId!==identity&&priority.has(speakerId)))
   return priorityAudioGain(volume,deafened,source===Track.Source.Microphone,priorityActive,isTargetPriority)
@@ -167,6 +174,7 @@ export const useVoiceStore = create<VoiceState>((set, get) => ({
   profileError: null,
   userVolumes: initialUserVolumes,
   streamVolumes: initialStreamVolumes,
+  gridScreenTracks: null,
   channelOccupants: {},
 
   setUserVolume: (identity: string, volume: number) => {
@@ -196,8 +204,16 @@ export const useVoiceStore = create<VoiceState>((set, get) => ({
     set({ streamVolumes })
     try { localStorage.setItem('contalk_stream_volumes', JSON.stringify(streamVolumes)) } catch { /* Still applies for this call. */ }
     get().currentRoom?.remoteParticipants.get(identity)?.audioTrackPublications.forEach(pub => {
-      if (pub.source === Track.Source.ScreenShareAudio && pub.audioTrack && 'setVolume' in pub.audioTrack) pub.audioTrack.setVolume((get().isDeafened||get().isServerDeafened) ? 0 : volume / 100)
+      if (pub.source === Track.Source.ScreenShareAudio) pub.audioTrack?.setVolume(voicePlaybackLevel(get(),identity,pub.source))
     })
+  },
+
+  setGridScreenTracks: tracks => {
+    set({ gridScreenTracks: tracks })
+    const state = get()
+    state.currentRoom?.remoteParticipants.forEach(participant => participant.audioTrackPublications.forEach(pub => {
+      if (pub.source === Track.Source.ScreenShareAudio) pub.audioTrack?.setVolume(voicePlaybackLevel(state,participant.identity,pub.source))
+    }))
   },
 
   fetchChannelOccupants: async () => {
@@ -308,6 +324,7 @@ export const useVoiceStore = create<VoiceState>((set, get) => ({
       screenShareError: null,
       profileError: null,
       participants: [],
+      gridScreenTracks: null,
     })
 
     let room: Room | undefined
@@ -333,6 +350,10 @@ export const useVoiceStore = create<VoiceState>((set, get) => ({
       const on = (event: RoomEvent, handler: (...args: any[]) => void) => connection.on(event, (...args: any[]) => { if (attempt === connectionGeneration) handler(...args) })
       const triggerUpdate = () => {
         get().refreshParticipants()
+      }
+      const closeGridScreen = (track: Track) => {
+        const watching = get().gridScreenTracks
+        if (watching?.has(track)) get().setGridScreenTracks(new Set([...watching].filter(screen => screen !== track)))
       }
 
       const localSpeakingChanged=()=>{if(attempt===connectionGeneration)triggerUpdate()}
@@ -393,6 +414,7 @@ export const useVoiceStore = create<VoiceState>((set, get) => ({
 
       on(RoomEvent.LocalTrackUnpublished, (pub) => {
         if (pub.source === Track.Source.ScreenShare) {
+          closeGridScreen(pub.track)
           set({ isScreenSharing: false })
         }
         triggerUpdate()
@@ -401,19 +423,15 @@ export const useVoiceStore = create<VoiceState>((set, get) => ({
       if(get().outputDeviceId!=='default')await connection.switchActiveDevice('audiooutput',get().outputDeviceId)
       on(RoomEvent.TrackSubscribed, (track: RemoteTrack, _pub, participant) => {
         if (track.kind === Track.Kind.Audio) {
-          const audioContainer = getAudioContainer()
-          const element = track.attach()
-          audioContainer.appendChild(element)
-
           const userVol = voicePlaybackLevel(get(),participant.identity,_pub.source)
-          if (typeof (track as any).setVolume === 'function') {
-            (track as any).setVolume(userVol)
-          }
+          track.setVolume(userVol)
+          getAudioContainer().appendChild(track.attach())
         }
         triggerUpdate()
       })
 
       on(RoomEvent.TrackUnsubscribed, (track: RemoteTrack) => {
+        closeGridScreen(track)
         track.detach().forEach((el) => el.remove())
         triggerUpdate()
       })
@@ -450,6 +468,7 @@ export const useVoiceStore = create<VoiceState>((set, get) => ({
           isServerMuted:false,isServerDeafened:false,isDeafened:false,
           error: moderatorDisconnected?'Você foi desconectado da voz por um moderador.':'A conexão de voz foi encerrada. Tente novamente.',
           participants: [],
+          gridScreenTracks: null,
           activeSpeakers: [],
           isMicMuted: false,
           isCameraOn: false,
@@ -550,6 +569,7 @@ export const useVoiceStore = create<VoiceState>((set, get) => ({
       isCameraOn: false,
       isScreenSharing: false,
       error: null,
+      gridScreenTracks: null,
     })
   },
 

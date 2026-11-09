@@ -55,6 +55,8 @@ function ScreenShareViewer({
   onFullscreen,
   objectFit = 'contain',
   onToggleObjectFit,
+  watching = true,
+  onToggleWatch,
 }: {
   participant: VoiceParticipant
   onFocus?: () => void
@@ -64,16 +66,18 @@ function ScreenShareViewer({
   onFullscreen?: () => void
   objectFit?: 'contain' | 'cover'
   onToggleObjectFit?: () => void
+  watching?: boolean
+  onToggleWatch?: () => void
 }) {
   const [ready, setReady] = useState(false)
-  useEffect(() => setReady(false), [participant.screenTrack])
+  useEffect(() => setReady(false), [participant.screenTrack, watching])
 
   return (
     <div
       onDoubleClick={onFocus || onMinimize}
       className={`ct-share-view relative flex-1 w-full h-full overflow-hidden flex flex-col items-center justify-center group min-h-0 select-none ${isTheater ? 'ct-theater-view' : ''}`}
     >
-      {participant.screenTrack && (
+      {watching && participant.screenTrack && (
         <VideoTrackView
           track={participant.screenTrack}
           isLocal={participant.isLocal}
@@ -81,7 +85,12 @@ function ScreenShareViewer({
           onReady={() => setReady(true)}
         />
       )}
-      {!ready && (
+      {!watching ? (
+        <div className="flex flex-col items-center gap-2 text-neutral-400">
+          <ControlIcon name="screen" size={24} />
+          <span className="text-xs">Transmissão fechada</span>
+        </div>
+      ) : !ready && (
         <div className="ct-share-waiting">
           <span><ControlIcon name="screen"/></span>
           <strong>Aguardando transmissão</strong>
@@ -106,6 +115,17 @@ function ScreenShareViewer({
         </div>
 
         <div className="ct-share-tools">
+          {onToggleWatch && (
+            <button
+              type="button"
+              onClick={onToggleWatch}
+              onDoubleClick={event => event.stopPropagation()}
+              aria-label={watching ? `Parar de assistir à transmissão de ${voiceName(participant)}` : `Assistir transmissão de ${voiceName(participant)}`}
+            >
+              <ControlIcon name={watching ? 'close' : 'play'} size={13} />
+              <span>{watching ? 'Fechar' : 'Assistir'}</span>
+            </button>
+          )}
           {onToggleObjectFit && (
             <button
               onClick={(e) => {
@@ -297,31 +317,42 @@ export function VoiceStage({
   // Telas compartilhadas ativas
   const screenShares = participants.filter((p) => p.isScreenShareEnabled && p.screenTrack)
 
-  // Modo de exibição: 'theater' (modo teatro padrão sem bordas) ou 'grid' (grade lado a lado)
-  const [stageViewMode, setStageViewMode] = useState<'theater' | 'grid'>('theater')
+  const gridTracks = voice.gridScreenTracks
+  const inGrid = gridTracks !== null
   const [objectFit, setObjectFit] = useState<'contain' | 'cover'>('contain')
   const [spotlightScreenId, setSpotlightScreenId] = useState<string | null>(null)
   const [pinnedParticipantId, setPinnedParticipantId] = useState<string | null>(null)
 
+  const openGrid = () => { if (!inGrid) voice.setGridScreenTracks(new Set()) }
+  const openTheater = (identity: string) => {
+    setSpotlightScreenId(identity)
+    voice.setGridScreenTracks(null)
+  }
+  const toggleGridScreen = (track: Track) => {
+    const next = new Set(useVoiceStore.getState().gridScreenTracks)
+    if (next.has(track)) next.delete(track)
+    else next.add(track)
+    voice.setGridScreenTracks(next)
+  }
   // Popup de Volume e Modal de Transmissão de Tela
   const stageRef = useRef<HTMLDivElement>(null)
   const [isFullscreen, setIsFullscreen] = useState(false)
-  // null acompanha todas as transmissões, inclusive as que começam depois.
   const [selectedScreens, setSelectedScreens] = useState<string[] | null>(null)
   const [fullscreenError, setFullscreenError] = useState('')
+  const fullscreenScreens = gridTracks ? screenShares.filter(p => gridTracks.has(p.screenTrack!)) : screenShares
   const visibleScreens = selectedScreens === null
-    ? screenShares
-    : screenShares.filter(p => selectedScreens.includes(p.identity))
+    ? fullscreenScreens
+    : fullscreenScreens.filter(p => selectedScreens.includes(p.identity))
 
   useEffect(() => {
     const changed = () => setIsFullscreen(document.fullscreenElement === stageRef.current)
     document.addEventListener('fullscreenchange', changed)
     return () => document.removeEventListener('fullscreenchange', changed)
   }, [])
-  const shareIds = screenShares.map(p => p.identity).join('\n')
+  const shareIds = fullscreenScreens.map(p => p.identity).join('\n')
   useEffect(() => {
     // Se todas as telas escolhidas pararem, acompanha as restantes.
-    setSelectedScreens(current => current && !current.some(id => screenShares.some(p => p.identity === id)) ? null : current)
+    setSelectedScreens(current => current && !current.some(id => fullscreenScreens.some(p => p.identity === id)) ? null : current)
   }, [shareIds])
   const openFullscreen = async (identity: string) => {
     setSelectedScreens([identity])
@@ -358,21 +389,22 @@ export function VoiceStage({
     <div
       ref={stageRef}
       data-sharing-count={screenShares.length}
-      className={`ct-voice-stage flex-1 flex flex-col h-full relative overflow-hidden select-none min-w-0 ${screenShares.length > 0 ? 'has-screenshare' : ''} ${stageViewMode === 'theater' && screenShares.length > 0 ? 'ct-theater-active' : ''}`}
+      data-view-mode={inGrid ? 'grid' : 'theater'}
+      className={`ct-voice-stage flex-1 flex flex-col h-full relative overflow-hidden select-none min-w-0 ${screenShares.length > 0 ? 'has-screenshare' : ''} ${!inGrid && screenShares.length > 0 ? 'ct-theater-active' : ''}`}
     >
       {isFullscreen ? <>
         <header className="ct-fullscreen-toolbar">
-          <strong>Transmissões · {visibleScreens.length} de {screenShares.length}</strong>
+          <strong>Transmissões · {visibleScreens.length} de {fullscreenScreens.length}</strong>
           <details className="ct-stream-picker">
             <summary>Selecionar transmissões</summary>
             <div className="ct-stream-picker-options">
               <button onClick={() => setSelectedScreens(null)}>Ver todas</button>
-              {screenShares.map(p => <label key={p.identity}>
+              {fullscreenScreens.map(p => <label key={p.identity}>
                 <input type="checkbox" checked={selectedScreens === null || selectedScreens.includes(p.identity)}
                   disabled={visibleScreens.length === 1 && visibleScreens[0].identity === p.identity}
                   onChange={e => setSelectedScreens(e.target.checked
-                    ? [...(selectedScreens ?? screenShares.map(s => s.identity)), p.identity]
-                    : (selectedScreens ?? screenShares.map(s => s.identity)).filter(id => id !== p.identity))}/>
+                    ? [...(selectedScreens ?? fullscreenScreens.map(s => s.identity)), p.identity]
+                    : (selectedScreens ?? fullscreenScreens.map(s => s.identity)).filter(id => id !== p.identity))}/>
                 {voiceName(p)}{p.isLocal ? ' (você)' : ''}
               </label>)}
             </div>
@@ -393,26 +425,23 @@ export function VoiceStage({
           {(screenShares.length > 0) && (
             <div className="flex items-center bg-[#0f0f0f] p-0.5 rounded-xl border border-neutral-900/40">
               <button
-                onClick={() => setStageViewMode('grid')}
+                onClick={openGrid}
+                aria-pressed={inGrid}
                 className={`px-3 py-1 rounded-lg text-xs font-bold transition flex items-center gap-1.5 ${
-                  stageViewMode === 'grid'
+                  inGrid
                     ? 'bg-white text-black!'
                     : 'text-neutral-300 hover:text-white'
                 }`}
-                title="Ver todas as telas em grade lado a lado"
+                title="Escolher transmissões na grade"
               >
                 <span>⊞</span>
                 <span>Modo Grade {screenShares.length > 1 ? `(${screenShares.length})` : ''}</span>
               </button>
               <button
-                onClick={() => {
-                  setStageViewMode('theater')
-                  if (!spotlightScreenId && screenShares.length > 0) {
-                    setSpotlightScreenId(screenShares[0].identity)
-                  }
-                }}
+                onClick={() => openTheater(focusedScreen?.identity ?? screenShares[0].identity)}
+                aria-pressed={!inGrid}
                 className={`px-3 py-1 rounded-lg text-xs font-bold transition flex items-center gap-1.5 ${
-                  stageViewMode === 'theater'
+                  !inGrid
                     ? 'bg-white text-black!'
                     : 'text-neutral-300 hover:text-white'
                 }`}
@@ -487,7 +516,7 @@ export function VoiceStage({
             <p className="text-white font-medium">Você está na sala!</p>
             <p className="text-xs text-neutral-400/60">Aguardando outros participantes entrarem...</p>
           </div>
-        ) : stageViewMode === 'grid' && screenShares.length > 1 ? (
+        ) : gridTracks && screenShares.length > 0 ? (
           /* ═══════════════════════════════════════════════════════════════════ */
           /* MODO GRADE: TRANSMISSÕES DE TELA LADO A LADO                       */
           /* ═══════════════════════════════════════════════════════════════════ */
@@ -496,21 +525,23 @@ export function VoiceStage({
               className="ct-stream-grid"
               data-count={screenShares.length}
             >
-              {screenShares.map((p) => (
-                <div key={p.identity} className="ct-stream-cell">
-                  <ScreenShareViewer
-                    participant={p}
-                    onFullscreen={() => void openFullscreen(p.identity)}
-                    onFocus={() => {
-                      setSpotlightScreenId(p.identity)
-                      setStageViewMode('theater')
-                    }}
-                    isSpotlight={false}
-                    objectFit={objectFit}
-                    onToggleObjectFit={() => setObjectFit(fit => fit === 'contain' ? 'cover' : 'contain')}
-                  />
-                </div>
-              ))}
+              {screenShares.map(p => {
+                const track = p.screenTrack!
+                const watching = gridTracks.has(track)
+                return (
+                  <div key={p.identity} className="ct-stream-cell">
+                    <ScreenShareViewer
+                      participant={p}
+                      watching={watching}
+                      onToggleWatch={() => toggleGridScreen(track)}
+                      onFullscreen={watching ? () => void openFullscreen(p.identity) : undefined}
+                      onFocus={watching ? () => openTheater(p.identity) : undefined}
+                      objectFit={objectFit}
+                      onToggleObjectFit={watching ? () => setObjectFit(fit => fit === 'contain' ? 'cover' : 'contain') : undefined}
+                    />
+                  </div>
+                )
+              })}
             </div>
           </div>
         ) : screenShares.length > 0 && focusedScreen ? (
@@ -521,7 +552,7 @@ export function VoiceStage({
             <ScreenShareViewer
               participant={focusedScreen}
               onFullscreen={() => void openFullscreen(focusedScreen.identity)}
-              onMinimize={screenShares.length > 1 ? () => setStageViewMode('grid') : undefined}
+              onMinimize={screenShares.length > 1 ? openGrid : undefined}
               isSpotlight={true}
               isTheater={true}
               objectFit={objectFit}
@@ -555,10 +586,7 @@ export function VoiceStage({
                 onProfile={onProfile} onParticipantMenu={onParticipantMenu}
                 isMaximized={true}
                 onMaximize={() => setPinnedParticipantId(null)}
-                onViewScreen={() => {
-                  setSpotlightScreenId(pinnedParticipant.identity)
-                    setStageViewMode('theater')
-                }}
+                onViewScreen={() => openTheater(pinnedParticipant.identity)}
               />
             </div>
 
@@ -610,10 +638,7 @@ export function VoiceStage({
                   userVolume={userVolumes[p.identity] ?? 100}
                   onProfile={onProfile} onParticipantMenu={onParticipantMenu}
                   onMaximize={() => setPinnedParticipantId(p.identity)}
-                  onViewScreen={() => {
-                    setSpotlightScreenId(p.identity)
-                    setStageViewMode('theater')
-                  }}
+                  onViewScreen={() => openTheater(p.identity)}
                 />
               ))}
             </div>

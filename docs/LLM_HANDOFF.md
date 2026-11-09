@@ -1,5 +1,9 @@
 # Retomada do ConTALK
 
+## Versão 0.1.44
+
+Na `dev/vg`, a grade começa com as transmissões fechadas. Cada card permite abrir ou fechar imagem e áudio de forma independente. A seleção acompanha a publicação da tela durante a chamada, e novas transmissões entram fechadas. O cenário foi verificado em uma janela Electron isolada e nos testes de áudio. O diagnóstico visual geral para na tela inicial porque espera o painel `.ct-activity` naquele estado.
+
 ## Versão 0.1.43
 
 Na `dev/vg`, o seletor de compartilhamento no Windows permite transmitir áudio de **Todos os aplicativos**. O helper WASAPI exclui a árvore de processos do ConTALK. A opção deve ser selecionada em cada compartilhamento e pode incluir notificações e áudio de outros monitores. Os testes locais verificam a inicialização do helper e a publicação da faixa. A escuta com o Reprodutor do Windows e o outro aplicativo na chamada real ainda precisa ser confirmada.

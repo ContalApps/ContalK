@@ -1748,8 +1748,7 @@ select option:hover, select option:focus, select option:checked {
 
 
 /* Modo Teatro para Transmissão de Tela (Zero bordas, 100% do espaço dedicado) */
-.ct-voice-stage.ct-theater-active > .ct-voice-toolbar,
-.ct-voice-stage[data-sharing-count='1'] > .ct-voice-toolbar {
+.ct-voice-stage.ct-theater-active > .ct-voice-toolbar {
   display: none !important;
 }
 

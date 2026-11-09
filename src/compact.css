@@ -17,10 +17,11 @@
 .ct-stream-cell{position:relative;display:flex;min-width:0;min-height:0}
 .ct-stream-grid[data-count='1']{grid-template-columns:minmax(0,1fr);grid-template-rows:minmax(0,1fr);height:100%;align-content:stretch}
 .ct-stream-grid[data-count='1']>.ct-stream-cell{aspect-ratio:auto}
+.ct-voice-stage[data-view-mode='grid'][data-sharing-count='1']>.ct-voice-toolbar{display:flex}
 .ct-stream-cell .ct-share-view{border-radius:0}
 .ct-stream-cell .ct-share-header{top:8px;left:8px;right:8px;gap:4px;flex-wrap:wrap}
 .ct-stream-cell .ct-share-label{padding:4px 7px;gap:6px}
-.ct-stream-cell .ct-share-tools{gap:4px}
+.ct-stream-cell .ct-share-tools{gap:4px;flex-wrap:wrap}
 .ct-stream-cell .ct-share-tools>button{padding:4px 6px!important;border-radius:6px!important}
 .ct-stream-cell .ct-share-waiting{min-height:0;max-height:65%;padding:12px;gap:6px;border-radius:8px}
 .ct-stream-cell .ct-share-waiting>span{width:32px;height:32px;border-radius:8px}
