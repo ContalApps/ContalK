@@ -203,7 +203,7 @@ export function createCommunityService({ tokens, storage, initialState, voice, f
     policy.visibleChannelIds=[...ids,...policy.categories.map(category=>category.id)]
     policy.overwrites = Object.fromEntries(Object.entries(policy.overwrites).filter(([channel]) => ids.has(channel) || policy.categories.some(category => category.id === channel)))
     return {
-      id: server.id, name: server.name, description:server.description||'',serverNow:Date.now(), revision: server.revision, actor, policy, channels: copy(visible), voiceSync:voice?(pendingVoice.has(id)?'pending':'synced'):'unconfigured',
+      id: server.id, name: server.name, description:server.description||'', ...(server.icon?{icon:server.icon}:{}), serverNow:Date.now(), revision: server.revision, actor, policy, channels: copy(visible), voiceSync:voice?(pendingVoice.has(id)?'pending':'synced'):'unconfigured',
       serverPermissions: permissionsFor(server.policy, actor).toString(),
       channelPermissions: Object.fromEntries(visible.map(channel => [channel.id, permissionsFor(server.policy, actor, channel.id).toString()])),
       messages: Object.fromEntries(visible.filter(channel => can(server.policy, actor, 'READ_MESSAGE_HISTORY', channel.id)).map(channel => [channel.id, copy((server.messages[channel.id] || []).slice(-RECENT_MESSAGE_COUNT))])),
@@ -435,9 +435,10 @@ export function createCommunityService({ tokens, storage, initialState, voice, f
         }
         case 'server-edit':{
           requirePermission(server,actor,'MANAGE_GUILD')
-          requireValue(action.patch&&typeof action.patch==='object'&&!Array.isArray(action.patch)&&Object.keys(action.patch).length>0&&Object.keys(action.patch).every(key=>['name','description'].includes(key)),'Configurações de servidor inválidas.')
+          requireValue(action.patch&&typeof action.patch==='object'&&!Array.isArray(action.patch)&&Object.keys(action.patch).length>0&&Object.keys(action.patch).every(key=>['name','description','icon'].includes(key)),'Configurações de servidor inválidas.')
           if(own(action.patch,'name')){const name=text(action.patch.name,100);requireValue(!/[\p{Cc}\p{Zl}\p{Zp}]/u.test(name),'Use um nome sem controles ou quebras de linha.');server.name=name.normalize('NFC')}
           if(own(action.patch,'description')){requireValue(typeof action.patch.description==='string'&&action.patch.description.trim().length<=300&&!/[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F]/.test(action.patch.description),'Use uma descrição de até 300 caracteres.');server.description=action.patch.description.trim()}
+          if(own(action.patch,'icon')){if(!action.patch.icon){delete server.icon}else{requireValue(typeof action.patch.icon==='string'&&action.patch.icon.length<=70000&&action.patch.icon.startsWith('data:image/'),'Ícone de servidor inválido.');server.icon=action.patch.icon}}
           target=id;event=action.type
           break
         }

@@ -1748,6 +1748,16 @@ select option:hover, select option:focus, select option:checked {
 
 
 /* Modo Teatro para Transmissão de Tela (Zero bordas, 100% do espaço dedicado) */
+.ct-main:has(.ct-theater-active) {
+  background: #000000 !important;
+  padding: 0 !important;
+  margin: 0 !important;
+}
+
+.ct-main:has(.ct-theater-active) > .ct-channel-header {
+  display: none !important;
+}
+
 .ct-voice-stage.ct-theater-active > .ct-voice-toolbar {
   display: none !important;
 }
@@ -1757,6 +1767,8 @@ select option:hover, select option:focus, select option:checked {
   background: #000000 !important;
 }
 
+.ct-app .ct-voice-stage.ct-theater-active > .ct-voice-content,
+.ct-app .ct-voice-stage.has-screenshare > .ct-voice-content,
 .ct-voice-stage.ct-theater-active > .ct-voice-content,
 .ct-voice-stage.has-screenshare > .ct-voice-content,
 .ct-voice-stage[data-sharing-count]:not([data-sharing-count='0']) > .ct-voice-content {
@@ -1764,6 +1776,8 @@ select option:hover, select option:focus, select option:checked {
   margin: 0 !important;
   width: 100% !important;
   height: 100% !important;
+  max-width: none !important;
+  max-height: none !important;
   background: #000000 !important;
   overflow: hidden !important;
   display: flex !important;
@@ -1778,6 +1792,11 @@ select option:hover, select option:focus, select option:checked {
   background: #000000 !important;
   padding: 0 !important;
   margin: 0 !important;
+  width: 100% !important;
+  height: 100% !important;
+  flex: 1 1 0% !important;
+  min-width: 0 !important;
+  min-height: 0 !important;
 }
 
 .ct-theater-stage {
@@ -1786,6 +1805,8 @@ select option:hover, select option:focus, select option:checked {
   flex: 1 1 0% !important;
   min-width: 0 !important;
   min-height: 0 !important;
+  max-width: none !important;
+  max-height: none !important;
   margin: 0 !important;
   padding: 0 !important;
   border: 0 !important;
@@ -1799,6 +1820,8 @@ select option:hover, select option:focus, select option:checked {
 .ct-theater-view {
   width: 100% !important;
   height: 100% !important;
+  max-width: none !important;
+  max-height: none !important;
   margin: 0 !important;
   padding: 0 !important;
   border: 0 !important;
@@ -1810,6 +1833,8 @@ select option:hover, select option:focus, select option:checked {
 .ct-theater-view .ct-share-video {
   width: 100% !important;
   height: 100% !important;
+  max-width: none !important;
+  max-height: none !important;
   background: #000000 !important;
 }
 
@@ -1889,3 +1914,303 @@ select option:hover, select option:focus, select option:checked {
   white-space: nowrap;
   pointer-events: none;
 }
+
+/* Server profile photo / icon */
+.ct-rail-server-icon {
+  width: 100%;
+  height: 100%;
+  border-radius: inherit;
+  object-fit: cover;
+  display: block;
+}
+
+.ct-server-banner-avatar {
+  width: 28px;
+  height: 28px;
+  border-radius: 8px;
+  object-fit: cover;
+  margin-right: 8px;
+  flex-shrink: 0;
+}
+
+.ct-server-photo-section {
+  display: flex;
+  flex-direction: column;
+  margin-bottom: 16px;
+}
+
+.ct-server-photo-label {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--cx-fg-2, #b5bac1);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  margin-bottom: 8px;
+}
+
+.ct-server-photo-row {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.ct-server-photo-upload {
+  position: relative;
+  width: 72px;
+  height: 72px;
+  border-radius: 16px;
+  overflow: hidden;
+  cursor: pointer;
+  border: 2px dashed var(--cx-border, #3f4147);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--cx-subtle, #1e1f22);
+  flex-shrink: 0;
+  transition: border-color 0.15s ease, background-color 0.15s ease;
+}
+
+.ct-server-photo-upload:hover {
+  border-color: var(--cx-accent, #5865f2);
+  background: rgba(88, 101, 242, 0.08);
+}
+
+.ct-server-photo-upload input[type="file"] {
+  display: none;
+}
+
+.ct-server-photo-img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.ct-server-photo-placeholder {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  color: var(--cx-fg-3, #949ba4);
+  font-size: 18px;
+  font-weight: 700;
+}
+
+.ct-server-photo-hint {
+  margin-top: 2px;
+  opacity: 0.7;
+}
+
+.ct-server-photo-actions {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.ct-server-photo-actions p {
+  margin: 0;
+  font-size: 12px;
+  color: var(--cx-fg-3, #949ba4);
+  line-height: 1.4;
+}
+
+.ct-server-photo-remove {
+  align-self: flex-start;
+  background: transparent;
+  border: 1px solid var(--cx-border, #3f4147);
+  color: #ff5252;
+  padding: 4px 10px;
+  border-radius: 6px;
+  font-size: 12px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.ct-server-photo-remove:hover {
+  background: rgba(255, 82, 82, 0.12);
+  border-color: #ff5252;
+}
+
+/* External Drag and Drop */
+.ct-drag-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+  background: rgba(0, 0, 0, 0.72);
+  backdrop-filter: blur(6px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+  animation: ct-fade-in 0.15s ease-out;
+}
+
+.ct-drag-overlay-box {
+  background: var(--cx-card, #1c1d21);
+  border: 2px dashed var(--cx-accent, #5865f2);
+  border-radius: 16px;
+  padding: 36px 48px;
+  text-align: center;
+  color: var(--cx-fg, #fff);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  box-shadow: 0 16px 36px rgba(0, 0, 0, 0.5);
+  transform: scale(1.02);
+}
+
+.ct-drag-overlay-box h3 {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 600;
+}
+
+.ct-drag-overlay-box p {
+  margin: 0;
+  font-size: 13px;
+  color: var(--cx-fg-3, #8a8e94);
+}
+
+/* Drop Channel Select Modal */
+.ct-drop-modal {
+  width: 440px;
+  max-width: 90vw;
+  background: var(--cx-card, #1a1b1e);
+  border: 1px solid var(--cx-border, #2e3036);
+  border-radius: 12px;
+  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.5);
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+.ct-drop-modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px 20px;
+  border-bottom: 1px solid var(--cx-border, #2e3036);
+}
+
+.ct-drop-modal-title-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.ct-drop-modal-title-row h2 {
+  font-size: 15px;
+  font-weight: 600;
+  margin: 0;
+  color: var(--cx-fg, #fff);
+}
+
+.ct-drop-modal-body {
+  padding: 16px 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.ct-drop-files-list {
+  max-height: 120px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.ct-drop-file-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 12px;
+  background: var(--cx-subtle, #141517);
+  border-radius: 8px;
+  border: 1px solid var(--cx-border, #2e3036);
+}
+
+.ct-drop-file-icon {
+  color: var(--cx-accent, #5865f2);
+  display: flex;
+  align-items: center;
+}
+
+.ct-drop-file-details {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  flex: 1;
+}
+
+.ct-drop-file-name {
+  font-size: 13px;
+  font-weight: 500;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--cx-fg, #fff);
+}
+
+.ct-drop-file-size {
+  font-size: 11px;
+  color: var(--cx-fg-3, #8a8e94);
+}
+
+.ct-drop-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.ct-drop-label {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--cx-fg-2, #b5bac1);
+}
+
+.ct-drop-select {
+  background: var(--cx-subtle, #141517);
+  border: 1px solid var(--cx-border, #2e3036);
+  border-radius: 6px;
+  padding: 8px 10px;
+  font-size: 13px;
+  color: var(--cx-fg, #fff);
+  width: 100%;
+}
+
+.ct-drop-textarea {
+  background: var(--cx-subtle, #141517);
+  border: 1px solid var(--cx-border, #2e3036);
+  border-radius: 6px;
+  padding: 8px 10px;
+  font-size: 13px;
+  color: var(--cx-fg, #fff);
+  resize: vertical;
+  min-height: 50px;
+  font-family: inherit;
+}
+
+.ct-drop-empty {
+  font-size: 12px;
+  color: var(--cx-fg-3, #8a8e94);
+  margin: 0;
+}
+
+.ct-drop-error {
+  font-size: 12px;
+  color: #ff5252;
+  margin: 0;
+}
+
+.ct-drop-modal-footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  padding: 14px 20px;
+  border-top: 1px solid var(--cx-border, #2e3036);
+  background: var(--cx-subtle, #141517);
+}
+

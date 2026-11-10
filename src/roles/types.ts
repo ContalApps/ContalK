@@ -6,6 +6,7 @@ export interface CommunitySnapshot {
   id:string
   name:string
   description?:string
+  icon?:string
   revision:number
   actor:string
   voiceSync?:'synced'|'pending'|'unconfigured'
@@ -51,7 +52,7 @@ export type CommunityAction =
   | {type:'event-interest';id:string;enabled:boolean}
   | {type:'event-delete';id:string}
   | {type:'voice-status';channelId:string;status:string|null}
-  | {type:'server-edit';patch:{name?:string;description?:string}}
+  | {type:'server-edit';patch:{name?:string;description?:string;icon?:string|null}}
   | {type:'member-nickname';member:string;nickname:string|null}
   | {type:'role';command:RoleCommand}
   | {type:'member-kick'|'member-ban'|'member-unban';member:string;reason?:string}

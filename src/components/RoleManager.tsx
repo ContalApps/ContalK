@@ -11,10 +11,9 @@ import type { RoleCommand } from '../roles/commands'
 function CommunityStatus(){const state=useRoleStore();return <p role={state.error?'alert':'status'}>{state.error||(state.configured?'Carregando o servidor…':'Conectando à comunidade…')}</p>}
 import { BanManager } from './BanManager'
 import { InviteManager } from './InviteManager'
+import { RoleBadge } from './RoleName'
 
-export function RoleBadge({role}:{role:Role}) {
-  return <span className={`ct-role-badge ${role.style}`} style={{'--role-color':role.color||'#b5b5b5','--role-secondary':role.secondaryColor||role.color||'#b5b5b5'} as React.CSSProperties}>{role.icon&&(role.icon.startsWith('data:image/')?<img src={role.icon} alt=""/>:<span aria-hidden="true">{role.icon}</span>)}{role.name}</span>
-}
+export { RoleBadge }
 type Editable=Pick<Role,'name'|'color'|'secondaryColor'|'style'|'icon'|'hoist'|'mentionable'|'permissions'>
 function editable(role:Role):Editable {const {name,color,secondaryColor,style,icon,hoist,mentionable,permissions}=role;return {name,color,secondaryColor,style,icon,hoist,mentionable,permissions}}
 

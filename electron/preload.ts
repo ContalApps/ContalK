@@ -1,4 +1,4 @@
-import { ipcRenderer, contextBridge, webFrame } from 'electron'
+import { ipcRenderer, contextBridge, webFrame, webUtils } from 'electron'
 import type { DesktopBridge } from '../src/types/desktop'
 
 function subscribe<T>(channel: string, listener: (event: T) => void) {
@@ -37,6 +37,14 @@ const desktop: DesktopBridge = {
   uploadInlineAttachment: attachment => ipcRenderer.invoke('storage-inline', attachment),
   claimMessageView: id => ipcRenderer.invoke('storage-view', id),
   storageStatus: () => ipcRenderer.invoke('storage-status'),
+  getPathForFile: (file: File) => {
+    try {
+      return webUtils.getPathForFile(file)
+    } catch {
+      return (file as unknown as { path?: string }).path || ''
+    }
+  },
+  registerDroppedFile: (filePath: string) => ipcRenderer.invoke('storage-register-file-path', filePath),
   selectStorageFile: () => ipcRenderer.invoke('storage-select'),
   uploadStorageFile: id => ipcRenderer.invoke('storage-upload', id),
   openStorageFile: id => ipcRenderer.invoke('storage-open', id),
