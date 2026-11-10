@@ -51,6 +51,7 @@ test('system notification IPC is limited to the main renderer and opens the corr
  created[1].emit('click');assert.equal(shown,1);assert.equal(notifications[0][1],'two')
  ipc.emit('activity-notify',event,{...notice('thread-membership'),kind:'thread'});assert.equal(created.length,3)
  ipc.emit('activity-notify',event,{...notice('event-start'),kind:'event'});assert.equal(created.length,4)
+ ipc.emit('activity-notify',event,{id:'dm-1',kind:'message',title:'Bob',body:'Segredo confidencial',channelId:'dm:alice:bob',peer:'bob'});assert.equal(created.at(-1).value.body,'Você recebeu uma nova mensagem privada.')
  window.emit('closed');assert.equal(ipc.listenerCount('activity-notify'),0)
 })
 
@@ -88,6 +89,10 @@ test('activity routes messages, friendships and live calls to the center and res
  roles.update({snapshot:{...roles.getState().snapshot,events:[{...event,status:'active'}]}});assert.equal(f.store.getState().entries[0].kind,'event');assert.equal(sent.length,before)
  preferences.update({systemNotifications:true});roles.update({snapshot:{...roles.getState().snapshot,events:[{...event,status:'active',updatedAt:2}]}});assert.equal(sent.at(-1).kind,'event');assert.equal(sent.at(-1).eventId,'meeting')
  roles.update({snapshot:{...roles.getState().snapshot,events:[]}});assert.equal(f.store.getState().entries.some(entry=>entry.kind==='event'),false)
+ app.update({messages:{'dm:alice:bob':[{id:'dm-secret',userId:'bob',userName:'Bob',content:'Segredo'}]}})
+ assert.equal(sent.at(-1).title,'Bob');assert.equal(sent.at(-1).body,'Você recebeu uma nova mensagem privada.')
+ voice.update({connectionStatus:'disconnected',activeChannelId:null,channelOccupants:{'voice-stage':[{identity:'dave',name:'Dave',isScreenShareEnabled:true}]}})
+ assert.equal(sent.at(-1).kind,'live')
  stop();app.update({messages:{general:[{id:'after-stop',userId:'bob',content:'fim'}]}})
  assert.equal(f.store.getState().entries.some(entry=>entry.id==='message:after-stop'),false)
 })

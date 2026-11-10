@@ -75,6 +75,8 @@ export interface DesktopBridge {
   uploadInlineAttachment: (attachment: import('../store/useAppStore').Attachment) => Promise<import('../store/useAppStore').Attachment>
   claimMessageView: (id: string) => Promise<boolean>
   storageStatus: () => Promise<boolean>
+  getPathForFile?: (file: File) => string
+  registerDroppedFile?: (filePath: string) => Promise<{ id: string; name: string; size: number; type: string; thumbnail?: string }>
   selectStorageFile: () => Promise<{ id: string; name: string; size: number; type: string; thumbnail?: string } | null>
   uploadStorageFile: (id: string) => Promise<import('../store/useAppStore').Attachment>
   openStorageFile: (id: string) => Promise<void>

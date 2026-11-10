@@ -65,7 +65,7 @@ export function setupCentralCommunity(){
       }
     }
     for(const channel of recentLive.keys())if(!snapshot.channels.some(item=>item.id===channel)&&backup.ids.has(channel))recentLive.delete(channel)
-    const servers=[...current.servers.filter(server=>server.id!==snapshot.id),{id:snapshot.id,name:snapshot.name,description:snapshot.description||'',channels:snapshot.channels}]
+    const servers=[...current.servers.filter(server=>server.id!==snapshot.id),{id:snapshot.id,name:snapshot.name,description:snapshot.description||'',icon:snapshot.icon,channels:snapshot.channels}]
     const active=snapshot.channels.some(channel=>channel.id===current.activeChannelId)?current.activeChannelId:snapshot.channels[0]?.id||''
     const change=()=>useAppStore.setState({servers,messages,activeChannelId:current.activeServerId===snapshot.id?active:current.activeChannelId})
     if(first||historyOnly)withoutActivity(change);else change()

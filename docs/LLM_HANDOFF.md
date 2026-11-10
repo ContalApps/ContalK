@@ -1,5 +1,16 @@
 # Retomada do ConTALK
 
+## Versão 0.1.45
+
+Em `dev/caliari`, foram entregues:
+- **Modo Teatro 100% Full-Bleed sem Bordas**: Palco de transmissão ajustado com `object-fit: cover` por padrão para ocupar 100% da área útil sem barras pretas nem letterbox/pillarbox (em transmissões desktop e vídeos verticais mobile), ocultando o cabeçalho estático e aproveitando o espaço total de ponta a ponta quando as barras laterais são recolhidas.
+- **Controle Flexível Preencher / Ajustar**: Botão dinâmico no overlay de ferramentas para alternar entre preenchimento sem barras e proporção original sem cortes, com persistência local.
+- **Sair e Assistir Transmissão**: Controles para sair de uma transmissão assistida e retornar à grade dos participantes a qualquer momento, ou voltar a assistir pelo palco ou avatar.
+- **Otimização de Performance e Redução de Tamanho (/ponytail)**: Redução de ~70% no bundle principal (de 1,34 MB para 401 kB) através de code-splitting modular, carregamento sob demanda do terminal (@xterm) e modais, e memoização de listas de mensagens e membros.
+- **Arrastar e Soltar Arquivos (Drag & Drop)**: Compartilhamento rápido soltando arquivos externos no chat aberto ou selecionando o canal de destino por modal interativo.
+- **Foto de Perfil / Ícone do Servidor**: Suporte completo a upload, remoção e exibição do ícone da comunidade nos trilhos, banners e cartões.
+- **Notificações do Sistema e Blindagem de Mensagens Privadas**: Notificações no sistema operacional para mensagens de texto, transmissões e DMs, com privacidade reforçada que oculta o conteúdo confidencial de mensagens privadas.
+
 ## Versão 0.1.44
 
 Na `dev/vg`, a grade começa com as transmissões fechadas. Cada card permite abrir ou fechar imagem e áudio de forma independente. A seleção acompanha a publicação da tela durante a chamada, e novas transmissões entram fechadas. O cenário foi verificado em uma janela Electron isolada e nos testes de áudio. O diagnóstico visual geral para na tela inicial porque espera o painel `.ct-activity` naquele estado.

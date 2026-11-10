@@ -4,7 +4,7 @@ import { ThreadHeader } from './ThreadHeader'
 import { threadArchived } from '../roles/permissions'
 import { PinnedMessages } from './PinnedMessages'
 import { ChatComposer, ChatMessage } from './MessageContent'
-import { Fragment, useEffect, useLayoutEffect, useRef, useState, useCallback, useMemo } from 'react'
+import { Fragment, useEffect, useLayoutEffect, useRef, useState, useCallback, useMemo, lazy, Suspense } from 'react'
 import { useAuthStore } from '../store/useAuthStore'
 import { useAppStore } from '../store/useAppStore'
 import { useVoiceStore } from '../store/useVoiceStore'
@@ -29,30 +29,35 @@ import { SettingsView, type SettingsTabId } from './SettingsView'
 import { ChannelRow } from './ChannelRow'
 import { BrandMark } from './BrandMark'
 import { ControlIcon, type ControlIconName } from './ControlIcon'
-import { TerminalPanel } from './TerminalPanel'
-import { CollaborativeNotepad, type NotepadTab } from './CollaborativeNotepad'
-import { SaveNoteModal, type SaveNoteDestination } from './SaveNoteModal'
+import type { NotepadTab } from './CollaborativeNotepad'
+import type { SaveNoteDestination } from './SaveNoteModal'
 import { useDevCollaborationStore } from '../store/useDevCollaborationStore'
-import { CommandMenuModal } from './CommandMenuModal'
-import { ScreenShareModal } from './ScreenShareModal'
 import { RightPanel } from './RightPanel'
 import { UserDock } from './UserDock'
 import { ChannelSettings } from './ChannelSettings'
-import { RoleManager, RoleBadge } from './RoleManager'
 import { canSetNickname, memberDisplayName } from '../roles/nicknames'
-import { RoleName } from './RoleName'
+import { RoleName, RoleBadge } from './RoleName'
 import { MemberRoles } from './MemberRoles'
-import { ServerDialog } from './ServerDialog'
 import { useRoleStore } from '../store/useRoleStore'
 import { centralAllows } from '../roles/transport'
 import { assignedRoles } from '../roles/permissions'
 import { useNotificationStore } from '../store/useNotificationStore'
 import { useDevStore } from '../store/useDevStore'
-import { DevKanbanModal } from './DevKanbanModal'
-import { DevTasksModal } from './DevTasksModal'
-import { DevDocsModal } from './DevDocsModal'
-import { DevRoadmapModal } from './DevRoadmapModal'
+import { uploadDroppedFile } from '../utils/dropUpload'
 import '../themes.css'
+
+const TerminalPanel = lazy(() => import('./TerminalPanel').then(m => ({ default: m.TerminalPanel })))
+const CollaborativeNotepad = lazy(() => import('./CollaborativeNotepad').then(m => ({ default: m.CollaborativeNotepad })))
+const SaveNoteModal = lazy(() => import('./SaveNoteModal').then(m => ({ default: m.SaveNoteModal })))
+const CommandMenuModal = lazy(() => import('./CommandMenuModal').then(m => ({ default: m.CommandMenuModal })))
+const ScreenShareModal = lazy(() => import('./ScreenShareModal').then(m => ({ default: m.ScreenShareModal })))
+const RoleManager = lazy(() => import('./RoleManager').then(m => ({ default: m.RoleManager })))
+const ServerDialog = lazy(() => import('./ServerDialog').then(m => ({ default: m.ServerDialog })))
+const DevKanbanModal = lazy(() => import('./DevKanbanModal').then(m => ({ default: m.DevKanbanModal })))
+const DevTasksModal = lazy(() => import('./DevTasksModal').then(m => ({ default: m.DevTasksModal })))
+const DevDocsModal = lazy(() => import('./DevDocsModal').then(m => ({ default: m.DevDocsModal })))
+const DevRoadmapModal = lazy(() => import('./DevRoadmapModal').then(m => ({ default: m.DevRoadmapModal })))
+const DropChannelSelectModal = lazy(() => import('./DropChannelSelectModal').then(m => ({ default: m.DropChannelSelectModal })))
 
 const iconAlias: Record<string, ControlIconName> = { '#': 'hash', members: 'friends', headphones: 'audio', 'Ω': 'audio', '×': 'close' }
 function Icon({ name }: { name: string }) {
@@ -244,41 +249,53 @@ export function ConTALKLayout() {
     server.channels.find(c => c.id === activeChannelId) ||
     server.channels[0] || { id: '', name: '', type: 'text' as const, serverId: server.id }
 
-  const recent = Object.values(messages)
-    .flat()
-    .sort((a, b) => b.timestamp - a.timestamp)
+  const recent = useMemo(() => {
+    if (view !== 'home') return []
+    return Object.values(messages)
+      .flat()
+      .sort((a, b) => b.timestamp - a.timestamp)
+  }, [messages, view])
+
   const statusText = (identity: string) =>
     community.members.some(m => m.username === identity && m.online)
       ? 'Online'
       : community.status === 'online'
       ? 'Offline'
       : 'Presença indisponível'
-  const serverName = (identity: string, fallback: string) =>
-    memberDisplayName(roles.snapshot, view === 'server' ? server.id : undefined, identity, fallback)
-  const matchesSearch = (m: { display_name: string; username: string }) =>
+  const serverName = useCallback((identity: string, fallback: string) =>
+    memberDisplayName(roles.snapshot, view === 'server' ? server.id : undefined, identity, fallback),
+    [roles.snapshot, view, server.id]
+  )
+  const matchesSearch = useCallback((m: { display_name: string; username: string }) =>
     (serverName(m.username, m.display_name) + ' ' + m.display_name + ' ' + m.username)
       .toLowerCase()
-      .includes(search.toLowerCase())
-  const visibleMembers = community.members.filter(matchesSearch)
-  const visibleFriends = friends.filter(matchesSearch)
-  const visibleContacts = directContacts.filter(matchesSearch)
-  const activityMembers =
+      .includes(search.toLowerCase()),
+    [serverName, search]
+  )
+  const visibleMembers = useMemo(() => community.members.filter(matchesSearch), [community.members, matchesSearch])
+  const visibleFriends = useMemo(() => friends.filter(matchesSearch), [friends, matchesSearch])
+  const visibleContacts = useMemo(() => directContacts.filter(matchesSearch), [directContacts, matchesSearch])
+  const activityMembers = useMemo(() =>
     view === 'server'
       ? roles.snapshot?.id === server.id
         ? visibleMembers.filter(member => roles.snapshot!.policy.members.includes(member.username))
         : visibleMembers
-      : visibleFriends
-  const groupRole = (identity: string) =>
+      : visibleFriends,
+    [view, roles.snapshot, server.id, visibleMembers, visibleFriends]
+  )
+  const groupRole = useCallback((identity: string) =>
     view === 'server' && roles.snapshot?.id === server.id
       ? assignedRoles(roles.snapshot.policy, identity)
           .filter(role => role.hoist)
           .sort((a, b) => b.position - a.position)[0]
-      : undefined
-  const groupedMembers = [...activityMembers].sort(
+      : undefined,
+    [view, roles.snapshot, server.id]
+  )
+  const groupedMembers = useMemo(() => [...activityMembers].sort(
     (a, b) =>
       (groupRole(b.username)?.position || 0) - (groupRole(a.username)?.position || 0) ||
       serverName(a.username, a.display_name).localeCompare(serverName(b.username, b.display_name), 'pt-BR')
-  )
+  ), [activityMembers, groupRole, serverName])
   const profileMember = community.members.find(m => m.username === profileIdentity)
   const isOwnProfile = profileIdentity === user?.username
   const voiceChannels = server.channels.filter(c => c.type === 'voice')
@@ -338,6 +355,79 @@ export function ConTALKLayout() {
     return () => useNotificationStore.getState().setVisibleChannel(null)
   }, [view, channel.id, selectedPeer, user?.username])
 
+  const [isDraggingFiles, setIsDraggingFiles] = useState(false)
+  const [pendingDropFiles, setPendingDropFiles] = useState<File[] | null>(null)
+  const dragCounter = useRef(0)
+
+  useEffect(() => {
+    const isFileDrag = (e: DragEvent) => {
+      return !!e.dataTransfer && Array.from(e.dataTransfer.types).includes('Files')
+    }
+    const onDragEnter = (e: DragEvent) => {
+      if (!isFileDrag(e)) return
+      e.preventDefault()
+      dragCounter.current++
+      setIsDraggingFiles(true)
+    }
+    const onDragOver = (e: DragEvent) => {
+      if (!isFileDrag(e)) return
+      e.preventDefault()
+      if (e.dataTransfer) {
+        e.dataTransfer.dropEffect = 'copy'
+      }
+    }
+    const onDragLeave = (e: DragEvent) => {
+      if (!isFileDrag(e)) return
+      e.preventDefault()
+      dragCounter.current--
+      if (dragCounter.current <= 0) {
+        dragCounter.current = 0
+        setIsDraggingFiles(false)
+      }
+    }
+    const onDrop = async (e: DragEvent) => {
+      if (!isFileDrag(e)) return
+      e.preventDefault()
+      dragCounter.current = 0
+      setIsDraggingFiles(false)
+
+      const dropped = Array.from(e.dataTransfer?.files || [])
+      if (!dropped.length) return
+
+      // In open text channel?
+      if (view === 'server' && channel?.type === 'text' && channel.id) {
+        if (!centralAllows('SEND_MESSAGES', channel.id)) {
+          showToast('Seu cargo não permite enviar mensagens neste canal.')
+          return
+        }
+        try {
+          showToast(`Enviando ${dropped.length > 1 ? `${dropped.length} arquivos` : dropped[0].name}...`)
+          for (const file of dropped) {
+            const attachment = await uploadDroppedFile(file)
+            await community.sendMessage(channel.id, '', undefined, attachment)
+          }
+          showToast(dropped.length > 1 ? `${dropped.length} arquivos enviados em #${channel.name}` : `Arquivo enviado em #${channel.name}`)
+        } catch (err) {
+          showToast(err instanceof Error ? err.message : 'Falha ao enviar arquivo arrastado.')
+        }
+      } else {
+        // Outside open text channel: open channel selector modal
+        setPendingDropFiles(dropped)
+      }
+    }
+
+    window.addEventListener('dragenter', onDragEnter)
+    window.addEventListener('dragover', onDragOver)
+    window.addEventListener('dragleave', onDragLeave)
+    window.addEventListener('drop', onDrop)
+    return () => {
+      window.removeEventListener('dragenter', onDragEnter)
+      window.removeEventListener('dragover', onDragOver)
+      window.removeEventListener('dragleave', onDragLeave)
+      window.removeEventListener('drop', onDrop)
+    }
+  }, [view, channel?.id, channel?.name, channel?.type, community, showToast])
+
   const openNotice = (id: string) => {
     const notice = useNotificationStore.getState().entries.find(entry => entry.id === id)
     if (!notice) return
@@ -360,7 +450,23 @@ export function ConTALKLayout() {
       openConversation(notice.peer)
       return
     }
+    if (notice.channelId) {
+      const targetServer = servers.find(s => s.channels.some(c => c.id === notice.channelId))
+      if (targetServer) {
+        setActiveServer(targetServer.id)
+        openChannel(notice.channelId)
+        setView('server')
+      }
+      return
+    }
   }
+
+  useEffect(() => {
+    const unsub = window.contalkDesktop?.onNotificationOpen?.(id => {
+      openNotice(id)
+    })
+    return () => unsub?.()
+  }, [openNotice, servers])
 
   const join = async (id: string, name: string) => {
     openChannel(id)
@@ -658,7 +764,11 @@ export function ConTALKLayout() {
                 setView('server')
               }}
             >
-              <BrandMark />
+              {s.icon ? (
+                <img src={s.icon} className="ct-rail-server-icon" alt={s.name} />
+              ) : (
+                <BrandMark />
+              )}
             </button>
           ))}
           <button
@@ -721,6 +831,7 @@ export function ConTALKLayout() {
                 <>
                   <div className="ct-server-banner" onContextMenu={e => { e.preventDefault(); setRolesOpen(true) }}>
                     <div className="ct-server-banner-header">
+                      {server.icon && <img src={server.icon} className="ct-server-banner-avatar" alt="" />}
                       <strong title={server.description || server.name}>{server.name}</strong>
                       {(!roles.snapshot ||
                         centralAllows('VIEW_GUILD_INSIGHTS') ||
@@ -1100,7 +1211,13 @@ export function ConTALKLayout() {
                                 openChannel(s.channels[0]?.id || '')
                               }}
                             >
-                              <span className="ct-home-tile"><BrandMark /></span>
+                              <span className="ct-home-tile">
+                                {s.icon ? (
+                                  <img src={s.icon} className="ct-rail-server-icon" alt={s.name} />
+                                ) : (
+                                  <BrandMark />
+                                )}
+                              </span>
                               <span><strong>{s.name}</strong><small>{s.channels.length} canais</small></span>
                             </button>
                           ))}
@@ -1295,30 +1412,32 @@ export function ConTALKLayout() {
                         </div>
 
                         {devEditorOpen && (
-                          <CollaborativeNotepad
-                            tabs={editorTabs}
-                            activeTabId={activeEditorTab}
-                            onSelectTab={setActiveEditorTab}
-                            onCloseTab={id => {
-                              setEditorTabs(t => t.filter(tab => tab.id !== id))
-                              if (activeEditorTab === id) {
-                                const remaining = editorTabs.filter(tab => tab.id !== id)
-                                if (remaining.length) setActiveEditorTab(remaining[0].id)
-                              }
-                            }}
-                            onCloseEditor={() => setDevEditorOpen(false)}
-                            fileName={editorTabs.find(t => t.id === activeEditorTab)?.name || 'Notas.md'}
-                            content={tabCodes[activeEditorTab] ?? ''}
-                            onChangeContent={handleUpdateCode}
-                            onSave={handleSaveActiveCode}
-                            isSaving={isSavingCode}
-                            cursors={liveRemoteCursors}
-                            onCursorChange={pos => {
-                              const activeTab = editorTabs.find(t => t.id === activeEditorTab)
-                              devCollab.broadcastCursor(activeEditorTab, activeTab?.path || activeEditorTab, pos.line, pos.ch)
-                            }}
-                            onNewTab={handleNewTab}
-                          />
+                          <Suspense fallback={null}>
+                            <CollaborativeNotepad
+                              tabs={editorTabs}
+                              activeTabId={activeEditorTab}
+                              onSelectTab={setActiveEditorTab}
+                              onCloseTab={id => {
+                                setEditorTabs(t => t.filter(tab => tab.id !== id))
+                                if (activeEditorTab === id) {
+                                  const remaining = editorTabs.filter(tab => tab.id !== id)
+                                  if (remaining.length) setActiveEditorTab(remaining[0].id)
+                                }
+                              }}
+                              onCloseEditor={() => setDevEditorOpen(false)}
+                              fileName={editorTabs.find(t => t.id === activeEditorTab)?.name || 'Notas.md'}
+                              content={tabCodes[activeEditorTab] ?? ''}
+                              onChangeContent={handleUpdateCode}
+                              onSave={handleSaveActiveCode}
+                              isSaving={isSavingCode}
+                              cursors={liveRemoteCursors}
+                              onCursorChange={pos => {
+                                const activeTab = editorTabs.find(t => t.id === activeEditorTab)
+                                devCollab.broadcastCursor(activeEditorTab, activeTab?.path || activeEditorTab, pos.line, pos.ch)
+                              }}
+                              onNewTab={handleNewTab}
+                            />
+                          </Suspense>
                         )}
                       </div>
                     </>
@@ -1327,7 +1446,9 @@ export function ConTALKLayout() {
               )}
             </main>
             {preferences.bottomPanelOpen && (
-              <TerminalPanel request={terminalRequest} onClose={() => preferences.update({ bottomPanelOpen: false })} />
+              <Suspense fallback={null}>
+                <TerminalPanel request={terminalRequest} onClose={() => preferences.update({ bottomPanelOpen: false })} />
+              </Suspense>
             )}
           </div>
 
@@ -1409,13 +1530,15 @@ export function ConTALKLayout() {
         />
       )}
       {joinOpen && (
-        <ServerDialog
-          onClose={() => setJoinOpen(false)}
-          onDone={() => {
-            setJoinOpen(false)
-            setView('server')
-          }}
-        />
+        <Suspense fallback={null}>
+          <ServerDialog
+            onClose={() => setJoinOpen(false)}
+            onDone={() => {
+              setJoinOpen(false)
+              setView('server')
+            }}
+          />
+        </Suspense>
       )}
       {eventsOpen && (
         <CommunityEvents
@@ -1425,7 +1548,11 @@ export function ConTALKLayout() {
           onClose={() => setEventsOpen(false)}
         />
       )}
-      {rolesOpen && <RoleManager onClose={() => setRolesOpen(false)} />}
+      {rolesOpen && (
+        <Suspense fallback={null}>
+          <RoleManager onClose={() => setRolesOpen(false)} />
+        </Suspense>
+      )}
       {threadCreate && (
         <ThreadCreate parentId={threadCreate} onCreated={openChannel} onClose={() => setThreadCreate(null)} />
       )}
@@ -1451,17 +1578,19 @@ export function ConTALKLayout() {
           onCreateThread={id => setThreadCreate(id)}
         />
       )}
-      <SaveNoteModal
-        isOpen={saveNoteModalOpen}
-        onClose={() => setSaveNoteModalOpen(false)}
-        noteTitle={editorTabs.find(t => t.id === activeEditorTab)?.name || 'Notas.md'}
-        noteContent={tabCodes[activeEditorTab] ?? ''}
-        availableChannels={allTextChannels}
-        defaultChannelId={channel.type === 'text' ? channel.id : (server.channels.find(c => c.type === 'text')?.id || '')}
-        availableFriends={availablePeers}
-        defaultFriendUsername={selectedPeer || undefined}
-        onConfirm={handleConfirmSaveNote}
-      />
+      <Suspense fallback={null}>
+        <SaveNoteModal
+          isOpen={saveNoteModalOpen}
+          onClose={() => setSaveNoteModalOpen(false)}
+          noteTitle={editorTabs.find(t => t.id === activeEditorTab)?.name || 'Notas.md'}
+          noteContent={tabCodes[activeEditorTab] ?? ''}
+          availableChannels={allTextChannels}
+          defaultChannelId={channel.type === 'text' ? channel.id : (server.channels.find(c => c.type === 'text')?.id || '')}
+          availableFriends={availablePeers}
+          defaultFriendUsername={selectedPeer || undefined}
+          onConfirm={handleConfirmSaveNote}
+        />
+      </Suspense>
       {profile && (
         <div className="ct-modal-backdrop" onClick={() => setProfile(null)}>
           <section
@@ -1540,17 +1669,21 @@ export function ConTALKLayout() {
       {createType && <CreateChannel type={createType} serverId={server.id} onClose={() => setCreateType(null)} />}
 
       {/* Modais de Projetos (Kanban, Tarefas, Documentação, Roadmap) */}
-      {activeDevModal === 'overview' && (
-        <DevKanbanModal onClose={() => setActiveDevModal(null)} onSwitchTab={tab => setActiveDevModal(tab)} />
-      )}
-      {activeDevModal === 'tasks' && (
-        <DevTasksModal onClose={() => setActiveDevModal(null)} onSwitchTab={tab => setActiveDevModal(tab)} />
-      )}
-      {activeDevModal === 'docs' && (
-        <DevDocsModal onClose={() => setActiveDevModal(null)} onSwitchTab={tab => setActiveDevModal(tab)} />
-      )}
-      {activeDevModal === 'roadmap' && (
-        <DevRoadmapModal onClose={() => setActiveDevModal(null)} onSwitchTab={tab => setActiveDevModal(tab)} />
+      {activeDevModal && (
+        <Suspense fallback={null}>
+          {activeDevModal === 'overview' && (
+            <DevKanbanModal onClose={() => setActiveDevModal(null)} onSwitchTab={tab => setActiveDevModal(tab)} />
+          )}
+          {activeDevModal === 'tasks' && (
+            <DevTasksModal onClose={() => setActiveDevModal(null)} onSwitchTab={tab => setActiveDevModal(tab)} />
+          )}
+          {activeDevModal === 'docs' && (
+            <DevDocsModal onClose={() => setActiveDevModal(null)} onSwitchTab={tab => setActiveDevModal(tab)} />
+          )}
+          {activeDevModal === 'roadmap' && (
+            <DevRoadmapModal onClose={() => setActiveDevModal(null)} onSwitchTab={tab => setActiveDevModal(tab)} />
+          )}
+        </Suspense>
       )}
 
       {context && (
@@ -1605,29 +1738,65 @@ export function ConTALKLayout() {
       )}
 
       {commandMenuOpen && (
-        <CommandMenuModal
-          onClose={() => setCommandMenuOpen(false)}
-          onToggleDevEditor={() => setDevEditorOpen(v => !v)}
-          onOpenSettings={tab => {
-            if (tab && ['appearance', 'audio', 'account', 'about', 'notifications'].includes(tab)) {
-              setSettingsTab(tab as SettingsTabId)
-            }
-            setSettingsOpen(true)
-          }}
-          onOpenHelp={() => document.dispatchEvent(new KeyboardEvent('keydown', { key: 'F1', bubbles: true }))}
-          onOpenFolder={() => void openFolder()}
-          onOpenDevModal={modal => setActiveDevModal(modal)}
-          onCopyDiagnostics={() => void handleCopyDiagnostics()}
-          onSignOut={signOut}
-          onQuit={desktop?.quitApp ? () => void quit() : undefined}
-        />
+        <Suspense fallback={null}>
+          <CommandMenuModal
+            onClose={() => setCommandMenuOpen(false)}
+            onToggleDevEditor={() => setDevEditorOpen(v => !v)}
+            onOpenSettings={tab => {
+              if (tab && ['appearance', 'audio', 'account', 'about', 'notifications'].includes(tab)) {
+                setSettingsTab(tab as SettingsTabId)
+              }
+              setSettingsOpen(true)
+            }}
+            onOpenHelp={() => document.dispatchEvent(new KeyboardEvent('keydown', { key: 'F1', bubbles: true }))}
+            onOpenFolder={() => void openFolder()}
+            onOpenDevModal={modal => setActiveDevModal(modal)}
+            onCopyDiagnostics={() => void handleCopyDiagnostics()}
+            onSignOut={signOut}
+            onQuit={desktop?.quitApp ? () => void quit() : undefined}
+          />
+        </Suspense>
       )}
 
-      <ScreenShareModal
-        isOpen={voice.screenShareModalOpen && voice.connectionStatus === 'connected'}
-        onClose={() => voice.setScreenShareModalOpen(false)}
-        onStartShare={(source, options) => voice.startScreenShareWithOptions(source, options)}
-      />
+      <Suspense fallback={null}>
+        <ScreenShareModal
+          isOpen={voice.screenShareModalOpen && voice.connectionStatus === 'connected'}
+          onClose={() => voice.setScreenShareModalOpen(false)}
+          onStartShare={(source, options) => voice.startScreenShareWithOptions(source, options)}
+        />
+      </Suspense>
+
+      {isDraggingFiles && (
+        <div className="ct-drag-overlay" aria-hidden="true">
+          <div className="ct-drag-overlay-box">
+            <ControlIcon name="file" size={40} />
+            <h3>
+              {view === 'server' && channel?.type === 'text' && channel.name
+                ? `Solte para enviar em #${channel.name}`
+                : 'Solte para escolher o canal de envio'}
+            </h3>
+            <p>Arraste e solte para compartilhar arquivos instantaneamente</p>
+          </div>
+        </div>
+      )}
+
+      {pendingDropFiles && (
+        <Suspense fallback={null}>
+          <DropChannelSelectModal
+            files={pendingDropFiles}
+            servers={servers}
+            activeServerId={server.id}
+            activeChannelId={channel?.type === 'text' ? channel.id : undefined}
+            onClose={() => setPendingDropFiles(null)}
+            onSuccess={(targetServerId, targetChannelId) => {
+              setActiveServer(targetServerId)
+              setActiveChannel(targetChannelId)
+              setView('server')
+              showToast('Arquivo enviado com sucesso!')
+            }}
+          />
+        </Suspense>
+      )}
 
       {toastMessage && (
         <div className="ct-toast-notification" role="status">
