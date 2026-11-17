@@ -38,6 +38,8 @@ test('desktop storage binds selected files and completed uploads to the account 
  const records=fs.readdirSync(store).filter(name=>/^[0-9a-f-]{36}\.json$/.test(name)).map(name=>JSON.parse(fs.readFileSync(path.join(store,name),'utf8')))
  assert.equal(records[0].owner,'alice')
  assert.equal(records[0].name,'selected.txt')
+ owner='alice';const registered=await call('storage-register-file-path',file);assert.equal(registered.name,'selected.txt');assert.equal(registered.size,4);assert.equal(registered.type,'text/plain')
+ await assert.rejects(call('storage-register-file-path',path.join(directory,'missing.txt')),/Arquivo não encontrado/)
  const invalidEvent={sender:{},senderFrame:{}}
  await assert.rejects(Promise.resolve().then(()=>handlers.get('storage-share')(invalidEvent,randomUUID(),'bob')),/Origem inválida/)
 })

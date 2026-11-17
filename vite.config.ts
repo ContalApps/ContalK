@@ -30,5 +30,19 @@ export default defineConfig({
   },
   build: {
     emptyOutDir: true,
+    target: 'es2022',
+    chunkSizeWarningLimit: 1000,
+    rollupOptions: {
+      output: {
+        manualChunks: (id) => {
+          if (id.includes('node_modules')) {
+            if (id.includes('@xterm')) return 'vendor-xterm'
+            if (id.includes('lucide-react')) return 'vendor-icons'
+            if (id.includes('react') || id.includes('scheduler')) return 'vendor-react'
+            if (id.includes('mediasoup-client')) return 'vendor-mediasoup'
+          }
+        },
+      },
+    },
   },
 })

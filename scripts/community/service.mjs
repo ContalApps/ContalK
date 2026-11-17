@@ -26,7 +26,7 @@ import { canSetNickname, normalizeNickname } from '../../src/roles/nicknames.ts'
 import { canModerateVoice } from '../../src/roles/voice-moderation.ts'
 import { MAX_VOICE_CAPACITY } from '../../src/roles/voice-capacity.ts'
 // Foto do servidor: data URL de imagem já reduzida no cliente (128x128).
-const SERVER_ICON_MAX = 60000
+const SERVER_ICON_MAX = 70000
 
 const identifier = value => typeof value === 'string' && /^[\w:-]{1,100}$/.test(value) && !['__proto__', 'constructor', 'prototype'].includes(value)
 const own = (object, key) => Object.prototype.hasOwnProperty.call(object, key)
@@ -205,7 +205,7 @@ export function createCommunityService({ tokens, storage, initialState, voice, f
     policy.visibleChannelIds=[...ids,...policy.categories.map(category=>category.id)]
     policy.overwrites = Object.fromEntries(Object.entries(policy.overwrites).filter(([channel]) => ids.has(channel) || policy.categories.some(category => category.id === channel)))
     return {
-      id: server.id, name: server.name, description:server.description||'',icon:server.icon||null,serverNow:Date.now(), revision: server.revision, actor, policy, channels: copy(visible), voiceSync:voice?(pendingVoice.has(id)?'pending':'synced'):'unconfigured',
+      id: server.id, name: server.name, description:server.description||'', ...(server.icon?{icon:server.icon}:{}), serverNow:Date.now(), revision: server.revision, actor, policy, channels: copy(visible), voiceSync:voice?(pendingVoice.has(id)?'pending':'synced'):'unconfigured',
       serverPermissions: permissionsFor(server.policy, actor).toString(),
       channelPermissions: Object.fromEntries(visible.map(channel => [channel.id, permissionsFor(server.policy, actor, channel.id).toString()])),
       messages: Object.fromEntries(visible.filter(channel => can(server.policy, actor, 'READ_MESSAGE_HISTORY', channel.id)).map(channel => [channel.id, copy((server.messages[channel.id] || []).slice(-RECENT_MESSAGE_COUNT))])),

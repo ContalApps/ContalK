@@ -19,10 +19,10 @@ async function serverIconFromFile(file: File): Promise<string> {
     context.drawImage(bitmap, (bitmap.width - side) / 2, (bitmap.height - side) / 2, side, side, 0, 0, ICON_SIZE, ICON_SIZE)
     for (const quality of [0.9, 0.8, 0.65]) {
       const data = canvas.toDataURL('image/webp', quality)
-      if (data.startsWith('data:image/webp') && data.length <= 60000) return data
+      if (data.startsWith('data:image/webp') && data.length <= 70000) return data
     }
     const fallback = canvas.toDataURL('image/jpeg', 0.7)
-    if (fallback.length <= 60000) return fallback
+    if (fallback.length <= 70000) return fallback
     throw new Error('A imagem ficou grande demais. Tente outra.')
   } finally { bitmap.close() }
 }
@@ -36,6 +36,7 @@ export function ServerOverview(){
   const conflict=dirty&&changed,allowed=can(snapshot.policy,snapshot.actor,'MANAGE_GUILD')
   useEffect(()=>{if(!dirty&&changed){setDraft(current);setBase(current)}},[dirty,changed,current.name,current.description,current.icon])
   const valid=!!draft.name.trim()&&draft.name.trim().length<=100&&draft.description.trim().length<=300
+
   const save=async()=>{
     setError('');setMessage('')
     try{

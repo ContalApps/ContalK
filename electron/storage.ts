@@ -18,6 +18,16 @@ export function setupStorage(window:BrowserWindow,getUsername:()=>string|null) {
   }
   const handlers:Record<string,(event:Electron.IpcMainInvokeEvent,...args:any[])=>unknown>={
     'storage-status':()=>{try{config();return true}catch{return false}},
+    'storage-register-file-path':async(_event,filePath:string)=>{
+      const owner=getUsername()!
+      config()
+      if(!filePath||typeof filePath!=='string'||!existsSync(filePath))throw new Error('Arquivo não encontrado.')
+      const stat=statSync(filePath)
+      if(!stat.isFile()||stat.size>2*1024**3)throw new Error('Escolha um arquivo de até 2 GB.')
+      if(selected.size>=20)selected.clear()
+      const id=randomUUID();selected.set(id,{file:filePath,owner})
+      return {id,name:path.basename(filePath),size:stat.size,type:mime(filePath),thumbnail:await thumbnail(filePath)}
+    },
     'storage-select':async()=>{
       const owner=getUsername()!
       config()

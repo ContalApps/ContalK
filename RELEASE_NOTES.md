@@ -1,3 +1,13 @@
+# ConTALK 0.1.45
+
+- **Modo Teatro 100% Full-Bleed sem Bordas**: As transmissões de tela agora ocupam toda a área dedicada sem barras pretas nem bordas (em widescreen e vídeos verticais), ocultando o cabeçalho estático e aproveitando de ponta a ponta quando as barras laterais estão recolhidas.
+- **Controle Flexível Preencher / Ajustar**: Botão dinâmico no overlay de ferramentas para alternar entre preenchimento total e proporção original, com preferência salva localmente.
+- **Sair e Assistir Transmissão**: Controles dedicados para sair de uma transmissão assistida e retornar à grade dos participantes a qualquer momento, ou voltar a assistir pelo palco ou avatar.
+- **Otimização de Performance e Redução de Tamanho (/ponytail)**: Redução de ~70% no bundle principal (de 1,34 MB para 401 kB) através de code-splitting modular, carregamento sob demanda do terminal (@xterm) e modais, e memoização de listas de mensagens e membros.
+- **Arrastar e Soltar Arquivos (Drag & Drop)**: Compartilhamento rápido soltando arquivos externos no chat aberto ou selecionando o canal de destino por modal interativo.
+- **Foto de Perfil / Ícone do Servidor**: Suporte completo a upload, remoção e exibição do ícone da comunidade nos trilhos, banners e cartões.
+- **Notificações do Sistema e Blindagem de Mensagens Privadas**: Notificações no sistema operacional para mensagens de texto, transmissões e DMs, com privacidade reforçada que oculta o conteúdo confidencial de mensagens privadas.
+
 # ConTALK 0.1.44
 
 - No **Modo Grade**, as transmissões começam fechadas e sem som. Use **Assistir** para abrir a imagem e o áudio de um card e **Fechar** para parar de assistir àquela transmissão.

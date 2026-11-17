@@ -4,12 +4,15 @@ export function setupNotifications(window:BrowserWindow){
   const shown=new Map<string,Notification>()
   const notify=(event:Electron.IpcMainEvent,value:unknown)=>{
     if(event.sender!==window.webContents||event.senderFrame!==window.webContents.mainFrame||!Notification.isSupported()||!value||typeof value!=='object')return
-    const notice=value as {id?:unknown;kind?:unknown;title?:unknown;body?:unknown;channelId?:unknown}
+    const notice=value as {id?:unknown;kind?:unknown;title?:unknown;body?:unknown;channelId?:unknown;peer?:unknown}
     if(typeof notice.id!=='string'||notice.id.length>200||typeof notice.title!=='string'||typeof notice.body!=='string'||!['message','friendship','live','voice','thread','event'].includes(String(notice.kind)))return
     const group=typeof notice.channelId==='string'?notice.channelId:notice.id
     shown.get(group)?.close()
     if(shown.size>=30){const oldest=shown.keys().next().value;if(oldest){shown.get(oldest)?.close();shown.delete(oldest)}}
-    const notification=new Notification({title:notice.title.slice(0,100),body:notice.body.slice(0,240)})
+    const isDirect=(typeof notice.channelId==='string'&&notice.channelId.startsWith('dm:'))||typeof notice.peer==='string'
+    const title=notice.title.slice(0,100)
+    const body=isDirect?'Você recebeu uma nova mensagem privada.':notice.body.slice(0,240)
+    const notification=new Notification({title,body})
     shown.set(group,notification)
     notification.on('click',()=>{if(!window.isDestroyed()){showMainWindow(window);if(!window.webContents.isDestroyed())window.webContents.send('notification-open',notice.id)}})
     notification.on('close',()=>{if(shown.get(group)===notification)shown.delete(group)})

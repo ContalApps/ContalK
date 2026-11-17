@@ -2,7 +2,22 @@ import { useCommunityStore } from '../store/useCommunityStore'
 import { useAuthStore } from '../store/useAuthStore'
 import { useRoleStore } from '../store/useRoleStore'
 import { memberDisplayName } from '../roles/nicknames'
-import { displayRole, displayIconRole } from '../roles/permissions'
+import { displayRole, displayIconRole, type Role } from '../roles/permissions'
+
+export function RoleBadge({ role }: { role: Role }) {
+  return (
+    <span
+      className={`ct-role-badge ${role.style}`}
+      style={{
+        '--role-color': role.color || '#b5b5b5',
+        '--role-secondary': role.secondaryColor || role.color || '#b5b5b5',
+      } as React.CSSProperties}
+    >
+      {role.icon && (role.icon.startsWith('data:image/') ? <img src={role.icon} alt="" /> : <span aria-hidden="true">{role.icon}</span>)}
+      {role.name}
+    </span>
+  )
+}
 
 export function RoleName({identity,name,serverId}:{identity?:string;name:string;serverId?:string}){
   const snapshot=useRoleStore(state=>state.snapshot)

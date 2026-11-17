@@ -43,7 +43,8 @@ export function setupActivityNotifications(){
         const mention=usePreferencesStore.getState().roleMentionNotifications!==false&&(!!message.mentionsEveryone||message.roleMentions?.some(id=>ownRoles.has(id))===true)
         const body=message.content.replace(/<@&([\w:-]{1,100})>/g,(token,id:string)=>{const role=policy?.roles.find(role=>role.id===id);return role?'@'+role.name:token})
         const title=direct?message.userName:`#${channelName||'canal'} · ${message.userName}`
-        present({id:'message:'+message.id,kind:'message',title:mention?'Você foi mencionado · '+title:title,body:message.once?'Mensagem de visualização única':(message.voice?'Mensagem de voz':body||message.attachment?.name||'Nova mensagem'),channelId:channel,peer:direct?message.userId:undefined,createdAt:Date.now(),read,mention})
+        const noticeBody=direct?'Você recebeu uma nova mensagem privada.':(message.once?'Mensagem de visualização única':(message.voice?'Mensagem de voz':body||message.attachment?.name||'Nova mensagem'))
+        present({id:'message:'+message.id,kind:'message',title:mention?'Você foi mencionado · '+title:title,body:noticeBody,channelId:channel,peer:direct?message.userId:undefined,createdAt:Date.now(),read,mention})
       }
     }
   })
@@ -55,14 +56,31 @@ export function setupActivityNotifications(){
     }
   })
   const voice=useVoiceStore.subscribe((state,previous)=>{
-    if(state.connectionStatus!=='connected'||state.activeChannelId!==previous.activeChannelId)return
-    for(const person of state.participants){
-      if(person.isLocal)continue
-      const before=previous.participants.find(p=>p.identity===person.identity)
-      if(before&&(before.isScreenShareEnabled||!person.isScreenShareEnabled))continue
-      // Entradas e transmissões na chamada viram um aviso rápido: não vão para o sino.
-      if(usePresenceStatus.getState().status==='dnd')continue
-      useToastStore.getState().push({id:`voice:${state.activeChannelId}:${person.identity}:${person.isScreenShareEnabled?'live':'join'}`,kind:person.isScreenShareEnabled?'live':'voice',title:person.isScreenShareEnabled?'Transmissão ao vivo':'Entrou na chamada',body:`${person.serverNickname||person.name} ${person.isScreenShareEnabled?'está compartilhando a tela':'entrou em '+(state.activeChannelName||'a chamada')}.`})
+    if(state.connectionStatus==='connected'&&state.activeChannelId===previous.activeChannelId){
+      for(const person of state.participants){
+        if(person.isLocal)continue
+        const before=previous.participants.find(p=>p.identity===person.identity)
+        if(before&&(before.isScreenShareEnabled||!person.isScreenShareEnabled))continue
+        // Entradas e transmissões na sua chamada viram um aviso rápido: não vão para o sino.
+        if(usePresenceStatus.getState().status==='dnd')continue
+        useToastStore.getState().push({id:`voice:${state.activeChannelId}:${person.identity}:${person.isScreenShareEnabled?'live':'join'}`,kind:person.isScreenShareEnabled?'live':'voice',title:person.isScreenShareEnabled?'Transmissão ao vivo':'Entrou na chamada',body:`${person.serverNickname||person.name} ${person.isScreenShareEnabled?'está compartilhando a tela':'entrou em '+(state.activeChannelName||'a chamada')}.`})
+      }
+    }
+    // Transmissão começando em outro canal (fora da sua chamada) continua indo para o sino.
+    if(state.channelOccupants&&state.channelOccupants!==previous.channelOccupants){
+      for(const [chId,occupants] of Object.entries(state.channelOccupants)){
+        if(state.connectionStatus==='connected'&&chId===state.activeChannelId)continue
+        const prevOccupants=previous.channelOccupants?.[chId]||[]
+        for(const person of occupants){
+          if(person.isLocal)continue
+          const prevPerson=prevOccupants.find(p=>p.identity===person.identity)
+          const startedStream=person.isScreenShareEnabled&&(!prevPerson||!prevPerson.isScreenShareEnabled)
+          if(startedStream){
+            const chName=useAppStore.getState().servers.flatMap(s=>s.channels).find(c=>c.id===chId)?.name||'Voz'
+            present({id:`live:${chId}:${person.identity}:${Date.now()}`,kind:'live',title:'Nova transmissão',body:`${person.name} iniciou uma transmissão de tela em #${chName}.`,channelId:chId,createdAt:Date.now(),read:false})
+          }
+        }
+      }
     }
   })
   const pruneEvents=(state:ReturnType<typeof useRoleStore.getState>)=>{
