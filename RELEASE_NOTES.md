@@ -1,3 +1,8 @@
+# ConTalk 0.1.47
+
+- **Arrastar a janela:** voltou a funcionar com a janela fora do modo maximizado. Toda a barra de cima, fora os botões, serve para arrastar.
+- **Telas de atualização no visual novo:** a janela de download e a tela que aparece durante a instalação agora usam o tema Menta, o ícone novo e o nome ConTalk.
+
 # ConTalk 0.1.46
 
 - **Novo nome e ícone:** o app agora se chama **ConTalk**, com um ícone novo (balão de conversa com ondas de voz).

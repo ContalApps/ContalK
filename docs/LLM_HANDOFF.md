@@ -14,6 +14,7 @@ Publicada a partir da dev/vg depois de juntar a main com a v0.1.45 da dev/caliar
 - Depois do primeiro teste no app, o VG pediu: coluna de servidores de volta (como no Discord), visual menos arredondado, Amigos no formato do Discord com "Ativo agora" (`FriendsPage.tsx`), Voz e áudio limpo com medidor (`AudioSettings.tsx`), Compartilhar tela no tema novo, compositor com anexar à esquerda e ferramentas à direita, e painel de emojis organizado. Estilos dessas telas em `src/screens.css`.
 - Terceira rodada do VG: notificações menos insistentes (`useToastStore`, `ActivityToasts`, sino em `UpdateNotification.tsx`), status de presença (`usePresenceStatus.ts`, ligado em `main.tsx`), cartão de perfil (`ProfilePopover.tsx`), configurações do servidor em tela cheia (`RoleManager.tsx`, `ServerOverview.tsx`, estilos em `src/panels.css`) e foto do servidor preservada na coluna quando o serviço antigo não manda o campo.
 - Para rodar em modo dev neste computador: `$env:ELECTRON_OVERRIDE_DIST_PATH='<repo>\release\electron-runtime'; npm run dev` (o Electron de `node_modules` está sem binário) e feche antes o ConTalk instalado, por causa da instância única.
+- 0.1.47: arrasto da janela corrigido (os grupos da barra de título deixaram de ser no-drag inteiros) e telas de atualização (public/update-progress.* e native/update-progress/main.cpp) no tema Menta. O native/bin não é versionado: o workflow de release recompila os auxiliares.
 - Mockups e relatório de QA ficam em `release/layout-concepts/` (ignorado pelo Git).
 
 ## Versão 0.1.45

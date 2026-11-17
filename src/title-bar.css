@@ -3,7 +3,7 @@
 .ct-titlebar[data-theme=vice-city]{background:#172b26;color:#eee4cb}
 .ct-titlebar-safe{display:grid;grid-template-columns:minmax(70px,1fr) minmax(0,2fr) minmax(140px,1fr);align-items:center;height:100%;box-sizing:border-box;margin-left:env(titlebar-area-x,0px);width:env(titlebar-area-width,calc(100% - 138px));padding:0 8px;gap:12px}
 .ct-titlebar[data-native-controls=false] .ct-titlebar-safe{width:100%;margin-left:0}
-.ct-titlebar-navigation,.ct-titlebar-actions{display:flex;align-items:center;gap:3px;-webkit-app-region:no-drag}
+.ct-titlebar-navigation,.ct-titlebar-actions{display:flex;align-items:center;gap:3px}
 .ct-titlebar-actions{justify-content:flex-end}
 .ct-titlebar button,.ct-titlebar input,.ct-titlebar a,.ct-titlebar-popover{-webkit-app-region:no-drag}
 .ct-titlebar-navigation>button,.ct-titlebar-actions>button,.ct-titlebar .ct-update-bell>button,.ct-titlebar-popover button{display:grid;place-items:center;background:transparent;border:0;color:inherit;min-width:28px;height:28px;padding:5px;border-radius:5px;cursor:pointer}

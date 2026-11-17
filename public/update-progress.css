@@ -1,2 +1,22 @@
 @font-face{font-family:'Google Sans';src:url('./fonts/GoogleSans-Variable.ttf') format('truetype');font-weight:400 700;font-style:normal;font-display:swap}
-*{box-sizing:border-box}body{margin:0;background:#110e19;color:#f0e4ff;font:14px 'Google Sans',Arial,sans-serif;font-optical-sizing:auto;overflow:hidden}main{text-align:center;padding:25px 35px}img{width:90px;height:90px;border-radius:50%;margin-bottom:12px}h1{font-size:19px;font-weight:600;margin:0 0 12px}p{font-size:12px;color:#aa99be;line-height:1.6;min-height:34px;margin:0 0 16px}.track{height:7px;background:#2e2240;border-radius:8px;overflow:hidden}#bar{height:100%;width:0;background:linear-gradient(90deg,#7734d5,#b97bff);transition:width .15s}#percent{display:block;color:#cdb1e6;font-size:11px;margin-top:8px}button{font-family:inherit;margin-top:8px;color:#eee;background:#39224f;border:1px solid #8155a2;border-radius:5px;padding:6px 15px;cursor:pointer}.installing #bar{width:30%!important;animation:slide 1.2s infinite ease-in-out}.installing #percent{display:none}@keyframes slide{from{transform:translateX(-100%)}to{transform:translateX(350%)}}@media(prefers-reduced-motion:reduce){.installing #bar{animation:none;width:100%!important}}
+/* Mesmo visual do tema Menta do app: grafite, verde-menta e cantos de 6 a 8px. */
+*{box-sizing:border-box}
+html,body{height:100%}
+body{margin:0;background:#0b0e13;color:#e9eef4;font:14px 'Google Sans','Segoe UI',Arial,sans-serif;overflow:hidden;-webkit-app-region:drag;user-select:none;box-shadow:inset 0 0 0 1px rgba(255,255,255,.08)}
+main{height:100%;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:24px 36px;text-align:center}
+img{width:72px;height:72px;border-radius:16px;margin-bottom:14px;box-shadow:0 8px 24px rgba(61,220,151,.18)}
+.version{min-height:20px;margin-bottom:8px;padding:2px 8px;border-radius:4px;background:rgba(61,220,151,.14);color:#3ddc97;font-size:11px;font-weight:600;letter-spacing:.02em}
+.version:empty{visibility:hidden}
+h1{margin:0 0 6px;font-size:18px;font-weight:700}
+p{min-height:20px;margin:0 0 18px;font-size:13px;line-height:1.5;color:#aeb6c2}
+.track{width:100%;height:6px;overflow:hidden;border-radius:3px;background:#1b212b}
+#bar{width:0;height:100%;border-radius:3px;background:#3ddc97;transition:width .15s linear}
+#percent{display:block;margin-top:10px;font-size:12px;font-weight:600;color:#7d8796;font-variant-numeric:tabular-nums}
+button{margin-top:14px;padding:8px 18px;border:1px solid rgba(255,255,255,.13);border-radius:6px;background:#1b212b;color:#e9eef4;font:inherit;font-size:13px;font-weight:600;cursor:pointer;-webkit-app-region:no-drag}
+button:hover{background:#202733}
+.installing #bar{width:30%!important;animation:slide 1.2s infinite ease-in-out}
+.installing #percent{visibility:hidden}
+.failed #bar{background:#f2555a}
+.failed .version{background:rgba(242,85,90,.14);color:#f2555a}
+@keyframes slide{from{transform:translateX(-100%)}to{transform:translateX(350%)}}
+@media(prefers-reduced-motion:reduce){.installing #bar{animation:none;width:100%!important}}
