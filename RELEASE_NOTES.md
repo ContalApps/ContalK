@@ -1,3 +1,21 @@
+# ConTalk 0.1.46
+
+- **Novo nome e ícone:** o app agora se chama **ConTalk**, com um ícone novo (balão de conversa com ondas de voz).
+- **Visual novo:** coluna de servidores à esquerda como no Discord, barra lateral que muda entre Início/mensagens e os canais do servidor, cantos mais quadrados e botões de janela próprios.
+- **Temas:** **Menta** (padrão) e **Vice City**, com o gradiente roxo, rosa e laranja do pôr do sol. Troque em Configurações → Aparência.
+- **Chamadas:** abas **Conversa** e **Chamada** no topo. Na aba Chamada fica o palco com os controles e o chat do canal ao lado; na Conversa, a chamada vira um mini-player que dá para recolher. O card **Voz conectada** fica acima do seu perfil.
+- **Início refeito:** seções de Ao vivo agora, Suas comunidades e Amigos online, que você recolhe ou oculta em **Personalizar início**. Conversas recentes começam ocultas.
+- **Amigos:** tela no formato do Discord, com abas, busca e a coluna **Ativo agora**.
+- **Perfil e status:** clique no seu card para abrir o perfil e escolher **Disponível, Ausente, Não perturbar ou Invisível**. Não perturbar silencia os avisos.
+- **Notificações mais calmas:** entradas na chamada aparecem como um aviso rápido que some sozinho. O sino guarda mensagens diretas, menções, amizades e eventos, e abrir o sino já marca tudo como lido. Versões novas aparecem como um botão **Atualizar** ao lado do sino.
+- **Configurações:** telas do usuário e do servidor reorganizadas em seções, com interruptores. **Voz e áudio** ganhou microfone e alto-falante lado a lado e um medidor para testar o microfone.
+- **Foto do servidor:** escolha em Configurações do servidor → Perfil do servidor; ela aparece na coluna de servidores.
+- **Imagens e vídeos:** aparecem só como mídia no chat. Clique na imagem para ampliar, girar, baixar ou abrir no navegador.
+- **Compartilhar tela, busca (Ctrl+K), criar ou entrar em comunidade e emojis** foram redesenhados.
+- **Segurança:** o login com Google, Instagram e LinkedIn foi desativado até termos uma verificação segura com cada provedor. O bloco de notas colaborativo agora só é compartilhado com quem está na mesma chamada.
+- **Correções:** ligar e desligar a câmera não quebra mais a tela; um headset desconectado não derruba a chamada; mutar durante uma reconexão continua valendo; fechar o terminal encerra os processos abertos; o servidor de voz aguenta mais pessoas conectadas ao mesmo tempo.
+- A seção **Projetos** (Kanban, Tarefas, Documentação e Roadmap) está desativada por enquanto.
+
 # ConTALK 0.1.45
 
 - **Modo Teatro 100% Full-Bleed sem Bordas**: As transmissões de tela agora ocupam toda a área dedicada sem barras pretas nem bordas (em widescreen e vídeos verticais), ocultando o cabeçalho estático e aproveitando de ponta a ponta quando as barras laterais estão recolhidas.

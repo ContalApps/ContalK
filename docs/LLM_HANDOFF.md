@@ -1,8 +1,8 @@
 # Retomada do ConTalk
 
-## Em andamento na dev/vg (17/11/2026): ConTalk, QA e layout novo
+## Versão 0.1.46 (dev/vg, 17/11/2026): ConTalk, QA e layout novo
 
-Ainda sem commit, PR ou release; versão do pacote continua 0.1.44. Tipos, testes e build passam localmente.
+Publicada a partir da dev/vg depois de juntar a main com a v0.1.45 da dev/caliari (arrastar e soltar, sair da transmissão, carregamento sob demanda). Confira PR, tag, release e /health antes de afirmar que está no ar.
 
 - Nome passa a ser **ConTalk** (textos, `productName`, atalho e `ConTalk-Setup-<versão>.exe`). O Windows não diferencia maiúsculas, então a pasta de dados e a de instalação continuam as mesmas. O canal do Telegram "ConTALK Storage", o serviço "ConTALK Community" e o servidor "ConTALK HQ" mantêm o nome antigo de propósito.
 - Ícone novo (balão com ondas de voz) em `build/icon.svg`; `scripts/generate-icons.cjs` gera `.ico` e PNGs (rodar com o Electron de `release/electron-runtime`).
