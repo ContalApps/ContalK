@@ -117,11 +117,11 @@ const initialTasks: TodoTask[] = [
 const initialDocs: DevDoc[] = [
   {
     id: 'doc-arch',
-    title: 'Visão Geral do ConTALK',
+    title: 'Visão Geral do ConTalk',
     category: 'Geral',
-    content: `# ConTALK — Comunicação e Colaboração em Tempo Real
+    content: `# ConTalk — Comunicação e Colaboração em Tempo Real
 
-O ConTALK é um aplicativo moderno de comunicação por voz, vídeo e transmissão de tela, inspirado na experiência e simplicidade do Discord.
+O ConTalk é um aplicativo moderno de comunicação por voz, vídeo e transmissão de tela, inspirado na experiência e simplicidade do Discord.
 
 ## Pilares Fundamentais
 1. **Comunicação de Alta Performance:** Áudio cristalino com WebRTC, cancelamento de eco acústico e VAD ultra-rápido.

@@ -1,0 +1,57 @@
+/* ConTalk 2026: Configurações pessoais no formato do Discord. Carregado depois de panels.css. */
+.ct-app[data-skin] > .ct-settings-screen { display: flex; }
+.ct-app[data-skin] .ct-settings-nav { width: max(240px, calc((100% - 1040px) / 2 + 240px)); flex-shrink: 0; display: flex; flex-direction: column; align-items: flex-end; gap: 2px; padding: 48px 8px 32px 20px; overflow-y: auto; }
+.ct-app[data-skin] .ct-settings-nav > * { width: 220px; }
+.ct-app[data-skin] .ct-settings-account { display: flex; align-items: center; gap: 10px; margin-bottom: 12px; padding: 8px; border: 0; background: transparent; color: var(--sk-fg); text-align: left; cursor: pointer; }
+.ct-app[data-skin] .ct-settings-account:hover { background: var(--sk-hover); }
+.ct-app[data-skin] .ct-settings-account .ct-avatar { width: 40px; height: 40px; font-size: 13px; }
+.ct-app[data-skin] .ct-settings-account span { display: flex; flex-direction: column; min-width: 0; }
+.ct-app[data-skin] .ct-settings-account strong { font-size: 15px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ct-app[data-skin] .ct-settings-account small { display: flex; align-items: center; gap: 4px; font-size: 12px; color: var(--sk-fg-3); }
+.ct-app[data-skin] .ct-settings-nav .ct-eyebrow { padding: 6px 10px; font-size: 12px; font-weight: 700; letter-spacing: 0; text-transform: none; color: var(--sk-fg-3); }
+.ct-app[data-skin] .ct-settings-nav nav { display: flex; flex-direction: column; gap: 2px; }
+.ct-app[data-skin] .ct-settings-nav nav button { display: flex; align-items: center; gap: 10px; height: 36px; padding: 0 10px; border: 0; background: transparent; color: var(--sk-fg-2); font-size: 15px; font-weight: 500; text-align: left; cursor: pointer; }
+.ct-app[data-skin] .ct-settings-nav nav button:hover { background: var(--sk-hover); color: var(--sk-fg); }
+.ct-app[data-skin] .ct-settings-nav nav button.active { background: var(--sk-active) !important; color: var(--sk-fg) !important; }
+.ct-app[data-skin] .ct-settings-nav nav button.active .ct-glyph { color: var(--sk-fg) !important; }
+.ct-app[data-skin] .ct-settings-back { display: flex; align-items: center; gap: 8px; height: 40px; margin-top: 12px; padding: 0 10px; border: 0; border-top: 1px solid var(--sk-border); border-radius: 0 !important; background: transparent; color: var(--sk-fg-3); font-size: 14px; cursor: pointer; }
+.ct-app[data-skin] .ct-settings-back:hover { color: var(--sk-fg); }
+.ct-app[data-skin] .ct-settings-content { flex: 1; min-width: 0; max-width: none; overflow-y: auto; padding: 48px 40px 80px; }
+.ct-app[data-skin] .ct-settings-content > * { max-width: 740px; }
+.ct-app[data-skin] .ct-settings-heading { position: static; display: block; margin-bottom: 20px; }
+.ct-app[data-skin] .ct-settings-heading h1 { margin: 0; font-size: 20px; font-weight: 700; }
+.ct-app[data-skin] .ct-settings-heading p { margin: 4px 0 0; font-size: 14px; color: var(--sk-fg-3); }
+.ct-app[data-skin] .ct-settings-close { position: fixed; top: 92px; right: max(24px, calc((100% - 1260px) / 2)); z-index: 2; display: flex; flex-direction: column; align-items: center; gap: 6px; padding: 0; border: 0; background: transparent; color: var(--sk-fg-2); cursor: pointer; }
+.ct-app[data-skin] .ct-settings-close .ct-glyph { width: 36px; height: 36px; padding: 8px; border: 2px solid var(--sk-border-strong); border-radius: 50%; }
+.ct-app[data-skin] .ct-settings-close:hover { color: var(--sk-fg); }
+.ct-app[data-skin] .ct-settings-close:hover .ct-glyph { border-color: var(--sk-fg-2); }
+.ct-app[data-skin] .ct-settings-close small { font-size: 12px; font-weight: 600; color: var(--sk-fg-3); }
+.ct-app[data-skin] .ct-settings-section-title { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; margin: 28px 0 10px; }
+.ct-app[data-skin] .ct-settings-section-title h2 { margin: 0; font-size: 15px; font-weight: 700; }
+.ct-app[data-skin] .ct-settings-section-title > span { font-size: 12px; color: var(--sk-fg-3); }
+.ct-app[data-skin] .ct-settings-content .ct-settings-preferences { margin: 0; padding: 0; border: 0 !important; border-radius: 0 !important; background: transparent; box-shadow: none; }
+.ct-app[data-skin] .ct-setting-row { display: flex; align-items: center; justify-content: space-between; gap: 24px; padding: 18px 0; border-bottom: 1px solid var(--sk-border); background: transparent; }
+.ct-app[data-skin] .ct-setting-row > span { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.ct-app[data-skin] .ct-setting-row strong { font-size: 15px; font-weight: 600; color: var(--sk-fg); }
+.ct-app[data-skin] .ct-setting-row small { font-size: 13px; line-height: 1.45; color: var(--sk-fg-3); }
+.ct-app[data-skin] .ct-setting-row select { height: 38px; padding: 0 10px; border: 1px solid var(--sk-border-strong); background: var(--sk-field); color: var(--sk-fg); font: inherit; font-size: 14px; }
+/* Caixas de seleção das linhas de configuração viram interruptores. */
+.ct-app[data-skin] .ct-setting-row input[type=checkbox] {
+  appearance: none; -webkit-appearance: none; position: relative; width: 40px !important; height: 24px !important; flex-shrink: 0; margin: 0;
+  border-radius: 12px !important; background: var(--sk-surface-2); box-shadow: inset 0 0 0 1px var(--sk-border-strong); cursor: pointer; transition: background 120ms ease;
+}
+.ct-app[data-skin] .ct-setting-row input[type=checkbox]::after { content: ""; position: absolute; top: 3px; left: 3px; width: 18px; height: 18px; border-radius: 50%; background: #fff; transition: transform 120ms ease; }
+.ct-app[data-skin] .ct-setting-row input[type=checkbox]:checked { background: var(--sk-accent); box-shadow: none; }
+.ct-app[data-skin=vice-city] .ct-setting-row input[type=checkbox]:checked { background: #ff4fa3; }
+.ct-app[data-skin] .ct-setting-row input[type=checkbox]:checked::after { transform: translateX(16px); }
+.ct-app[data-skin] .ct-setting-row input[type=checkbox]:focus-visible { outline: 2px solid var(--sk-accent-line); outline-offset: 2px; }
+.ct-app[data-skin] .ct-settings-saved { display: flex; align-items: center; gap: 6px; margin: 12px 0 0; font-size: 12px; color: var(--sk-fg-3); }
+.ct-app[data-skin] .ct-theme-options { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+.ct-app[data-skin] .ct-theme-choice { border: 1px solid var(--sk-border); border-radius: 8px !important; background: var(--sk-surface); overflow: hidden; cursor: pointer; }
+.ct-app[data-skin] .ct-theme-choice:hover { border-color: var(--sk-border-strong); }
+.ct-app[data-skin] .ct-settings-content .ct-voice-settings.is-embedded .ct-vs-section:first-of-type { padding-top: 0; }
+@media (max-width: 1000px) {
+  .ct-app[data-skin] .ct-settings-nav { width: 220px; padding-left: 8px; }
+  .ct-app[data-skin] .ct-settings-content { padding: 32px 24px 80px; }
+  .ct-app[data-skin] .ct-settings-close { right: 16px; }
+}

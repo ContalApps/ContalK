@@ -1,17 +1,35 @@
 import { BrowserWindow, ipcMain } from 'electron'
 
+// Sem a sobreposição nativa do Windows: minimizar, maximizar e fechar são desenhados pelo app
+// (src/components/WindowControls.tsx) para seguir o tema e o visual do ConTalk.
 export const titleBarOptions = {
   titleBarStyle: 'hidden' as const,
-  titleBarOverlay: { color: '#000000', symbolColor: '#b3b3b3', height: 44 },
 }
 
+type WindowAction = 'minimize' | 'maximize' | 'close'
+
 export function setupTitleBar(window: BrowserWindow) {
-  const appearance = (event: Electron.IpcMainEvent, theme: unknown, scale: unknown) => {
-    if (process.platform === 'darwin') return
-    if (event.sender !== window.webContents || event.senderFrame !== window.webContents.mainFrame) return
-    if (!['classic', 'vice-city'].includes(String(theme)) || typeof scale !== 'number' || !Number.isInteger(scale) || scale < 80 || scale > 120) return
-    window.setTitleBarOverlay({color: theme === 'vice-city' ? '#172b26' : '#000000', symbolColor: theme === 'vice-city' ? '#eee4cb' : '#b3b3b3', height: Math.round(44 * scale / 100)})
+  const fromMainFrame = (event: Electron.IpcMainEvent | Electron.IpcMainInvokeEvent) => event.sender === window.webContents && event.senderFrame === window.webContents.mainFrame
+  // Mantido por compatibilidade com renderers antigos; o tema já não altera nada nativo.
+  const appearance = () => {}
+  const control = (event: Electron.IpcMainInvokeEvent, action: unknown) => {
+    if (!fromMainFrame(event) || !['minimize', 'maximize', 'close'].includes(String(action))) return false
+    const value = action as WindowAction
+    if (value === 'minimize') window.minimize()
+    else if (value === 'maximize') { if (window.isMaximized()) window.unmaximize(); else window.maximize() }
+    else window.close()
+    return window.isMaximized()
   }
+  const state = (event: Electron.IpcMainInvokeEvent) => fromMainFrame(event) ? window.isMaximized() : false
+  const notify = () => { if (!window.isDestroyed()) window.webContents.send('window-maximized', window.isMaximized()) }
   ipcMain.on('window-titlebar-appearance', appearance)
-  window.once('closed', () => ipcMain.removeListener('window-titlebar-appearance', appearance))
+  ipcMain.handle('window-control', control)
+  ipcMain.handle('window-maximized-state', state)
+  window.on('maximize', notify)
+  window.on('unmaximize', notify)
+  window.once('closed', () => {
+    ipcMain.removeListener('window-titlebar-appearance', appearance)
+    ipcMain.removeHandler('window-control')
+    ipcMain.removeHandler('window-maximized-state')
+  })
 }

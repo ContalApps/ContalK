@@ -6,6 +6,7 @@ import { canMutateThread } from '../roles/threads'
 import { PollEditor } from './PollEditor'
 import { PollCard } from './PollCard'
 import { ControlIcon } from './ControlIcon'
+import { ChatImage, ChatVideo } from './MediaViewer'
 import { LinkPreview } from './LinkPreview'
 import { MessageTools } from './MessageTools'
 import { useEffect, useState, useRef, useMemo } from 'react'
@@ -41,56 +42,13 @@ function ViewOnceIcon({ size = 18, active = false }: { size?: number; active?: b
 
 function ImagePreview({ src, name }: { src: string; name: string }) {
   const [failed, setFailed] = useState(false)
-  const [zoomed, setZoomed] = useState(false)
-  if (failed) return <span>Prévia indisponível</span>
-  return (
-    <>
-      <img
-        className="ct-chat-image"
-        src={src}
-        alt={name}
-        loading="lazy"
-        referrerPolicy="no-referrer"
-        title="Clique para ampliar"
-        onClick={() => setZoomed(true)}
-        onError={() => setFailed(true)}
-      />
-      {zoomed && (
-        <div
-          role="dialog"
-          aria-modal="true"
-          className="ct-modal-backdrop"
-          onClick={() => setZoomed(false)}
-          style={{
-            zIndex: 1000,
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            background: 'rgba(0,0,0,0.85)',
-            cursor: 'zoom-out'
-          }}
-        >
-          <img
-            src={src}
-            alt={name}
-            style={{
-              maxWidth: '90vw',
-              maxHeight: '90vh',
-              objectFit: 'contain',
-              borderRadius: '8px',
-              boxShadow: '0 8px 32px rgba(0,0,0,0.8)'
-            }}
-          />
-        </div>
-      )}
-    </>
-  )
+  if (failed) return <span className="ct-media-unavailable">Prévia indisponível</span>
+  return <ChatImage media={{ src, name }} onError={() => setFailed(true)} />
 }
 
 function StorageAttachmentPreview({ a }: { a: Attachment }) {
   const [effectiveSrc, setEffectiveSrc] = useState<string | null>(null)
   const [failed, setFailed] = useState(false)
-  const [zoomed, setZoomed] = useState(false)
   const [textSnippet, setTextSnippet] = useState<string | null>(null)
   const placeholder = a.thumbnail ? `data:image/jpeg;base64,${a.thumbnail}` : null
 
@@ -132,116 +90,22 @@ function StorageAttachmentPreview({ a }: { a: Attachment }) {
   }, [isText, effectiveSrc, textSnippet])
 
   if (isImage) {
+    if (!displaySrc || failed) {
+      return <span className="ct-media ct-media-placeholder" aria-label={a.name}><ControlIcon name="image" size={24} /></span>
+    }
     return (
-      <div className="ct-attachment ct-attachment-image">
-        {displaySrc && !failed ? (
-          <img
-            className="ct-chat-image"
-            src={displaySrc}
-            alt={a.name}
-            loading="lazy"
-            referrerPolicy="no-referrer"
-            title="Clique para ampliar"
-            onClick={() => setZoomed(true)}
-            onError={() => {
-              if (effectiveSrc) {
-                setEffectiveSrc(null)
-              } else {
-                setFailed(true)
-              }
-            }}
-          />
-        ) : (
-          <span className="ct-chat-image-fallback">
-            <ControlIcon name="file" size={24} />
-          </span>
-        )}
-        <div className="ct-attachment-info">
-          <div className="ct-attachment-text">
-            <strong>{a.name}</strong>
-            <small>{(a.size / 1024 / 1024).toFixed(2)} MB · Imagem</small>
-          </div>
-          <button
-            type="button"
-            className="ct-download-btn"
-            title="Baixar imagem original"
-            aria-label={`Baixar imagem ${a.name}`}
-            onClick={() => {
-              void window.contalkDesktop?.openStorageFile(a.storageId!).catch(() => {})
-            }}
-          >
-            <ControlIcon name="download" size={13} /> Baixar
-          </button>
-        </div>
-        {zoomed && (
-          <div
-            role="dialog"
-            aria-modal="true"
-            className="ct-modal-backdrop"
-            onClick={() => setZoomed(false)}
-            style={{
-              zIndex: 1000,
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              background: 'rgba(0,0,0,0.85)',
-              cursor: 'zoom-out'
-            }}
-          >
-            <img
-              src={displaySrc || ''}
-              alt={a.name}
-              style={{
-                maxWidth: '90vw',
-                maxHeight: '90vh',
-                objectFit: 'contain',
-                borderRadius: '8px',
-                boxShadow: '0 8px 32px rgba(0,0,0,0.8)'
-              }}
-            />
-          </div>
-        )}
-      </div>
+      <ChatImage
+        media={{ src: effectiveSrc || displaySrc, name: a.name, storageId: a.storageId }}
+        onError={() => { if (effectiveSrc) setEffectiveSrc(null); else setFailed(true) }}
+      />
     )
   }
 
   if (isVideo) {
-    return (
-      <div className="ct-attachment ct-attachment-video">
-        {displaySrc ? (
-          <video
-            controls
-            preload="metadata"
-            src={displaySrc}
-            className="ct-chat-video"
-            style={{ maxWidth: '100%', maxHeight: '320px', borderRadius: '8px', background: '#000', display: 'block' }}
-          />
-        ) : placeholder ? (
-          <img src={placeholder} alt={a.name} className="ct-chat-image" />
-        ) : (
-          <span className="ct-chat-image-fallback">
-            <ControlIcon name="screen" size={24} />
-          </span>
-        )}
-        <div className="ct-attachment-info">
-          <div className="ct-attachment-text">
-            <strong>{a.name}</strong>
-            <small>{(a.size / 1024 / 1024).toFixed(2)} MB · Vídeo</small>
-          </div>
-          <button
-            type="button"
-            className="ct-download-btn"
-            title="Baixar vídeo"
-            aria-label={`Baixar vídeo ${a.name}`}
-            onClick={() => {
-              void window.contalkDesktop?.openStorageFile(a.storageId!).catch(() => {})
-            }}
-          >
-            <ControlIcon name="download" size={13} /> Baixar
-          </button>
-        </div>
-      </div>
-    )
+    if (!effectiveSrc) {
+      return <span className="ct-media ct-media-placeholder" aria-label={a.name}>{placeholder ? <img src={placeholder} alt="" /> : <ControlIcon name="play" size={24} />}</span>
+    }
+    return <ChatVideo media={{ src: effectiveSrc, name: a.name, storageId: a.storageId }} poster={placeholder || undefined} />
   }
 
   if (isAudio) {
@@ -427,22 +291,7 @@ function AttachmentPreview({ attachment: a }: { attachment: Attachment }) {
   }
 
   if (isVideo && a.data) {
-    return (
-      <div className="ct-attachment ct-attachment-video">
-        <video
-          controls
-          preload="metadata"
-          src={a.data}
-          style={{ maxWidth: '100%', maxHeight: '320px', borderRadius: '8px', background: '#000', display: 'block' }}
-        />
-        <div className="ct-attachment-info">
-          <strong>{a.name}</strong>
-          <a href={a.data} download={a.name} className="ct-download-btn">
-            <ControlIcon name="download" size={13} /> Baixar
-          </a>
-        </div>
-      </div>
-    )
+    return <ChatVideo media={{ src: a.data, name: a.name }} />
   }
 
   if (isAudio && a.data) {
@@ -963,9 +812,6 @@ export function ChatComposer({
       )}
 
       <div className="ct-send-options">
-                <label>
-          <input type="checkbox" aria-label="Enviar com leitura em voz" checked={tts} disabled={!canTts && !tts} onChange={event => setTts(event.target.checked)} /> Leitura em voz
-        </label>
         <select
           aria-label="Mencionar pessoa"
           className="ct-mention-select" style={{ display: 'none' }}
@@ -1106,6 +952,44 @@ export function ChatComposer({
           }
         }}
       >
+        <button
+          type="button"
+          className="ct-attach-button ct-composer-plus"
+          aria-label="Anexar imagem ou arquivo (até 2 GB)"
+          title="Anexar arquivo (até 2 GB) · imagens coladas até 1 MB"
+          disabled={busy || disabled || !canAttach}
+          onClick={() => void pick()}
+        >
+          <ControlIcon name="plus" size={18} />
+        </button>
+        <input
+          ref={inputRef}
+          list="ct-mention-users"
+          aria-label="Mensagem"
+          maxLength={2000}
+          placeholder={placeholder}
+          value={text}
+          disabled={busy || disabled}
+          onChange={e => {
+            setText(e.target.value)
+            checkMentionTrigger(e.target.value, e.target.selectionStart ?? undefined)
+          }}
+          onKeyDown={handleInputKeyDown}
+          onClick={e => checkMentionTrigger(text, (e.target as HTMLInputElement).selectionStart ?? undefined)}
+          onKeyUp={e => {
+            if (e.key !== 'ArrowDown' && e.key !== 'ArrowUp' && e.key !== 'Enter') {
+              checkMentionTrigger(text, (e.target as HTMLInputElement).selectionStart ?? undefined)
+            }
+          }}
+          onPaste={e => {
+            const file = e.clipboardData.files[0]
+            if (file) {
+              e.preventDefault()
+              void choose(file)
+            }
+          }}
+        />
+        <div className="ct-composer-tools">
         {snapshot && channelId && (
           <button
             type="button"
@@ -1142,42 +1026,10 @@ export function ChatComposer({
             <ControlIcon name="poll" />
           </button>
         )}
-        <button
-          type="button"
-          className="ct-attach-button"
-          aria-label="Anexar imagem ou arquivo (até 2 GB)"
-          disabled={busy || disabled || !canAttach}
-          onClick={() => void pick()}
-        >
-          <ControlIcon name="plus" size={18} />
-        </button>
-        <input
-          ref={inputRef}
-          list="ct-mention-users"
-          aria-label="Mensagem"
-          maxLength={2000}
-          placeholder={placeholder}
-          value={text}
-          disabled={busy || disabled}
-          onChange={e => {
-            setText(e.target.value)
-            checkMentionTrigger(e.target.value, e.target.selectionStart ?? undefined)
-          }}
-          onKeyDown={handleInputKeyDown}
-          onClick={e => checkMentionTrigger(text, (e.target as HTMLInputElement).selectionStart ?? undefined)}
-          onKeyUp={e => {
-            if (e.key !== 'ArrowDown' && e.key !== 'ArrowUp' && e.key !== 'Enter') {
-              checkMentionTrigger(text, (e.target as HTMLInputElement).selectionStart ?? undefined)
-            }
-          }}
-          onPaste={e => {
-            const file = e.clipboardData.files[0]
-            if (file) {
-              e.preventDefault()
-              void choose(file)
-            }
-          }}
-        />
+        <label className={`ct-composer-toggle ${tts ? 'active' : ''}`} title={tts ? 'Leitura em voz ativada' : 'Enviar com leitura em voz'} data-disabled={!canTts && !tts}>
+          <input type="checkbox" aria-label="Enviar com leitura em voz" checked={tts} disabled={!canTts && !tts} onChange={event => setTts(event.target.checked)} />
+          <ControlIcon name="speaker" size={18} />
+        </label>
         <button
           type="button"
           className={`ct-view-once-btn ${once ? 'active' : ''}`}
@@ -1189,18 +1041,22 @@ export function ChatComposer({
         >
           <ViewOnceIcon active={once} size={18} />
         </button>
+        </div>
         <button
           className="ct-primary ct-composer-send-btn"
+          aria-label={busy ? 'Enviando…' : 'Enviar mensagem'}
+          title="Enviar (Enter)"
           disabled={busy || disabled || cooling || (!text.trim() && !attachment && !localFile && !expression)}
         >
-          <ControlIcon name="send" size={13} />
-          <span>{busy ? 'Enviando…' : 'Enviar'}</span>
+          <ControlIcon name="send" size={16} /><span className="ct-sr-only">{busy ? 'Enviando…' : 'Enviar'}</span>
         </button>
       </form>
 
-      <div className="ct-composer-hint" role={error ? 'alert' : undefined}>
-        {error || (cooling ? 'Modo lento: aguarde ' + Math.ceil((sendAfter - now) / 1000) + ' s para enviar.' : 'Anexe arquivos de até 2 GB. Imagens coladas: até 1 MB.')}
-      </div>
+      {(error || cooling) && (
+        <div className="ct-composer-hint" role={error ? 'alert' : 'status'}>
+          {error || 'Modo lento: aguarde ' + Math.ceil((sendAfter - now) / 1000) + ' s para enviar.'}
+        </div>
+      )}
 
       {expressionPanel && channelId && (
         <ExpressionPanel channelId={channelId} onSelect={setExpression} onClose={() => setExpressionPanel(false)} />
@@ -1319,7 +1175,7 @@ export function ChatMessage({
               onClick={async () => {
                 setBusy(true)
                 try {
-                  if (!window.contalkDesktop) throw new Error('Abra no ConTALK desktop.')
+                  if (!window.contalkDesktop) throw new Error('Abra no ConTalk desktop.')
                   const allowed = await window.contalkDesktop.claimMessageView(m.id)
                   localStorage.setItem(storageKey, 'true')
                   setViewed(true)

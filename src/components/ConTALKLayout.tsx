@@ -28,6 +28,15 @@ import { CoastalScene } from './CoastalScene'
 import { SettingsView, type SettingsTabId } from './SettingsView'
 import { ChannelRow } from './ChannelRow'
 import { BrandMark } from './BrandMark'
+import { CallTabs, type CallTab } from './CallTabs'
+import { CallControls } from './CallControls'
+import { MiniPlayer } from './MiniPlayer'
+import { VoicePanel } from './VoicePanel'
+import { ProfilePopover } from './ProfilePopover'
+import { ActivityToasts } from './ActivityToasts'
+import { usePresenceStatus } from '../store/usePresenceStatus'
+import { ServerIcon } from './ServerIcon'
+import { HomeDashboard, type LiveChannel } from './HomeDashboard'
 import { ControlIcon, type ControlIconName } from './ControlIcon'
 import { TerminalPanel } from './TerminalPanel'
 import { CollaborativeNotepad, type NotepadTab } from './CollaborativeNotepad'
@@ -48,6 +57,7 @@ import { centralAllows } from '../roles/transport'
 import { assignedRoles } from '../roles/permissions'
 import { useNotificationStore } from '../store/useNotificationStore'
 import { useDevStore } from '../store/useDevStore'
+import { PROJECTS_ENABLED } from '../features'
 import { DevKanbanModal } from './DevKanbanModal'
 import { DevTasksModal } from './DevTasksModal'
 import { DevDocsModal } from './DevDocsModal'
@@ -122,7 +132,7 @@ export function ConTALKLayout() {
   ])
   const [activeEditorTab, setActiveEditorTab] = useState('meeting-notes')
   const initialCodes: Record<string, string> = {
-    'meeting-notes': `# 📝 Notas da Reunião - ConTALK\n\n**Data:** ${new Date().toLocaleDateString('pt-BR')}\n**Participantes:** Equipe de desenvolvimento\n\n---\n\n## Pauta Principal\n1. Qualidade de transmissão de voz e vídeo (WebRTC)\n2. Compartilhamento de tela e baixa latência\n3. Bloco de notas colaborativo em tempo real\n\n## Decisões Tomadas\n- Foco total em comunicação cristalina e compartilhamento de tela.\n- Bloco de notas com cursores simultâneos e markdown.\n`,
+    'meeting-notes': `# 📝 Notas da Reunião - ConTalk\n\n**Data:** ${new Date().toLocaleDateString('pt-BR')}\n**Participantes:** Equipe de desenvolvimento\n\n---\n\n## Pauta Principal\n1. Qualidade de transmissão de voz e vídeo (WebRTC)\n2. Compartilhamento de tela e baixa latência\n3. Bloco de notas colaborativo em tempo real\n\n## Decisões Tomadas\n- Foco total em comunicação cristalina e compartilhamento de tela.\n- Bloco de notas com cursores simultâneos e markdown.\n`,
     'tasks-ideas': `# 🎯 Metas & Planejamento da Sprint\n\n- [x] Otimizar buffer e taxa de amostragem de áudio\n- [x] Unificar controles na barra de chamada (estilo Discord)\n- [ ] Testar transmissão de vídeo em 60fps 1080p\n- [ ] Adicionar suporte a exportação de notas em PDF\n`,
     'scratchpad': `# 💡 Rascunho Rápido\n\nDigite suas ideias e rascunhos aqui. Qualquer pessoa no canal pode editar em tempo real!\n`
   }
@@ -171,6 +181,8 @@ export function ConTALKLayout() {
   const [channelSettings, setChannelSettings] = useState<Channel | null>(null)
   const { servers, activeServerId, activeChannelId, setActiveServer, setActiveChannel, messages } = useAppStore()
   const voice = useVoiceStore()
+  const [callTab, setCallTab] = useState<CallTab>('conversa')
+  const [selfCard, setSelfCard] = useState(false)
   const [navigation, setNavigation] = useState<NavigationHistory>(() => ({
     entries: [{ view: 'home', serverId: activeServerId, channelId: activeChannelId, peer: null }],
     index: 0
@@ -299,15 +311,15 @@ export function ConTALKLayout() {
   useEffect(() => {
     const tail = messages[activeChannelId]?.slice(-1)[0]?.id || ''
     if (
-      lastReadPosition.current.view !== view ||
+      lastReadPosition.current.view !== view + callTab ||
       lastReadPosition.current.channel !== activeChannelId ||
       lastReadPosition.current.tail !== tail
     )
       end.current?.scrollIntoView({
         behavior: lastReadPosition.current.channel === activeChannelId ? 'smooth' : 'instant'
       })
-    lastReadPosition.current = { channel: activeChannelId, tail, view }
-  }, [activeChannelId, messages, view])
+    lastReadPosition.current = { channel: activeChannelId, tail, view: view + callTab }
+  }, [activeChannelId, messages, view, callTab])
 
   useEffect(() => {
     if (!profile) return
@@ -325,6 +337,7 @@ export function ConTALKLayout() {
 
   useEffect(() => {
     activity.activate(user?.username || null)
+    usePresenceStatus.getState().activate(user?.username || null)
   }, [user?.username])
 
   useEffect(() => {
@@ -363,13 +376,43 @@ export function ConTALKLayout() {
   }
 
   const join = async (id: string, name: string) => {
-    openChannel(id)
+    setCallTab('chamada')
+    setMiniCollapsed(false)
     if (user)
       await voice.joinChannel(id, name, {
         username: user.username,
         display_name: user.display_name,
         avatar: user.avatar
       })
+  }
+
+  const [miniCollapsed, setMiniCollapsed] = useState(false)
+  // Em janelas estreitas o palco fica com a largura toda; o chat abre pelo botão ao lado.
+  const [chatDrawerOpen, setChatDrawerOpen] = useState(() => typeof window === 'undefined' || window.innerWidth >= 1200)
+  const inCall = !!voice.activeChannelId && ['connected', 'connecting', 'reconnecting'].includes(voice.connectionStatus)
+  useEffect(() => { if (!inCall && callTab === 'chamada') setCallTab('conversa') }, [inCall, callTab])
+  const openCall = () => { setCallTab('chamada'); setMiniCollapsed(false) }
+  const callServer = servers.find(s => s.channels.some(c => c.id === voice.activeChannelId))
+  const drawerChannel = callServer
+    ? (callServer.id === server.id && channel.type === 'text' ? channel : callServer.channels.find(c => c.type === 'text'))
+    : undefined
+  // Canais de voz não abrem mais como página: clicar entra na chamada. Um canal de voz salvo como ativo volta para o texto.
+  useEffect(() => {
+    if (channel.type === 'voice') setActiveChannel(server.channels.find(c => c.type === 'text')?.id || '')
+  }, [channel.id, channel.type, server.id])
+  const liveChannels: LiveChannel[] = [
+    ...voiceChannels.map(c => ({ channel: c, server, occupants: voice.activeChannelId === c.id ? voice.participants : voice.channelOccupants[c.id] || [], connected: inCall && voice.activeChannelId === c.id })),
+    ...(callServer && callServer.id !== server.id ? callServer.channels.filter(c => c.id === voice.activeChannelId).map(c => ({ channel: c, server: callServer, occupants: voice.participants, connected: true })) : [])
+  ].filter(item => item.occupants.length > 0 || item.connected)
+  const openRecent = (message: { channelId: string; userId: string }) => {
+    if (message.channelId.startsWith('dm:')) {
+      const peer = message.channelId.slice(3).split(':').find(name => name !== user?.username)
+      if (peer) openConversation(peer)
+      return
+    }
+    const destination = servers.find(item => item.channels.some(c => c.id === message.channelId))
+    if (destination) setActiveServer(destination.id)
+    openChannel(message.channelId)
   }
 
   const togglePanel = (key: 'sidebarHidden' | 'railHidden' | 'bottomPanelOpen' | 'membersCollapsed') =>
@@ -495,7 +538,7 @@ export function ConTALKLayout() {
   const handleCopyDiagnostics = useCallback(async () => {
     try {
       const diag = {
-        app: 'ConTALK',
+        app: 'ConTalk',
         version: '0.1.39',
         timestamp: new Date().toISOString(),
         view,
@@ -571,13 +614,86 @@ export function ConTALKLayout() {
     return () => window.removeEventListener('keydown', keys)
   })
 
-  const hour = new Date().getHours()
-  const greeting = hour >= 5 && hour < 12 ? 'Bom dia' : hour >= 12 && hour < 18 ? 'Boa tarde' : 'Boa noite'
+  // Mensagens e compositor de um canal de texto (página do canal e gaveta da aba Chamada).
+  const renderChatPane = (ch: Channel, compact = false) => (
+    <div className={`ct-chat-pane ${compact ? 'is-compact' : ''}`}>
+      <div className="ct-messages">
+        <div className="ct-chat-welcome">
+          <span>#</span>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
+            <h1>Este é o #{ch.name}</h1>
+          </div>
+          <p>O começo de muitas boas conversas.</p>
+        </div>
+        <div className="ct-date-divider">Hoje</div>
+        {(roles.historyMore[ch.id] ?? roles.snapshot?.hasOlder?.[ch.id]) && (
+          <button
+            className="ct-history-more"
+            disabled={roles.historyBusy}
+            onClick={() => void roles.loadHistory(ch.id).catch(() => {})}
+          >
+            {roles.historyBusy ? 'Carregando…' : 'Carregar mensagens anteriores'}
+          </button>
+        )}
+        {(messages[ch.id] || [])
+          .filter(
+            m =>
+              m.content.toLowerCase().includes(search.toLowerCase()) ||
+              serverName(m.userId, m.userName).toLowerCase().includes(search.toLowerCase())
+          )
+          .map(m => (
+            <article className="ct-message" data-message-id={m.id} key={m.id}>
+              <button
+                disabled={!!m.webhook}
+                data-profile-identity={m.webhook ? undefined : m.userId}
+                data-profile-name={m.userName}
+                onClick={() => setProfile(m.userName, m.userId)}
+              >
+                <Avatar name={m.userName} identity={m.userId} />
+              </button>
+              <div>
+                <header>
+                  <button
+                    disabled={!!m.webhook}
+                    data-profile-identity={m.webhook ? undefined : m.userId}
+                    data-profile-name={m.userName}
+                    onClick={() => setProfile(m.userName, m.userId)}
+                  >
+                    <RoleName serverId={server.id} identity={m.userId} name={m.userName} />
+                  </button>
+                  {m.webhook && <small className="ct-integration-badge">Integração</small>}
+                  <time>
+                    {new Date(m.timestamp).toLocaleTimeString('pt-BR', {
+                      hour: '2-digit',
+                      minute: '2-digit'
+                    })}
+                  </time>
+                </header>
+                <ChatMessage message={m} onOpenChannel={openChannel} />
+              </div>
+            </article>
+          ))}
+        <div ref={end} />
+      </div>
+
+      <ChatComposer
+        channelId={ch.id}
+        disabled={!centralAllows('SEND_MESSAGES', ch.id)}
+        key={ch.id}
+        placeholder={`Conversar em #${ch.name}`}
+        onSend={(text, attachment, options) =>
+          community.sendMessage(ch.id, text, undefined, attachment, options)
+        }
+      />
+    </div>
+  )
+
 
   return (
     <div
       className="ct-app"
-      data-theme={preferences.theme}
+      data-theme="classic"
+      data-skin={preferences.theme}
       data-reduced-motion={preferences.reducedMotion}
       data-text-size={preferences.textSize}
       onContextMenu={event => {
@@ -620,7 +736,7 @@ export function ConTALKLayout() {
               ? 'Mensagens · ' +
                 (community.members.find(m => m.username === selectedPeer)?.display_name || selectedPeer)
               : 'Mensagens diretas'
-            : 'ConTALK'
+            : 'ConTalk'
         }
         canBack={navigation.index > 0}
         canForward={navigation.index < navigation.entries.length - 1}
@@ -628,127 +744,119 @@ export function ConTALKLayout() {
         onForward={() => travel(1)}
         search={search}
         onSearch={setSearch}
-        scope={view === 'server' ? server.name : 'ConTALK'}
+        scope={view === 'server' ? server.name : 'ConTalk'}
         sidebarOpen={!preferences.sidebarHidden}
         onToggleSidebar={() => togglePanel('sidebarHidden')}
         onOpenCommandMenu={() => setCommandMenuOpen(true)}
       />
 
       <div className="ct-body" inert={settingsOpen}>
-        <aside className="ct-rail" hidden={preferences.railHidden}>
-          <button className={view === 'home' ? 'selected' : ''} title="Início" onClick={() => setView('home')}>
-            <Icon name="home" />
-          </button>
-          <button
-            className={view === 'messages' ? 'selected' : ''}
-            title="Mensagens diretas"
-            onClick={() => setView('messages')}
-          >
-            <Icon name="chat" />
-          </button>
-          <hr />
-          {servers.map(s => (
-            <button
-              key={s.id}
-              title={s.name}
-              className={view === 'server' && s.id === server.id ? 'selected ct-server-logo' : 'ct-server-logo'}
-              onClick={() => {
-                setActiveServer(s.id)
-                setActiveChannel(s.channels[0]?.id || '')
-                setView('server')
-              }}
-            >
+        <aside className="ct-rail" aria-label="Servidores" hidden={preferences.railHidden}>
+          <div className="ct-rail-item" data-active={view !== 'server'}>
+            <span className="ct-rail-pill" aria-hidden="true" />
+            <button type="button" className="ct-rail-home" aria-label="Início e mensagens diretas" title="Início e mensagens diretas" aria-current={view !== 'server' ? 'page' : undefined} onClick={() => setView('home')}>
               <BrandMark />
             </button>
-          ))}
-          <button
-            title="Criar ou entrar em um servidor"
-            aria-label="Criar ou entrar em um servidor"
-            onClick={() => setJoinOpen(true)}
-          >
-            <Icon name="plus" />
-          </button>
+          </div>
+          <hr />
+          {servers.map(s => {
+            const unread = s.channels.reduce((sum, c) => sum + (activity.unreadByChannel[c.id] || 0), 0)
+            const active = view === 'server' && s.id === server.id
+            return (
+              <div className="ct-rail-item" data-active={active} data-unread={unread > 0} key={s.id}>
+                <span className="ct-rail-pill" aria-hidden="true" />
+                <button
+                  type="button"
+                  title={s.name}
+                  aria-label={s.name + (unread ? `, ${unread} não lidas` : '')}
+                  aria-current={active ? 'page' : undefined}
+                  onClick={() => {
+                    setActiveServer(s.id)
+                    setActiveChannel(s.channels.find(c => c.type === 'text')?.id || '')
+                    setView('server')
+                  }}
+                >
+                  <ServerIcon name={s.name} icon={s.icon} />
+                </button>
+                {inCall && callServer?.id === s.id && (
+                  <span className="ct-rail-voice" title={`Em chamada: ${voice.activeChannelName || ''}`}><ControlIcon name="speaker" size={10} /></span>
+                )}
+                {unread > 0 && !active && <span className="ct-rail-badge">{unread > 99 ? '99+' : unread}</span>}
+              </div>
+            )
+          })}
+          <div className="ct-rail-item">
+            <span className="ct-rail-pill" aria-hidden="true" />
+            <button type="button" className="ct-rail-add" title="Criar ou entrar em uma comunidade" aria-label="Criar ou entrar em uma comunidade" onClick={() => setJoinOpen(true)}>
+              <Icon name="plus" />
+            </button>
+          </div>
         </aside>
-
         <>
           <nav className="ct-sidebar" data-collapsed={preferences.sidebarCollapsed} hidden={preferences.sidebarHidden}>
             <div className="ct-sidebar-scroll">
-              {view !== 'server' ? (
-                <>
-                  <div className="ct-side-nav">
-                    <button className="ct-new-chat" onClick={() => setView('messages')}>
-                      <Icon name="chat" />Nova conversa
+              {view !== 'server' || !servers.length ? (
+              <>
+              <button type="button" className="ct-side-search" onClick={() => setCommandMenuOpen(true)}>
+                Encontre ou comece uma conversa
+              </button>
+              <div className="ct-side-nav">
+                <button type="button" className={view === 'home' ? 'active' : ''} aria-current={view === 'home' ? 'page' : undefined} onClick={() => setView('home')}>
+                  <Icon name="home" />Início
+                </button>
+                <button type="button" className={view === 'friends' ? 'active' : ''} aria-current={view === 'friends' ? 'page' : undefined} onClick={() => setView('friends')}>
+                  <Icon name="friends" />Amigos
+                </button>
+              </div>
+              <div className="ct-section-label">
+                <button type="button" className="ct-section-toggle" aria-expanded={!hiddenSections.dms} onClick={() => toggleSection('dms')}>
+                  <ControlIcon name="chevron" size={12} />Mensagens diretas
+                </button>
+                <button type="button" title="Nova mensagem direta" aria-label="Nova mensagem direta" onClick={() => setView('messages', null)}>+</button>
+              </div>
+              {!hiddenSections.dms && (
+                <div className="ct-people ct-side-dms">
+                  {visibleContacts.map(m => (
+                    <button
+                      type="button"
+                      className={`ct-person ${view === 'messages' && selectedPeer === m.username ? 'active' : ''}`}
+                      data-profile-identity={m.username}
+                      data-profile-name={m.display_name}
+                      key={m.username}
+                      onClick={() => openConversation(m.username)}
+                    >
+                      <Avatar name={m.display_name} identity={m.username} live={liveIdentities.has(m.username)} />
+                      <span>
+                        <strong><RoleName identity={m.username} name={m.display_name} /></strong>
+                        <small>{voice.participants.some(p => p.identity === m.username) || Object.values(voice.channelOccupants).some(list => list.some(p => p.identity === m.username)) ? 'Em voz' : statusText(m.username)}</small>
+                      </span>
                     </button>
-                    <button className={view === 'home' ? 'active' : ''} onClick={() => setView('home')}>
-                      <Icon name="home" />Início <span className="ct-nav-dot" />
-                    </button>
-                    <button className={view === 'friends' ? 'active' : ''} onClick={() => setView('friends')}>
-                      <Icon name="friends" />Amigos
-                    </button>
-                  </div>
-                  <div className="ct-section-label">
-                    Mensagens diretas <button title="Abrir mensagens" onClick={() => setView('messages')}>+</button>
-                  </div>
-                  <div className="ct-people">
-                    {visibleContacts.map(m => (
-                      <button
-                        className="ct-person"
-                        data-profile-identity={m.username}
-                        data-profile-name={m.display_name}
-                        key={m.username}
-                        onClick={() => openConversation(m.username)}
-                      >
-                        <Avatar
-                          name={m.display_name}
-                          identity={m.username}
-                          live={
-                            voice.participants.some(p => p.identity === m.username && p.isScreenShareEnabled) ||
-                            Object.values(voice.channelOccupants).some(list =>
-                              list.some(p => p.identity === m.username && p.isScreenShareEnabled)
-                            )
-                          }
-                        />
-                        <span>
-                          <strong><RoleName identity={m.username} name={m.display_name} /></strong>
-                          <small>{statusText(m.username)}</small>
-                        </span>
-                      </button>
-                    ))}
-                    {!visibleContacts.length && <p className="ct-friend-hint">Suas amizades e conversas aparecerão aqui.</p>}
-                  </div>
-                </>
+                  ))}
+                  {!visibleContacts.length && <p className="ct-friend-hint">Suas conversas aparecem aqui.</p>}
+                </div>
+              )}
+              </>
               ) : (
                 <>
-                  <div className="ct-server-banner" onContextMenu={e => { e.preventDefault(); setRolesOpen(true) }}>
-                    <div className="ct-server-banner-header">
+                  <header className="ct-server-header" onContextMenu={event => { event.preventDefault(); setRolesOpen(true) }}>
+                    <span className="ct-server-header-text">
                       <strong title={server.description || server.name}>{server.name}</strong>
-                      {(!roles.snapshot ||
-                        centralAllows('VIEW_GUILD_INSIGHTS') ||
-                        centralAllows('MANAGE_GUILD') ||
-                        centralAllows('MANAGE_ROLES') ||
-                        centralAllows('BAN_MEMBERS') ||
-                        !!roles.snapshot.invites?.length ||
-                        roles.snapshot.channels.some(item => centralAllows('CREATE_INSTANT_INVITE', item.id))) && (
-                        <button
-                          type="button"
-                          className="ct-server-role-settings"
-                          title="Configurações da comunidade"
-                          aria-label="Configurações da comunidade"
-                          onClick={(e) => { e.stopPropagation(); setRolesOpen(true) }}
-                        >
-                          <ControlIcon name="settings" size={16} />
-                        </button>
-                      )}
-                    </div>
-                    <small>
-                      <i className="ct-online-dot" />{' '}
-                      {community.status === 'online'
-                        ? community.members.filter(m => m.online).length + ' membros online'
-                        : 'Presença indisponível'}
-                    </small>
-                  </div>
-
+                      <small><i className="ct-online-dot" aria-hidden="true" />{community.status === 'online' ? community.members.filter(m => m.online && (!roles.snapshot || roles.snapshot.id !== server.id || roles.snapshot.policy.members.includes(m.username))).length + ' online' : 'Presença indisponível'}</small>
+                    </span>
+                    {(!roles.snapshot ||
+                      centralAllows('VIEW_GUILD_INSIGHTS') ||
+                      centralAllows('MANAGE_GUILD') ||
+                      centralAllows('MANAGE_ROLES') ||
+                      centralAllows('BAN_MEMBERS') ||
+                      !!roles.snapshot.invites?.length ||
+                      roles.snapshot.channels.some(item => centralAllows('CREATE_INSTANT_INVITE', item.id))) && (
+                      <button type="button" className="ct-server-header-settings" title="Configurações da comunidade" aria-label="Configurações da comunidade" onClick={() => setRolesOpen(true)}>
+                        <ControlIcon name="settings" size={16} />
+                      </button>
+                    )}
+                  </header>
                   {/* Projetos: Kanban, Tarefas, Documentação, Roadmap */}
+                  {PROJECTS_ENABLED && <>
                   <div className="ct-section-label">
                     <button
                       className="ct-section-toggle"
@@ -808,6 +916,7 @@ export function ConTALKLayout() {
                       </button>
                     </div>
                   )}
+                  </>}
 
                   {/* Canais de Texto */}
                   <div className="ct-section-label">
@@ -834,7 +943,7 @@ export function ConTALKLayout() {
                           <ChannelRow
                             unread={activity.unreadByChannel[c.id] || 0}
                             channel={c}
-                            active={channel.id === c.id}
+                            active={view === 'server' && channel.id === c.id}
                             onOpen={() => openChannel(c.id)}
                             onSettings={() => { setChannelSettingsTab('general'); setChannelSettings(c) }}
                           />
@@ -855,7 +964,7 @@ export function ConTALKLayout() {
                                 <ChannelRow
                                   unread={activity.unreadByChannel[child.id] || 0}
                                   channel={child}
-                                  active={channel.id === child.id}
+                                  active={view === 'server' && channel.id === child.id}
                                   onOpen={() => openChannel(child.id)}
                                   onSettings={() => { setChannelSettingsTab('general'); setChannelSettings(child) }}
                                 />
@@ -890,10 +999,10 @@ export function ConTALKLayout() {
                           <div className={`ct-voice-group ${isConnected ? 'connected' : ''}`} key={c.id}>
                             <ChannelRow
                               channel={c}
-                              active={channel.id === c.id}
+                              active={isConnected}
                               connected={isConnected}
                               count={occupants.length}
-                              onOpen={() => void join(c.id, c.name)}
+                              onOpen={() => isConnected ? openCall() : void join(c.id, c.name)}
                               onSettings={() => { setChannelSettingsTab('general'); setChannelSettings(c) }}
                             />
                             <div className="ct-channel-occupants">
@@ -940,13 +1049,25 @@ export function ConTALKLayout() {
                 </>
               )}
             </div>
+            {inCall && <VoicePanel serverName={callServer?.name} onOpen={openCall} />}
+            {selfCard && (
+              <ProfilePopover
+                serverName={callServer?.name}
+                onClose={() => setSelfCard(false)}
+                onEditProfile={() => setEditProfile(true)}
+                onSettings={() => { setSettingsTab('account'); setSettingsOpen(true) }}
+                onOpenCall={openCall}
+                onSignOut={signOut}
+              />
+            )}
             <UserDock
-              onProfile={() => setProfile(user?.display_name || 'Você', user?.username)}
-              onOpenChannel={openVoiceChannel}
+              onProfile={() => setSelfCard(open => !open)}
+              onSettings={() => { setSettingsTab('appearance'); setSettingsOpen(true) }}
             />
           </nav>
 
           <div className="ct-center">
+            {inCall && <CallTabs tab={callTab} onTab={setCallTab} />}
             <main className="ct-main">
               {roles.configured && roles.error && <div className="ct-mic-alert" role="status">{roles.error}</div>}
               {(voice.profileError || community.profileError) && (
@@ -958,7 +1079,34 @@ export function ConTALKLayout() {
                   <button onClick={() => setAudioSettings('input')}>Escolher microfone</button>
                 </div>
               )}
-              {view === 'friends' || view === 'messages' ? (
+              {inCall && callTab === 'chamada' ? (
+                <div className="ct-call-view">
+                  <div className="ct-call-stage">
+                    <VoiceStage
+                      onProfile={person => setProfile(person.name, person.identity)}
+                      onParticipantMenu={(participant, event) => setContext({ participant, x: event.clientX, y: event.clientY })}
+                      onMinimize={() => setCallTab('conversa')}
+                      footer={<CallControls />}
+                    />
+                  </div>
+                  {drawerChannel && (chatDrawerOpen ? (
+                    <aside className="ct-chat-drawer" aria-label={`Chat de #${drawerChannel.name}`}>
+                      <header>
+                        <Icon name="#" />
+                        <strong>{drawerChannel.name}</strong>
+                        <button type="button" className="ct-icon-button" aria-label="Recolher chat" title="Recolher chat" onClick={() => setChatDrawerOpen(false)}>
+                          <ControlIcon name="chevron-right" size={16} />
+                        </button>
+                      </header>
+                      {renderChatPane(drawerChannel, true)}
+                    </aside>
+                  ) : (
+                    <button type="button" className="ct-chat-drawer-open" aria-label={`Mostrar chat de #${drawerChannel.name}`} title={`Mostrar #${drawerChannel.name}`} onClick={() => setChatDrawerOpen(true)}>
+                      <ControlIcon name="chat" size={18} />
+                    </button>
+                  ))}
+                </div>
+              ) : view === 'friends' || view === 'messages' ? (
                 <HomeView
                   key={view}
                   mode={view}
@@ -968,147 +1116,24 @@ export function ConTALKLayout() {
                   onProfile={setProfile}
                 />
               ) : view === 'home' ? (
-                <div className="ct-dashboard">
-                  <div className="ct-home">
-                    {!servers.length && (
-                      <section className="ct-card ct-no-server">
-                        <h2>Comece por aqui</h2>
-                        <p>
-                          Você ainda não está em nenhum servidor. Crie o seu e chame os amigos, ou entre no servidor de um
-                          amigo com um convite.
-                        </p>
-                        <button className="ct-primary" onClick={() => setJoinOpen(true)}>
-                          Criar ou entrar em um servidor
-                        </button>
-                      </section>
-                    )}
-                    <section className="ct-home-hero">
-                      <div className="ct-home-greeting">
-                        <h1>
-                          {greeting}, <em>{user?.display_name || 'amigo'}</em>
-                        </h1>
-                        <p>Boas conversas tornam os dias mais leves.</p>
-                      </div>
-                      <div className="ct-home-quick">
-                        <button onClick={() => setView('messages')}>
-                          <span className="ct-home-tile"><Icon name="chat" /></span>
-                          <span><strong>Iniciar conversa</strong><small>Chamar um amigo</small></span>
-                          <Icon name="arrow" />
-                        </button>
-                        <button
-                          disabled={!voiceChannels.length}
-                          onClick={() => {
-                            if (voiceChannels[0]) join(voiceChannels[0].id, voiceChannels[0].name)
-                          }}
-                        >
-                          <span className="ct-home-tile"><Icon name="headphones" /></span>
-                          <span><strong>Entrar em voz</strong><small>{voiceChannels[0]?.name || 'Nenhum canal de voz'}</small></span>
-                          <Icon name="arrow" />
-                        </button>
-                        <button onClick={() => setView('friends')}>
-                          <span className="ct-home-tile"><Icon name="friends" /></span>
-                          <span><strong>Amigos</strong><small>{friends.filter(f => f.online).length} online agora</small></span>
-                          <Icon name="arrow" />
-                        </button>
-                      </div>
-                    </section>
-                    <section className="ct-home-section">
-                      <header>
-                        <h2>Canais de voz</h2>
-                        <button className="ct-home-link" onClick={() => setCreateType('voice')}>
-                          <Icon name="plus" />Criar canal
-                        </button>
-                      </header>
-                      <div className="ct-home-voice">
-                        {voiceChannels.map(c => {
-                          const occupants =
-                            voice.activeChannelId === c.id ? voice.participants : voice.channelOccupants[c.id] || []
-                          const here = voice.activeChannelId === c.id && voice.connectionStatus === 'connected'
-                          return (
-                            <article className="ct-home-voice-card" key={c.id}>
-                              <div className="ct-home-voice-title">
-                                <span className="ct-home-tile"><Icon name="voice" /></span>
-                                <span><strong>{c.name}</strong><small>{server.name}</small></span>
-                              </div>
-                              <div className="ct-home-voice-foot">
-                                {occupants.length ? (
-                                  <span className="ct-home-presence">
-                                    <span className="ct-avatar-stack">
-                                      {occupants.slice(0, 3).map(p => (
-                                        <Avatar key={p.identity} name={p.name} identity={p.identity} />
-                                      ))}
-                                    </span>
-                                    <small>{occupants.length} em voz</small>
-                                  </span>
-                                ) : (
-                                  <small>Seja o primeiro a entrar</small>
-                                )}
-                                <button
-                                  className={here ? 'ct-primary' : 'ct-secondary'}
-                                  onClick={() => join(c.id, c.name)}
-                                >
-                                  {here ? 'Abrir' : 'Entrar'}
-                                </button>
-                              </div>
-                            </article>
-                          )
-                        })}
-                      </div>
-                      {!voiceChannels.length && <p className="ct-muted">Nenhum canal de voz por aqui ainda.</p>}
-                    </section>
-                    <section className="ct-home-section">
-                      <header>
-                        <h2>Conversas recentes</h2>
-                      </header>
-                      <ul className="ct-home-recent">
-                        {recent
-                          .filter(m => (m.content + ' ' + m.userName).toLowerCase().includes(search.toLowerCase()))
-                          .slice(0, 6)
-                          .map(m => (
-                            <li key={m.id}>
-                              <button onClick={() => openChannel(m.channelId)}>
-                                <Avatar name={m.userName} identity={m.userId} />
-                                <span>
-                                  <strong>{m.userName}</strong>
-                                  <small>{m.once ? 'Mensagem de visualização única' : m.content || m.attachment?.name}</small>
-                                </span>
-                                {m.webhook && <small className="ct-integration-badge">Integração</small>}
-                                <time>
-                                  {new Date(m.timestamp).toLocaleTimeString('pt-BR', {
-                                    hour: '2-digit',
-                                    minute: '2-digit'
-                                  })}
-                                </time>
-                              </button>
-                            </li>
-                          ))}
-                      </ul>
-                      {!recent.length && <p className="ct-muted">Suas conversas recentes aparecem aqui.</p>}
-                    </section>
-                    {!!servers.length && (
-                      <section className="ct-home-section">
-                        <header>
-                          <h2>Suas comunidades</h2>
-                          <span className="ct-pill">{servers.length}</span>
-                        </header>
-                        <div className="ct-home-communities">
-                          {servers.map(s => (
-                            <button
-                              key={s.id}
-                              onClick={() => {
-                                setActiveServer(s.id)
-                                openChannel(s.channels[0]?.id || '')
-                              }}
-                            >
-                              <span className="ct-home-tile"><BrandMark /></span>
-                              <span><strong>{s.name}</strong><small>{s.channels.length} canais</small></span>
-                            </button>
-                          ))}
-                        </div>
-                      </section>
-                    )}
-                  </div>
-                </div>
+                <HomeDashboard
+                  owner={user?.username || ''}
+                  displayName={user?.display_name || 'amigo'}
+                  servers={servers}
+                  live={liveChannels}
+                  friends={friends}
+                  recent={recent}
+                  onJoin={c => void join(c.id, c.name)}
+                  onOpenCall={openCall}
+                  onOpenServer={id => {
+                    const target = servers.find(item => item.id === id)
+                    setActiveServer(id)
+                    openChannel(target?.channels.find(c => c.type === 'text')?.id || '')
+                  }}
+                  onCreateServer={() => setJoinOpen(true)}
+                  onMessage={openConversation}
+                  onOpenMessage={openRecent}
+                />
               ) : !channel.id ? (
                 <section className="ct-empty-channels">
                   <span className="ct-eyebrow">Um novo começo</span>
@@ -1207,92 +1232,19 @@ export function ConTALKLayout() {
                   </header>
 
                   {channel.type === 'voice' ? (
-                    <div className="ct-stage">
-                      <VoiceStage
-                        onProfile={person => setProfile(person.name, person.identity)}
-                        onParticipantMenu={(participant, event) =>
-                          setContext({ participant, x: event.clientX, y: event.clientY })
-                        }
-                        showMemberList={!preferences.membersCollapsed}
-                        onToggleMemberList={() =>
-                          preferences.update({ membersCollapsed: !preferences.membersCollapsed })
-                        }
-                      />
-                    </div>
+                    <section className="ct-empty-channels">
+                      <span className="ct-eyebrow">Sem canal de texto</span>
+                      <h1>Esta comunidade só tem canais de voz</h1>
+                      <p>Entre numa chamada pela barra lateral ou crie um canal de texto.</p>
+                      <div>
+                        <button className="ct-primary" onClick={() => setCreateType('text')}>Criar canal de texto</button>
+                      </div>
+                    </section>
                   ) : (
                     <>
                       {channel.parentId && <ThreadHeader id={channel.id} onParent={() => openChannel(channel.parentId!)} />}
                       <div className={`ct-channel-split-workspace ${devEditorOpen ? 'has-editor' : 'chat-only'}`}>
-                        <div className="ct-chat-pane">
-                          <div className="ct-messages">
-                            <div className="ct-chat-welcome">
-                              <span>#</span>
-                              <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
-                                <h1>Este é o #{channel.name}</h1>
-                              </div>
-                              <p>O começo de muitas boas conversas.</p>
-                            </div>
-                            <div className="ct-date-divider">Hoje</div>
-                            {(roles.historyMore[channel.id] ?? roles.snapshot?.hasOlder?.[channel.id]) && (
-                              <button
-                                className="ct-history-more"
-                                disabled={roles.historyBusy}
-                                onClick={() => void roles.loadHistory(channel.id).catch(() => {})}
-                              >
-                                {roles.historyBusy ? 'Carregando…' : 'Carregar mensagens anteriores'}
-                              </button>
-                            )}
-                            {(messages[channel.id] || [])
-                              .filter(
-                                m =>
-                                  m.content.toLowerCase().includes(search.toLowerCase()) ||
-                                  serverName(m.userId, m.userName).toLowerCase().includes(search.toLowerCase())
-                              )
-                              .map(m => (
-                                <article className="ct-message" data-message-id={m.id} key={m.id}>
-                                  <button
-                                    disabled={!!m.webhook}
-                                    data-profile-identity={m.webhook ? undefined : m.userId}
-                                    data-profile-name={m.userName}
-                                    onClick={() => setProfile(m.userName, m.userId)}
-                                  >
-                                    <Avatar name={m.userName} identity={m.userId} />
-                                  </button>
-                                  <div>
-                                    <header>
-                                      <button
-                                        disabled={!!m.webhook}
-                                        data-profile-identity={m.webhook ? undefined : m.userId}
-                                        data-profile-name={m.userName}
-                                        onClick={() => setProfile(m.userName, m.userId)}
-                                      >
-                                        <RoleName serverId={server.id} identity={m.userId} name={m.userName} />
-                                      </button>
-                                      {m.webhook && <small className="ct-integration-badge">Integração</small>}
-                                      <time>
-                                        {new Date(m.timestamp).toLocaleTimeString('pt-BR', {
-                                          hour: '2-digit',
-                                          minute: '2-digit'
-                                        })}
-                                      </time>
-                                    </header>
-                                    <ChatMessage message={m} onOpenChannel={openChannel} />
-                                  </div>
-                                </article>
-                              ))}
-                            <div ref={end} />
-                          </div>
-
-                          <ChatComposer
-                            channelId={channel.id}
-                            disabled={!centralAllows('SEND_MESSAGES', channel.id)}
-                            key={channel.id}
-                            placeholder={`Conversar em #${channel.name}`}
-                            onSend={(text, attachment, options) =>
-                              community.sendMessage(channel.id, text, undefined, attachment, options)
-                            }
-                          />
-                        </div>
+                        {renderChatPane(channel)}
 
                         {devEditorOpen && (
                           <CollaborativeNotepad
@@ -1325,13 +1277,16 @@ export function ConTALKLayout() {
                   )}
                 </>
               )}
+              {inCall && callTab !== 'chamada' && (
+                <MiniPlayer onExpand={openCall} collapsed={miniCollapsed} onCollapse={setMiniCollapsed} />
+              )}
             </main>
             {preferences.bottomPanelOpen && (
               <TerminalPanel request={terminalRequest} onClose={() => preferences.update({ bottomPanelOpen: false })} />
             )}
           </div>
 
-          {(view === 'server' || !!voice.activeChannelId) && !preferences.membersCollapsed && (
+          {view === 'server' && !(inCall && callTab === 'chamada') && !preferences.membersCollapsed && (
             <RightPanel
               activeChannelId={channel.id}
               onOpenChannel={openVoiceChannel}
@@ -1394,6 +1349,7 @@ export function ConTALKLayout() {
         </>
       </div>
 
+      {!settingsOpen && <ActivityToasts onOpenCall={openCall} />}
       {settingsOpen && (
         <SettingsView
           initialTab={settingsTab}
@@ -1540,16 +1496,16 @@ export function ConTALKLayout() {
       {createType && <CreateChannel type={createType} serverId={server.id} onClose={() => setCreateType(null)} />}
 
       {/* Modais de Projetos (Kanban, Tarefas, Documentação, Roadmap) */}
-      {activeDevModal === 'overview' && (
+      {PROJECTS_ENABLED && activeDevModal === 'overview' && (
         <DevKanbanModal onClose={() => setActiveDevModal(null)} onSwitchTab={tab => setActiveDevModal(tab)} />
       )}
-      {activeDevModal === 'tasks' && (
+      {PROJECTS_ENABLED && activeDevModal === 'tasks' && (
         <DevTasksModal onClose={() => setActiveDevModal(null)} onSwitchTab={tab => setActiveDevModal(tab)} />
       )}
-      {activeDevModal === 'docs' && (
+      {PROJECTS_ENABLED && activeDevModal === 'docs' && (
         <DevDocsModal onClose={() => setActiveDevModal(null)} onSwitchTab={tab => setActiveDevModal(tab)} />
       )}
-      {activeDevModal === 'roadmap' && (
+      {PROJECTS_ENABLED && activeDevModal === 'roadmap' && (
         <DevRoadmapModal onClose={() => setActiveDevModal(null)} onSwitchTab={tab => setActiveDevModal(tab)} />
       )}
 

@@ -37,7 +37,7 @@ async function accountRequest(route: 'login' | 'register', body: Record<string, 
       signal: AbortSignal.timeout(15000)
     })
   } catch {
-    throw new Error('Não foi possível falar com o servidor do ConTALK. Verifique sua conexão.')
+    throw new Error('Não foi possível falar com o servidor do ConTalk. Verifique sua conexão.')
   }
   const data = (await response.json().catch(() => ({}))) as {
     username?: string
@@ -71,7 +71,7 @@ export function setupCommunity(window: BrowserWindow, getUsername: () => string 
 
   const config = (): CommunityConfig => {
     const owner = getUsername()
-    if (!owner) throw new Error('Entre no ConTALK.')
+    if (!owner) throw new Error('Entre no ConTalk.')
     const saved = readCommunityConfig(owner)
     if (!saved) throw new Error('Sua sessão terminou. Saia e entre novamente.')
     return saved
@@ -189,7 +189,7 @@ export function setupCommunity(window: BrowserWindow, getUsername: () => string 
         ? { configured: true, url: COMMUNITY_URL }
         : { configured: false, url: COMMUNITY_URL }
     },
-    'community-servers': async () => ((await request('/identity')).servers as Array<{ id: string; name: string }>),
+    'community-servers': async () => ((await request('/identity')).servers as Array<{ id: string; name: string; icon?: string | null }>),
     'community-create-server': async (name: string) => {
       if (typeof name !== 'string' || !name.trim() || name.trim().length > 60)
         throw new Error('Use um nome de 1 a 60 caracteres.')
@@ -282,7 +282,7 @@ export function setupCommunity(window: BrowserWindow, getUsername: () => string 
   for (const [channel, handler] of Object.entries(handlers))
     ipcMain.handle(channel, (event, ...args) => {
       if (event.sender !== contents || event.senderFrame !== contents.mainFrame) throw new Error('Origem inválida.')
-      if (!getUsername() && channel !== 'community-unsubscribe') throw new Error('Entre no ConTALK.')
+      if (!getUsername() && channel !== 'community-unsubscribe') throw new Error('Entre no ConTalk.')
       return handler(...args)
     })
 

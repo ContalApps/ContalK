@@ -16,7 +16,7 @@ export function setupPushToTalk(window:BrowserWindow){
     if(!validPushToTalkKey(key))throw new Error('Atalho de voz inválido.')
     if(process.platform!=='win32')throw new Error('Atalho global disponível no Windows; mantenha a janela ativa para usar o atalho local.')
     const executable=app.isPackaged?path.join(process.resourcesPath,'voice-input','contalk-voice-input.exe'):path.join(process.env.APP_ROOT!,'native','bin','contalk-voice-input.exe')
-    if(!fs.existsSync(executable))throw new Error('O componente de atalho global não foi instalado. Reinstale o ConTALK; o atalho local continua disponível.')
+    if(!fs.existsSync(executable))throw new Error('O componente de atalho global não foi instalado. Reinstale o ConTalk; o atalho local continua disponível.')
     const child=spawn(executable,['--key',String(pushToTalkKeys[key].virtualKey)],{windowsHide:true,stdio:'pipe'}),version=generation
     active=child;activeId=id
     await new Promise<void>((resolve,reject)=>{

@@ -10,7 +10,7 @@ export function setupTray(window:BrowserWindow) {
   let timer:ReturnType<typeof setInterval>|undefined
   const idle=nativeImage.createFromPath(path.join(process.env.VITE_PUBLIC!, 'app-icon.png')).resize({width:24,height:24})
   const tray=new Tray(idle)
-  tray.setToolTip('ConTALK')
+  tray.setToolTip('ConTalk')
 
   const createMutedIcon=()=>{
     const size=24, pixels=Buffer.alloc(size*size*4)
@@ -54,20 +54,20 @@ export function setupTray(window:BrowserWindow) {
     if(isMuted()){
       if(timer){clearInterval(timer);timer=undefined;speaking=false;phase=0}
       tray.setImage(mutedIcon)
-      tray.setToolTip(voice.deafened?'ConTALK (Áudio e microfone silenciados)':voice.micBlocked?'ConTALK (Microfone bloqueado)':'ConTALK (Microfone silenciado)')
+      tray.setToolTip(voice.deafened?'ConTalk (Áudio e microfone silenciados)':voice.micBlocked?'ConTalk (Microfone bloqueado)':'ConTalk (Microfone silenciado)')
     }else if(speaking){
       tray.setImage(frames[phase%frames.length])
-      tray.setToolTip('ConTALK (Transmitindo voz)')
+      tray.setToolTip('ConTalk (Transmitindo voz)')
     }else{
       if(timer){clearInterval(timer);timer=undefined;speaking=false;phase=0}
       tray.setImage(idle)
-      tray.setToolTip(voice.connected?'ConTALK (Conectado à voz)':'ConTALK')
+      tray.setToolTip(voice.connected?'ConTalk (Conectado à voz)':'ConTalk')
     }
   }
 
   const action=(name:string)=>{if(!window.isDestroyed?.()&&!window.webContents.isDestroyed?.())window.webContents.send('tray-action',name)}
   const menu=()=>Menu.buildFromTemplate([
-    {label:'Abrir ConTALK',click:()=>{showMainWindow(window)}},
+    {label:'Abrir ConTalk',click:()=>{showMainWindow(window)}},
     {type:'separator'},
     {
       label:voice.micBlocked?'Microfone bloqueado pelo servidor':'Silenciar microfone',
@@ -84,7 +84,7 @@ export function setupTray(window:BrowserWindow) {
       click:()=>{action('toggle-output')}
     },
     {type:'separator'},
-    {label:'Fechar ConTALK',click:()=>{quitting=true;app.quit()}}
+    {label:'Fechar ConTalk',click:()=>{quitting=true;app.quit()}}
   ])
   tray.on('click',()=>tray.popUpContextMenu(menu()))
   tray.on('right-click',()=>tray.popUpContextMenu(menu()))

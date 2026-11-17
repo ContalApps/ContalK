@@ -68,7 +68,7 @@ test('the production entry point starts from zero without personal keys and keep
   assert.equal((await request(alice,'/servers/'+created.id+'/commands',{revision:created.revision,action:{type:'role',command:{type:'create',id:'team',name:'Equipe VPS'}}})).status,200)
   assert.ok(fs.existsSync(path.join(root,'data','contalk-v2','accounts.json')))
   await stop();await start()
-  assert.deepEqual((await request(alice,'/identity')).data.servers,[{id:created.id,name:'Servidor da Alice'}])
+  assert.deepEqual((await request(alice,'/identity')).data.servers,[{id:created.id,name:'Servidor da Alice',icon:null}])
   const restored=(await request(alice,'/servers/'+created.id)).data
   assert.equal(restored.policy.roles.find(role=>role.id==='team').name,'Equipe VPS')
   assert.equal((await request(null,'/login',{identifier:'alice@teste.dev',password:'senha-forte-1'})).status,200)

@@ -166,7 +166,7 @@ export const BUILTIN_GITHUB_TOOLS = [
 export const BUILTIN_BROWSER_TOOLS = [
   {
     name: 'browser_open',
-    description: 'Abre o navegador interno do ConTALK em uma página web específica.',
+    description: 'Abre o navegador interno do ConTalk em uma página web específica.',
     inputSchema: {
       type: 'object',
       properties: {
@@ -381,7 +381,7 @@ async function handleGoogleTool(
         subject: '[ContalK] Pull Request #14: Integração de Apps e Workspace aprovado',
         date: new Date().toLocaleString('pt-BR'),
         snippet: 'VG aprovou as alterações na branch dev/caliari. Todos os checks do Coolify CI passaram com sucesso.',
-        body: `Olá,\n\nO Pull Request #14 ("Integração de Apps e Ferramentas Externas") foi revisado e aprovado com sucesso.\n\nDetalhes:\n- Branch: dev/caliari -> main\n- 323 testes passaram com 100% de sucesso.\n- Serviços integrados: Gmail, YouTube, Google Agenda, Google Drive, GitHub.\n\nAtenciosamente,\nGitHub Actions & ConTALK Bot`
+        body: `Olá,\n\nO Pull Request #14 ("Integração de Apps e Ferramentas Externas") foi revisado e aprovado com sucesso.\n\nDetalhes:\n- Branch: dev/caliari -> main\n- 323 testes passaram com 100% de sucesso.\n- Serviços integrados: Gmail, YouTube, Google Agenda, Google Drive, GitHub.\n\nAtenciosamente,\nGitHub Actions & ConTalk Bot`
       }
     }
 
@@ -474,10 +474,10 @@ async function handleGoogleTool(
       const events = [
         {
           id: 'cal_ev_1',
-          summary: 'Daily Sync & Alinhamento ConTALK',
+          summary: 'Daily Sync & Alinhamento ConTalk',
           start: `${new Date().toLocaleDateString('pt-BR')} ${formatTime(1)}`,
           end: `${new Date().toLocaleDateString('pt-BR')} ${formatTime(1.5)}`,
-          location: 'Voz ConTALK #desenvolvimento',
+          location: 'Voz ConTalk #desenvolvimento',
           description: 'Alinhamento rápido de entregas da branch dev/caliari e release de versão.'
         },
         {
@@ -511,7 +511,7 @@ async function handleGoogleTool(
       const sampleFiles = [
         {
           id: 'drv_f1',
-          name: 'Arquitetura e Roadmap ConTALK 2026.docx',
+          name: 'Arquitetura e Roadmap ConTalk 2026.docx',
           mimeType: 'application/vnd.google-apps.document',
           modifiedTime: 'Ontem às 18:22',
           size: '1.2 MB',
@@ -527,7 +527,7 @@ async function handleGoogleTool(
         },
         {
           id: 'drv_f3',
-          name: 'Apresentação ConTALK Codex + Discord.pptx',
+          name: 'Apresentação ConTalk Codex + Discord.pptx',
           mimeType: 'application/vnd.google-apps.presentation',
           modifiedTime: 'Há 5 dias',
           size: '8.4 MB',

@@ -25,6 +25,8 @@ import { MAX_PINS, MAX_REACTIONS, normalizeReaction, slowmodeDeadline } from '..
 import { canSetNickname, normalizeNickname } from '../../src/roles/nicknames.ts'
 import { canModerateVoice } from '../../src/roles/voice-moderation.ts'
 import { MAX_VOICE_CAPACITY } from '../../src/roles/voice-capacity.ts'
+// Foto do servidor: data URL de imagem já reduzida no cliente (128x128).
+const SERVER_ICON_MAX = 60000
 
 const identifier = value => typeof value === 'string' && /^[\w:-]{1,100}$/.test(value) && !['__proto__', 'constructor', 'prototype'].includes(value)
 const own = (object, key) => Object.prototype.hasOwnProperty.call(object, key)
@@ -203,7 +205,7 @@ export function createCommunityService({ tokens, storage, initialState, voice, f
     policy.visibleChannelIds=[...ids,...policy.categories.map(category=>category.id)]
     policy.overwrites = Object.fromEntries(Object.entries(policy.overwrites).filter(([channel]) => ids.has(channel) || policy.categories.some(category => category.id === channel)))
     return {
-      id: server.id, name: server.name, description:server.description||'',serverNow:Date.now(), revision: server.revision, actor, policy, channels: copy(visible), voiceSync:voice?(pendingVoice.has(id)?'pending':'synced'):'unconfigured',
+      id: server.id, name: server.name, description:server.description||'',icon:server.icon||null,serverNow:Date.now(), revision: server.revision, actor, policy, channels: copy(visible), voiceSync:voice?(pendingVoice.has(id)?'pending':'synced'):'unconfigured',
       serverPermissions: permissionsFor(server.policy, actor).toString(),
       channelPermissions: Object.fromEntries(visible.map(channel => [channel.id, permissionsFor(server.policy, actor, channel.id).toString()])),
       messages: Object.fromEntries(visible.filter(channel => can(server.policy, actor, 'READ_MESSAGE_HISTORY', channel.id)).map(channel => [channel.id, copy((server.messages[channel.id] || []).slice(-RECENT_MESSAGE_COUNT))])),
@@ -435,7 +437,8 @@ export function createCommunityService({ tokens, storage, initialState, voice, f
         }
         case 'server-edit':{
           requirePermission(server,actor,'MANAGE_GUILD')
-          requireValue(action.patch&&typeof action.patch==='object'&&!Array.isArray(action.patch)&&Object.keys(action.patch).length>0&&Object.keys(action.patch).every(key=>['name','description'].includes(key)),'Configurações de servidor inválidas.')
+          requireValue(action.patch&&typeof action.patch==='object'&&!Array.isArray(action.patch)&&Object.keys(action.patch).length>0&&Object.keys(action.patch).every(key=>['name','description','icon'].includes(key)),'Configurações de servidor inválidas.')
+          if(own(action.patch,'icon')){requireValue(action.patch.icon===null||typeof action.patch.icon==='string'&&action.patch.icon.length<=SERVER_ICON_MAX&&/^data:image\/(png|jpeg|webp);base64,[A-Za-z0-9+/]+={0,2}$/.test(action.patch.icon),'Use uma imagem PNG, JPEG ou WebP pequena para a foto do servidor.');if(action.patch.icon===null)delete server.icon;else server.icon=action.patch.icon}
           if(own(action.patch,'name')){const name=text(action.patch.name,100);requireValue(!/[\p{Cc}\p{Zl}\p{Zp}]/u.test(name),'Use um nome sem controles ou quebras de linha.');server.name=name.normalize('NFC')}
           if(own(action.patch,'description')){requireValue(typeof action.patch.description==='string'&&action.patch.description.trim().length<=300&&!/[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F]/.test(action.patch.description),'Use uma descrição de até 300 caracteres.');server.description=action.patch.description.trim()}
           target=id;event=action.type
@@ -1005,7 +1008,7 @@ export function createCommunityService({ tokens, storage, initialState, voice, f
       const inviteRoute=/^\/invites\/([a-f0-9]{48})(?:\/(accept))?$/.exec(url.pathname)
       if(inviteRoute&&request.method==='GET'&&!inviteRoute[2]){json(response,200,previewInvite(actor,inviteRoute[1]));return}
       if(inviteRoute&&request.method==='POST'&&inviteRoute[2]==='accept'){await readBody(request);json(response,200,await acceptInvite(actor,inviteRoute[1]));return}
-      if (request.method === 'GET' && url.pathname === '/identity') { { const mine = Object.values(state.servers).filter(server => server.policy.members.includes(actor) && !own(server.bans || {}, actor)); json(response, 200, { username: actor, serverIds: mine.map(server => server.id), servers: mine.map(server => ({ id: server.id, name: server.name })) }) }; return }
+      if (request.method === 'GET' && url.pathname === '/identity') { { const mine = Object.values(state.servers).filter(server => server.policy.members.includes(actor) && !own(server.bans || {}, actor)); json(response, 200, { username: actor, serverIds: mine.map(server => server.id), servers: mine.map(server => ({ id: server.id, name: server.name, icon: server.icon || null })) }) }; return }
       if(request.method==='POST'&&url.pathname==='/presence-token'){requireValue(voice?.presenceToken,'O serviço de presença ainda não está configurado.',503);const body=await readBody(request);json(response,200,await voice.presenceToken(actor,text(body.name||actor,40)));return}
       const hookManagement=/^\/servers\/([\w:-]{1,100})\/webhooks$/.exec(url.pathname)
       if(request.method==='POST'&&hookManagement){const body=await readBody(request);json(response,200,await webhookOperation(actor,hookManagement[1],body.revision,body.action));return}

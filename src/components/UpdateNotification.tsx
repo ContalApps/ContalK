@@ -14,14 +14,10 @@ export function UpdateNotification({onOpenNotification}:{onOpenNotification?:(id
   const [errorMsg, setErrorMsg] = useState<string>('')
   const [dismissed, setDismissed] = useState<boolean>(true)
   const [releaseNotes, setReleaseNotes] = useState('')
-  const announcedVersions = useRef(new Set<string>())
+  const [fresh, setFresh] = useState<Set<string>>(new Set())
   const container = useRef<HTMLDivElement>(null)
 
-  useEffect(() => {
-    if (!version || !['available', 'ready'].includes(status) || announcedVersions.current.has(version)) return
-    announcedVersions.current.add(version)
-    setDismissed(false)
-  }, [version, status])
+  // Nova versão não abre o painel sozinha: aparece o botão "Atualizar" ao lado do sino.
 
   useEffect(() => {
     if (dismissed) return
@@ -156,99 +152,79 @@ export function UpdateNotification({onOpenNotification}:{onOpenNotification?:(id
 
 
 
+  const open = () => {
+    // Abrir o sino já conta como lido; os itens novos continuam destacados enquanto o painel estiver aberto.
+    setFresh(new Set(activity.entries.filter(entry => !entry.read).map(entry => entry.id)))
+    activity.markEntriesRead()
+    setDismissed(false)
+  }
+  const updateText = status === 'checking' ? 'Procurando atualizações…'
+    : status === 'available' ? `Versão ${version} disponível`
+    : status === 'downloading' ? `Baixando ${version}… ${progress}%`
+    : status === 'ready' ? `Versão ${version} pronta para instalar`
+    : status === 'installing' ? 'Instalando…'
+    : status === 'error' ? (errorMsg || 'Não foi possível verificar.')
+    : 'Você está na versão mais recente.'
+  const when = (value: number) => new Date(value).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })
+
   return (
-    <div ref={container} className="ct-update-bell"><button aria-label="Notificações e atualizações" aria-expanded={!dismissed} aria-controls="ct-update-popup" onClick={()=>setDismissed(!dismissed)}><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9M10 21h4"/></svg>{['available','ready','error'].includes(status)&&<i/>}{unread>0&&<span className="ct-notification-badge">{unread>99?'99+':unread}</span>}</button>{!dismissed&&<div id="ct-update-popup" role="dialog" aria-label="Atualizações" className="ct-update-popup">
-      <section className="ct-notification-center" aria-label="Atividade no ConTALK"><header><strong>Notificações</strong><button disabled={!unread} onClick={activity.markAllRead}>Marcar tudo como lido</button></header><div className="ct-notification-items">{activity.entries.length?activity.entries.map(entry=><button key={entry.id} className={entry.read?'read':'unread'} onClick={()=>{activity.markRead(entry.id);onOpenNotification?.(entry.id);setDismissed(true)}}><strong>{entry.title}</strong><span>{entry.body}</span><small>{new Date(entry.createdAt).toLocaleString('pt-BR',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'})}</small></button>):<p>Nenhuma atividade por enquanto. Mensagens, amizades e chamadas aparecerão aqui.</p>}</div>{activity.entries.length>0&&<button onClick={activity.clear}>Limpar histórico</button>}</section><div className="flex items-start justify-between gap-3">
-        <div className="w-10 h-10 rounded-xl bg-white/5 border border-white/10 flex items-center justify-center shrink-0 text-xl">
-          <ControlIcon name={status === 'ready' ? 'check' : status === 'downloading' ? 'download' : status === 'error' ? 'warning' : 'rocket'}/>
-        </div>
-
-        <div className="flex-1 min-w-0">
-          <div className="flex items-center justify-between">
-            <h4 className="text-sm font-bold text-white flex items-center gap-1.5">
-              <span>Atualizações do ConTALK</span>
-              {version && (
-                <span className="text-[11px] px-1.5 py-0.5 rounded-full bg-neutral-500/20 text-neutral-300 border border-neutral-500/30 font-mono">
-                  v{version}
+    <div ref={container} className="ct-update-bell">
+      {['available', 'downloading', 'ready'].includes(status) && (
+        <button
+          type="button"
+          className="ct-update-chip"
+          data-state={status}
+          disabled={status === 'downloading'}
+          title={status === 'ready' ? 'Reiniciar e instalar a atualização (encerra a chamada)' : status === 'available' ? `Baixar a versão ${version}` : 'Baixando a atualização'}
+          onClick={() => { if (status === 'ready') void restartApp(); else if (status === 'available') void startDownloadAndInstall() }}
+        >
+          <ControlIcon name="download" size={15} />
+          <span>{status === 'ready' ? 'Reiniciar' : status === 'downloading' ? `${progress}%` : 'Atualizar'}</span>
+        </button>
+      )}
+      <button type="button" className="ct-bell-button" aria-label="Notificações e atualizações" aria-expanded={!dismissed} aria-controls="ct-update-popup" onClick={() => dismissed ? open() : setDismissed(true)}>
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9M10 21h4" /></svg>
+        {unread > 0 && <span className="ct-notification-badge">{unread > 99 ? '99+' : unread}</span>}
+      </button>
+      {!dismissed && (
+        <div id="ct-update-popup" role="dialog" aria-label="Notificações" className="ct-inbox">
+          <header className="ct-inbox-header">
+            <strong>Notificações</strong>
+            {activity.entries.length > 0 && <button type="button" onClick={() => { activity.clear(); setFresh(new Set()) }}>Limpar tudo</button>}
+          </header>
+          <div className="ct-inbox-list">
+            {activity.entries.length ? activity.entries.map(entry => (
+              <button type="button" key={entry.id} className="ct-inbox-item" data-fresh={fresh.has(entry.id)} onClick={() => { onOpenNotification?.(entry.id); setDismissed(true) }}>
+                <span className="ct-inbox-icon"><ControlIcon name={entry.kind === 'friendship' ? 'friends' : entry.kind === 'event' ? 'event' : entry.kind === 'thread' ? 'thread' : 'chat'} size={16} /></span>
+                <span className="ct-inbox-text">
+                  <strong>{entry.title}</strong>
+                  <span>{entry.body}</span>
                 </span>
-              )}
-            </h4>
-            <button
-              onClick={() => setDismissed(true)}
-              className="text-gray-400 hover:text-white text-xs p-1 transition"
-              title="Fechar aviso"
-            ><ControlIcon name="close"/></button>
-          </div>
-
-          {(status==='idle'||status==='checking')&&<p>{status==='checking'?'Buscando atualizações…':'Você está em dia.'}<button onClick={()=>void checkForUpdates(true)}>Verificar agora</button></p>}
-          {status === 'available' && (
-            <p className="text-xs text-gray-300 mt-1">
-              Uma nova versão está disponível. Ao atualizar, as chamadas serão encerradas e o ConTALK reiniciará automaticamente.
-            </p>
-          )}
-          {version && ['available', 'downloading', 'ready', 'installing'].includes(status) && <section className="ct-update-notes" aria-label="Melhorias da versão">
-            <strong>O que há de novo</strong>
-            <p>{notesText || 'As notas desta versão não foram disponibilizadas.'}</p>
-          </section>}
-
-          {status === 'downloading' && (
-            <div className="mt-2 space-y-1.5">
-              <div className="flex justify-between text-xs text-gray-300">
-                <span>Baixando atualização...</span>
-                <span className="font-mono text-neutral-400">{progress}%</span>
+                <time>{when(entry.createdAt)}</time>
+              </button>
+            )) : (
+              <div className="ct-inbox-empty">
+                <ControlIcon name="bell" size={22} />
+                <p>Tudo em dia. Mensagens diretas, menções, pedidos de amizade e eventos aparecem aqui.</p>
               </div>
-              <div className="w-full bg-[#090909] h-2 rounded-full overflow-hidden border border-neutral-900/50">
-                <div
-                  className="bg-white h-full transition-all duration-300 rounded-full"
-                  style={{ width: `${progress}%` }}
-                />
-              </div>
-            </div>
-          )}
-
-          {status === 'ready' && (
-            <p className="text-xs text-emerald-400 mt-1">
-              ✓ Download concluído! Reiniciar aplica a atualização e encerra chamadas em andamento.
-            </p>
-          )}
-
-          {status === 'error' && (
-            <p className="text-xs text-rose-400 mt-1">
-              {errorMsg || 'Erro ao processar atualização.'}
-            </p>
-          )}
-
-          {/* Botões de Ação */}
-          <div className="mt-3 flex gap-2">
-            {status === 'available' && (
-              <button
-                onClick={startDownloadAndInstall}
-                className="w-full py-1.5 px-3 rounded-lg bg-white hover:bg-neutral-200 text-black! font-medium text-xs transition active:scale-95 flex items-center justify-center gap-1.5"
-              >
-                <span>Atualizar e reiniciar automaticamente</span>
-              </button>
-            )}
-
-            {status === 'ready' && (
-              <button
-                onClick={restartApp}
-                className="w-full py-1.5 px-3 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs shadow-md shadow-emerald-900/40 transition active:scale-95 flex items-center justify-center gap-1.5"
-              >
-                <span>Reiniciar o ConTALK</span>
-              </button>
-            )}
-
-            {status === 'error' && (
-              <button
-                onClick={() => checkForUpdates(true)}
-                className="py-1 px-2.5 rounded-lg bg-white/10 hover:bg-white/20 text-white text-xs transition"
-              >
-                Tentar Novamente
-              </button>
             )}
           </div>
+          <footer className="ct-inbox-update" data-state={status}>
+            <span className="ct-inbox-update-icon"><ControlIcon name={status === 'ready' ? 'check' : status === 'downloading' ? 'download' : status === 'error' ? 'warning' : 'rocket'} size={15} /></span>
+            <span className="ct-inbox-update-text">
+              <strong>ConTalk{version && !['idle', 'checking'].includes(status) ? '' : ''}</strong>
+              <small>{updateText}</small>
+            </span>
+            {(status === 'idle' || status === 'error') && <button type="button" onClick={() => void checkForUpdates(true)}>{status === 'error' ? 'Tentar de novo' : 'Verificar'}</button>}
+            {status === 'available' && <button type="button" className="ct-inbox-update-primary" onClick={() => void startDownloadAndInstall()}>Atualizar</button>}
+            {status === 'ready' && <button type="button" className="ct-inbox-update-primary" onClick={() => void restartApp()}>Reiniciar</button>}
+          </footer>
+          {status === 'downloading' && <div className="ct-inbox-progress"><i style={{ width: `${progress}%` }} /></div>}
+          {version && ['available', 'downloading', 'ready'].includes(status) && notesText && (
+            <details className="ct-inbox-notes"><summary>O que há de novo na {version}</summary><p>{notesText}</p></details>
+          )}
         </div>
-      </div>
-    </div>}</div>
+      )}
+    </div>
   )
 }

@@ -40,16 +40,23 @@ export function TerminalPanel({ onClose, request = 0 }: { onClose: () => void; r
   const [current, setCurrent] = useState<string | null>(null)
   const [error, setError] = useState('')
   const started = useRef(false)
+  // Fechar o painel desmonta o componente: os shells abertos são encerrados para não sobrar processo órfão.
+  const live = useRef(new Set<string>())
+  const mounted = useRef(true)
+  useEffect(() => { mounted.current = true; return () => { mounted.current = false; for (const id of live.current) void desktop?.terminalKill(id); live.current.clear() } }, [])
   const desktop = window.contalkDesktop
   const create = async () => {
     setError('')
     try {
       const session = await desktop!.terminalCreate(preferences.workspaceFolder || null, 80, 24)
+      if (!mounted.current) { void desktop?.terminalKill(session.id); return }
+      live.current.add(session.id)
       setSessions(list => [...list, session]); setCurrent(session.id)
     } catch (e) { setError(e instanceof Error ? e.message : 'Não foi possível abrir o terminal.') }
   }
   const kill = (id: string) => {
     void desktop?.terminalKill(id)
+    live.current.delete(id)
     setSessions(list => { const next = list.filter(s => s.id !== id); if (current === id) setCurrent(next[next.length - 1]?.id || null); return next })
   }
   useEffect(() => { if (desktop?.terminalCreate && !started.current) { started.current = true; void create() } }, [])
@@ -105,8 +112,8 @@ export function TerminalPanel({ onClose, request = 0 }: { onClose: () => void; r
         </div>
       ) : activeCat === 'output' ? (
         <div style={{ padding: '12px 16px', fontFamily: 'ui-monospace, monospace', fontSize: '12px', color: '#c9d1d9', lineHeight: '1.6' }}>
-          <div>[ConTALK Studio] Inicializando ambiente de desenvolvimento...</div>
-          <div>[ConTALK Studio] Servidor de comunicação conectado.</div>
+          <div>[ConTalk Studio] Inicializando ambiente de desenvolvimento...</div>
+          <div>[ConTalk Studio] Servidor de comunicação conectado.</div>
           <div>[Vite] Servidor de desenvolvimento pronto.</div>
           <div style={{ color: '#4ade80' }}>✓ 0 erros de compilação.</div>
         </div>

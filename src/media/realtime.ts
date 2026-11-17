@@ -21,6 +21,8 @@ export class Track {
   static Source = { Microphone: 'microphone', Camera: 'camera', ScreenShare: 'screen_share', ScreenShareAudio: 'screen_share_audio' } as const
   static Kind = { Audio: 'audio', Video: 'video' } as const
   private elements = new Set<HTMLMediaElement>()
+  // Elementos criados pelo próprio track. Os recebidos em attach(element) pertencem a quem chamou (ex.: React) e nunca são removidos do DOM aqui.
+  private owned = new Set<HTMLMediaElement>()
   private context?: AudioContext
   private gain?: GainNode
   private output?: MediaStream
@@ -32,6 +34,7 @@ export class Track {
   get kind() { return this.mediaStreamTrack.kind }
   attach(element?: HTMLMediaElement) {
     const el = element || document.createElement(this.kind === 'audio' ? 'audio' : 'video')
+    if (!element) this.owned.add(el)
     let stream = new MediaStream([this.mediaStreamTrack])
     if (this.kind === 'audio') {
       if (!this.context) {
@@ -64,7 +67,7 @@ export class Track {
   setVolume(volume: number) { this.volume = Math.max(0,Math.min(2,volume)); if (this.gain) this.gain.gain.value = this.volume }
   async mute() { this.isMuted = true; this.mediaStreamTrack.enabled = false; await this.onMute?.(true) }
   async unmute() { await this.onMute?.(false); this.isMuted = false; this.mediaStreamTrack.enabled = true }
-  stop() { this.detach().forEach(element => element.remove()); this.mediaStreamTrack.stop(); if (this.sink) { this.sink.srcObject = null; this.sink.remove?.(); this.sink = undefined }; void this.context?.close(); this.context = undefined }
+  stop() { this.detach(); for (const element of this.owned) element.remove(); this.owned.clear(); this.mediaStreamTrack.stop(); if (this.sink) { this.sink.srcObject = null; this.sink.remove?.(); this.sink = undefined }; void this.context?.close(); this.context = undefined }
 }
 export type RemoteTrack = Track
 type Publication = { source: string; track: Track; audioTrack?: Track; isMuted: boolean; producerId: string; options?: any }
@@ -82,11 +85,13 @@ export class Participant extends Events {
 export async function createLocalAudioTrack(options: MediaTrackConstraints) { const stream = await navigator.mediaDevices.getUserMedia({ audio: options, video: false }); return new Track(stream.getAudioTracks()[0]) }
 class LocalParticipant extends Participant {
   constructor(private room: Room) { super() }
+  // Durante a reconexão as faixas locais ficam guardadas na sala; mutar, ensurdecer ou desligar a câmera precisa valer para elas.
+  override getTrackPublication(source: string) { return super.getTrackPublication(source) ?? this.room.pendingPublication(source) }
   async setMetadata(metadata: string) { await this.room.request('profile', { metadata }); this.metadata = metadata }
   async setName(name: string) { await this.room.request('profile', { name }); this.name = name }
   async publishData(payload: Uint8Array, options: { topic?: string; destinationIdentities?: string[]; reliable?: boolean }) { await this.room.request('data', { payload: new TextDecoder().decode(payload), topic: options.topic || '', destinations: options.destinationIdentities }) }
   async publishTrack(input: Track | MediaStreamTrack, options: any) { return this.room.publish(input instanceof Track ? input : new Track(input), options) }
-  async unpublishTrack(track: Track | MediaStreamTrack, stop = true) { const pub = [...this.trackPublications.values()].find(pub => pub.track === track || pub.track.mediaStreamTrack === track); if (pub) await this.room.unpublish(pub, stop) }
+  async unpublishTrack(track: Track | MediaStreamTrack, stop = true) { const pub = [...this.trackPublications.values()].find(pub => pub.track === track || pub.track.mediaStreamTrack === track); if (pub) await this.room.unpublish(pub, stop); else this.room.dropPending(track, stop) }
   async setCameraEnabled(enabled: boolean) {
     const previous = this.getTrackPublication(Track.Source.Camera)
     if (!enabled) { if (previous) await this.unpublishTrack(previous.track); return }
@@ -113,6 +118,8 @@ export class Room extends Events {
   private reconnecting = false
   private reconnectTracks: Publication[] = []
   private outputDevice = 'default'
+  pendingPublication(source: string) { return this.reconnecting ? this.reconnectTracks.find(pub => pub.source === source) : undefined }
+  dropPending(track: Track | MediaStreamTrack, stop: boolean) { const pub = this.reconnectTracks.find(pub => pub.track === track || pub.track.mediaStreamTrack === track); if (!pub) return; this.reconnectTracks = this.reconnectTracks.filter(item => item !== pub); if (pub.source === Track.Source.Microphone) this.stopLocalVoiceDetection(); if (stop) pub.track.stop(); this.emit(RoomEvent.LocalTrackUnpublished, pub) }
   private authority?: Authority
   inputMode:VoiceInputMode='voice-activity'
   private desiredInputMode:VoiceInputMode='voice-activity'
@@ -331,13 +338,26 @@ export class Room extends Events {
     this.emit(RoomEvent.LocalTrackPublished,pub); return pub
   }
   async unpublish(pub: Publication, stop: boolean) { if(pub.source===Track.Source.Microphone)this.stopLocalVoiceDetection(); this.producers.get(pub.producerId)?.close(); this.producers.delete(pub.producerId); this.localParticipant.trackPublications.delete(pub.producerId); if (stop) pub.track.stop(); if (this.socket?.readyState === WebSocket.OPEN) await this.request('producerControl',{producerId:pub.producerId,action:'close'}).catch(() => {}); this.emit(RoomEvent.LocalTrackUnpublished,pub) }
-  async switchActiveDevice(_kind: string, deviceId: string) { this.outputDevice = deviceId; const audio = document.querySelectorAll<HTMLAudioElement>('#contalk-audio-tracks audio'); for (const el of audio) if ('setSinkId' in el) await (el as HTMLAudioElement & {setSinkId:(id:string)=>Promise<void>}).setSinkId(deviceId); return true }
+  // Uma saída ausente (ex.: headset desconectado) não pode derrubar a chamada nem deixar alguém mudo:
+  // cada elemento volta para a saída padrão do sistema e o retorno informa a falha a quem pediu a troca.
+  async switchActiveDevice(_kind: string, deviceId: string) {
+    type SinkElement = HTMLAudioElement & { setSinkId: (id: string) => Promise<void> }
+    const audio = document.querySelectorAll<HTMLAudioElement>('#contalk-audio-tracks audio')
+    let ok = true
+    for (const el of audio) {
+      if (!('setSinkId' in el)) continue
+      try { await (el as SinkElement).setSinkId(deviceId) }
+      catch { ok = false; await (el as SinkElement).setSinkId('').catch(() => {}) }
+    }
+    this.outputDevice = ok ? deviceId : ''
+    return ok
+  }
   private clearRemote() { this.stopLocalVoiceDetection(); for (const peer of this.remoteParticipants.values()) for (const pub of peer.trackPublications.values()) { pub.track.stop(); this.emit(RoomEvent.TrackUnsubscribed,pub.track) }; this.remoteParticipants.clear(); this.sendTransport?.close(); this.recvTransport?.close(); this.producers.clear(); this.consumers.clear(); this.consuming.clear();this.stage=null;this.emit(RoomEvent.StageChanged);this.prioritySpeakers.clear();this.emit(RoomEvent.PrioritySpeakersChanged) }
   private async reconnect() {
     if (this.ended || this.reconnecting) return
     this.pttHeld=false;for(const pub of this.localParticipant.trackPublications.values())if(pub.source===Track.Source.Microphone&&this.inputMode==='push-to-talk'){pub.track.isMuted=true;pub.track.mediaStreamTrack.enabled=false;pub.isMuted=true}
     this.reconnecting = true; this.state = 'reconnecting'; this.emit(RoomEvent.Reconnecting)
-    const tracks = [...this.localParticipant.trackPublications.values()]; this.reconnectTracks = tracks; this.localParticipant.trackPublications.clear(); this.clearRemote()
+    const tracks = [...this.localParticipant.trackPublications.values()]; for (const pub of tracks) pub.track.onMute = async paused => { pub.isMuted = paused }; this.reconnectTracks = tracks; this.localParticipant.trackPublications.clear(); this.clearRemote()
     const metadata = this.localParticipant.metadata, name = this.localParticipant.name
     for (let attempt = 0; attempt < 6 && !this.ended; attempt++) {
       await new Promise(resolve => setTimeout(resolve,Math.min(8000,1000 * 2 ** attempt)))
@@ -348,11 +368,11 @@ export class Room extends Events {
         await this.open(authority)
         if (this.ended) break
         await this.localParticipant.setName(name); await this.localParticipant.setMetadata(metadata)
-        for (const pub of tracks) if (pub.track.mediaStreamTrack.readyState === 'live') { try { await this.publish(pub.track,pub.options || {source:pub.source}) } catch { pub.track.stop() } }
+        for (const pub of [...this.reconnectTracks]) if (pub.track.mediaStreamTrack.readyState === 'live') { try { await this.publish(pub.track,pub.options || {source:pub.source}) } catch { pub.track.stop() } }
         this.state = 'connected'; this.reconnecting = false; this.reconnectTracks = []; this.emit(RoomEvent.Reconnected); return
       } catch { this.socket?.close(); this.clearRemote() }
     }
-    tracks.forEach(pub => pub.track.stop()); this.reconnecting = false; await this.disconnect()
+    this.reconnectTracks.forEach(pub => pub.track.stop()); this.reconnectTracks = []; this.reconnecting = false; await this.disconnect()
   }
   async disconnect() { if (this.ended) return; this.ended = true; this.socket?.close(); this.clearRemote(); for (const pub of [...this.localParticipant.trackPublications.values(), ...this.reconnectTracks]) pub.track.stop(); this.reconnectTracks = []; this.localParticipant.trackPublications.clear(); this.state = 'disconnected'; this.emit(RoomEvent.Disconnected) }
 }

@@ -24,7 +24,7 @@ export function ParticipantMenu({participant,position,onClose,onProfile,onSettin
       {participant.isScreenShareEnabled && <StreamVolumeControl identity={participant.identity} name={participant.name}/>}
     </> : <>
       <button onClick={()=>launch(()=>onEditProfile?.())}>Editar perfil e foto</button>
-      <button onClick={()=>launch(()=>onSettings?.())}>Configurações do ConTALK</button>
+      <button onClick={()=>launch(()=>onSettings?.())}>Configurações do ConTalk</button>
       <button onClick={()=>launch(()=>onAudioSettings?.('input'))}>Selecionar microfone</button>
       <button onClick={()=>launch(()=>onAudioSettings?.('output'))}>Selecionar saída de áudio</button>
       <button onClick={()=>void useVoiceStore.getState().toggleMic()}>Alternar meu microfone</button>

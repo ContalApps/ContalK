@@ -2,11 +2,12 @@ import { useState, useEffect, useRef } from 'react'
 import { ControlIcon, type ControlIconName } from './ControlIcon'
 import { useAppStore } from '../store/useAppStore'
 import { usePreferencesStore } from '../store/usePreferencesStore'
+import { PROJECTS_ENABLED } from '../features'
 
 export interface CommandItem {
   id: string
   title: string
-  category: 'Ações Rápidas' | 'Canais' | 'Colaboração e Projetos' | 'Ajuda'
+  category: 'Ações Rápidas' | 'Canais' | 'Colaboração' | 'Ajuda'
   shortcut?: string
   icon?: ControlIconName
   action: () => void
@@ -60,7 +61,7 @@ export function CommandMenuModal({
       ? [
           {
             id: 'cmd-quit-app',
-            title: 'Encerrar o ConTALK',
+            title: 'Encerrar o ConTalk',
             category: 'Ações Rápidas' as const,
             icon: 'close' as const,
             action: () => {
@@ -126,11 +127,11 @@ export function CommandMenuModal({
       }
     },
 
-    // Colaboração e Projetos
+    // Colaboração
     {
       id: 'cmd-toggle-editor',
       title: 'Alternar Bloco de Notas Colaborativo',
-      category: 'Colaboração e Projetos',
+      category: 'Colaboração',
       shortcut: 'Ctrl+Alt+E',
       icon: 'docs',
       action: () => {
@@ -138,10 +139,10 @@ export function CommandMenuModal({
         onClose()
       }
     },
-    {
+    ...(PROJECTS_ENABLED ? [{
       id: 'cmd-kanban',
       title: 'Quadro Kanban de Projetos…',
-      category: 'Colaboração e Projetos',
+      category: 'Colaboração',
       icon: 'overview',
       action: () => {
         onOpenDevModal?.('overview')
@@ -151,7 +152,7 @@ export function CommandMenuModal({
     {
       id: 'cmd-tasks',
       title: 'Lista de Tarefas…',
-      category: 'Colaboração e Projetos',
+      category: 'Colaboração',
       icon: 'tasks',
       action: () => {
         onOpenDevModal?.('tasks')
@@ -161,13 +162,13 @@ export function CommandMenuModal({
     {
       id: 'cmd-docs',
       title: 'Central de Documentação…',
-      category: 'Colaboração e Projetos',
+      category: 'Colaboração',
       icon: 'docs',
       action: () => {
         onOpenDevModal?.('docs')
         onClose()
       }
-    },
+    }] satisfies CommandItem[] : []),
 
     // Ajuda
     {
@@ -254,7 +255,7 @@ export function CommandMenuModal({
   }, [selectedIndex])
 
   // Agrupa por categoria
-  const categories: CommandItem['category'][] = ['Ações Rápidas', 'Canais', 'Colaboração e Projetos', 'Ajuda']
+  const categories: CommandItem['category'][] = ['Ações Rápidas', 'Canais', 'Colaboração', 'Ajuda']
 
   return (
     <div className="ct-command-modal-backdrop" onClick={onClose}>

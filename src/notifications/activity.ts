@@ -7,6 +7,8 @@ import { useVoiceStore } from '../store/useVoiceStore'
 import { useRoleStore } from '../store/useRoleStore'
 import { eventStatusLabels } from '../roles/events'
 import { assignedRoles } from '../roles/permissions'
+import { usePresenceStatus } from '../store/usePresenceStatus'
+import { useToastStore } from '../store/useToastStore'
 
 let suppressed=0
 export function withoutActivity<T>(apply:()=>T):T {suppressed++;try{return apply()}finally{suppressed--}}
@@ -17,7 +19,8 @@ export function setupActivityNotifications(){
     const current=useNotificationStore.getState()
     if(!current.owner||current.entries.some(entry=>entry.id===notice.id))return
     useNotificationStore.getState().push(notice)
-    if(notice.read||!usePreferencesStore.getState().systemNotifications)return
+    // Não perturbar: guarda no histórico, mas sem aviso do sistema.
+    if(notice.read||!usePreferencesStore.getState().systemNotifications||usePresenceStatus.getState().status==='dnd')return
     if(window.contalkDesktop?.notifyActivity)window.contalkDesktop.notifyActivity(notice)
     else if(typeof Notification!=='undefined'&&Notification.permission==='granted')new Notification(notice.title,{body:notice.body,tag:notice.channelId||notice.id})
   }
@@ -56,7 +59,10 @@ export function setupActivityNotifications(){
     for(const person of state.participants){
       if(person.isLocal)continue
       const before=previous.participants.find(p=>p.identity===person.identity)
-      if(!before||(!before.isScreenShareEnabled&&person.isScreenShareEnabled))present({id:`voice:${state.activeChannelId}:${person.identity}:${Date.now()}`,kind:person.isScreenShareEnabled?'live':'voice',title:person.isScreenShareEnabled?'Nova transmissão':'Alguém entrou na chamada',body:`${person.name} ${person.isScreenShareEnabled?'está compartilhando a tela':'entrou em '+state.activeChannelName}.`,channelId:state.activeChannelId||undefined,createdAt:Date.now(),read:document.hasFocus()&&!document.hidden})
+      if(before&&(before.isScreenShareEnabled||!person.isScreenShareEnabled))continue
+      // Entradas e transmissões na chamada viram um aviso rápido: não vão para o sino.
+      if(usePresenceStatus.getState().status==='dnd')continue
+      useToastStore.getState().push({id:`voice:${state.activeChannelId}:${person.identity}:${person.isScreenShareEnabled?'live':'join'}`,kind:person.isScreenShareEnabled?'live':'voice',title:person.isScreenShareEnabled?'Transmissão ao vivo':'Entrou na chamada',body:`${person.serverNickname||person.name} ${person.isScreenShareEnabled?'está compartilhando a tela':'entrou em '+(state.activeChannelName||'a chamada')}.`})
     }
   })
   const pruneEvents=(state:ReturnType<typeof useRoleStore.getState>)=>{

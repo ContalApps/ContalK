@@ -35,8 +35,12 @@ export type CaptureAudioMode = 'isolated' | 'all-apps'
 export interface DesktopBridge {
   fetchLinkPreview?: (url: string) => Promise<LinkPreviewData | null>
   getStorageFileUrl?: (id: string) => Promise<string>
+  downloadStorageFile?: (id: string) => Promise<void>
+  windowControl?: (action: 'minimize' | 'maximize' | 'close') => Promise<boolean>
+  isWindowMaximized?: () => Promise<boolean>
+  onWindowMaximized?: (listener: (maximized: boolean) => void) => () => void
   communityStatus: () => Promise<{ configured: boolean; url?: string; reason?: string }>
-  communityServers: () => Promise<Array<{ id: string; name: string }>>
+  communityServers: () => Promise<Array<{ id: string; name: string; icon?: string | null }>>
   createCommunityServer: (name: string) => Promise<import('../roles/types').CommunitySnapshot>
   communitySnapshot: (serverId: string) => Promise<import('../roles/types').CommunitySnapshot>
   communityInvitePreview: (code: string) => Promise<import('../roles/invites').InvitePreview>

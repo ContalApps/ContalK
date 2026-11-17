@@ -63,7 +63,7 @@ let presenceConnections=0;
  button('Excluir cargo…').click();await pause();check(document.querySelector('[role="alertdialog"]'),'deletion has a separate confirmation');button('Cancelar').click();await pause();check(useRoleStore.getState().snapshot.policy.roles.length===2,'cancel preserves role');
  button('Excluir cargo…').click();await pause();button('Excluir cargo').click();await ready(()=>useRoleStore.getState().snapshot.policy.roles.length===1,'delete role');
  check(!useRoleStore.getState().snapshot.policy.memberRoles.bob.length,'deleting role removes assignments');
- button('Auditoria').click();await pause();check(document.querySelector('.ct-role-audit').textContent.includes('Cargo excluído'),'audit records actual actions');
+ button('Registro de auditoria').click();await pause();check(document.querySelector('.ct-role-audit').textContent.includes('Cargo excluído'),'audit records actual actions');
  await window.diag.capture('audit');
  useAuthStore.setState({user:{id:'alice',username:'alice',display_name:'Alice',email:'alice@invalid.local'},isAuthenticated:true});
  useCommunityStore.setState({connect:async()=>{},disconnect:()=>{},status:'online',members:[{username:'alice',display_name:'Alice',online:true},{username:'bob',display_name:'Bob',online:true}]});useVoiceStore.setState({fetchChannelOccupants:async()=>{}});

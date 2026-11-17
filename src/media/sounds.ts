@@ -1,5 +1,5 @@
 /**
- * ConTALK auditory cues for voice channels.
+ * ConTalk auditory cues for voice channels.
  * Synthesized using Web Audio API: 0 network bytes, zero latency, pleasant harmonic profile.
  * Each cue creates an interactive AudioContext that is closed upon sound completion
  * to ensure hardware streams are fully closed, preventing DAC idle hiss on analog/USB headsets.

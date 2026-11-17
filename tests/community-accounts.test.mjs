@@ -76,7 +76,7 @@ test('anyone can create a server they own and invite friends; friends join as re
   const created = await f.call('/servers', { token: ana, body: { name: 'Casa da Ana' } })
   assert.equal(created.status, 200); assert.equal(created.data.name, 'Casa da Ana'); assert.deepEqual(created.data.policy.ownerIds, ['ana'])
   assert.deepEqual(created.data.channels.map(channel => channel.type).sort(), ['text', 'voice'])
-  assert.deepEqual((await f.call('/identity', { token: ana })).data.servers, [{ id: created.data.id, name: 'Casa da Ana' }])
+  assert.deepEqual((await f.call('/identity', { token: ana })).data.servers, [{ id: created.data.id, name: 'Casa da Ana', icon: null }])
   assert.equal((await f.call('/servers/' + created.data.id, { token: bia })).status, 403)
   const text = created.data.channels.find(channel => channel.type === 'text').id
   const invited = await f.call('/servers/' + created.data.id + '/commands', { token: ana, body: { revision: created.data.revision, action: { type: 'invite-create', channelId: text, maxAge: 3600, maxUses: 5 } } })
@@ -162,4 +162,20 @@ test('a fresh server without personal keys keeps account-owned AI projects acros
   t.after(run.stop)
   const after = (await run.call('/servers/' + created.id, token)).data
   assert.equal(after.policy.projects['project-1'].archived, undefined)
+})
+
+test('passwords derived by the old social login are refused, so an e-mail alone cannot open an account', async () => {
+  const { createHash } = await import('node:crypto')
+  const accounts = createAccounts()
+  const legacy = createHash('sha256').update('google:vitima@example.com:contalk-social-secret-v1').digest('hex')
+  await assert.rejects(() => accounts.register('vitima', 'vitima@example.com', legacy, 'client'), error => error.status === 403)
+  // An account created before this fix with the derived secret can no longer sign in with it.
+  const { scryptSync, randomBytes } = await import('node:crypto')
+  const file = path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'contalk-social-')), 'accounts.json')
+  const old = createHash('sha256').update('linkedin:outra@example.com:contalk-social-secret-v1').digest('hex'), salt = randomBytes(16).toString('hex')
+  fs.writeFileSync(file, JSON.stringify({ accounts: { outra: { email: 'outra@example.com', salt, hash: scryptSync(old, salt, 64).toString('hex'), createdAt: 1 } }, sessions: {} }))
+  await assert.rejects(() => createAccounts({ file }).login('outra@example.com', old, 'client'), error => error.status === 403)
+  // Normal password accounts keep working.
+  await accounts.register('normal', 'normal@example.com', 'senha-normal-123', 'client')
+  assert.ok((await accounts.login('normal', 'senha-normal-123', 'client')).token)
 })

@@ -1,7 +1,5 @@
 import { useEffect, useState, type ReactNode } from 'react'
 import { useVoiceStore } from '../store/useVoiceStore'
-import { ControlIcon } from './ControlIcon'
-import { VideoTrackView } from './VoiceStage'
 
 // Shared by every clock so a panel opened mid-call shows the real call duration.
 const callStart: { channel: string | null; at: number } = { channel: null, at: 0 }
@@ -19,32 +17,10 @@ export function useCallClock() {
   return (h ? h + ':' + String(m).padStart(2, '0') : String(m)) + ':' + String(s).padStart(2, '0')
 }
 
-export function RightPanel({ onOpenChannel, members }: { onOpenChannel: (id: string) => void; members: ReactNode; activeChannelId?: string }) {
-  const voice = useVoiceStore()
-  const shares = voice.participants.filter(p => p.isScreenShareEnabled && p.screenTrack)
+// Lista de membros à direita da conversa. As transmissões ficam na aba Chamada e no mini-player.
+export function RightPanel({ members }: { onOpenChannel?: (id: string) => void; members: ReactNode; activeChannelId?: string }) {
   return (
-    <aside className="ct-right-panel" aria-label="Painel da chamada e participantes">
-      {shares.length > 0 && (
-        <section className="ct-rp-section">
-          <h2><ControlIcon name="screen" size={14}/>Transmissões ao vivo</h2>
-          <div className="ct-rp-shares">
-            {shares.map(p => (
-              <button
-                key={p.identity}
-                onClick={() => onOpenChannel(voice.activeChannelId!)}
-                title={`Abrir a tela de ${p.serverNickname || p.name}`}
-              >
-                <span className="ct-rp-thumb">
-                  {(!voice.gridScreenTracks || voice.gridScreenTracks.has(p.screenTrack!)) &&
-                    <VideoTrackView track={p.screenTrack!} isLocal={p.isLocal} className="ct-rp-video" />}
-                  <span className="ct-live-badge">AO VIVO</span>
-                </span>
-                <strong>{p.isLocal ? 'Você' : p.serverNickname || p.name}</strong>
-              </button>
-            ))}
-          </div>
-        </section>
-      )}
+    <aside className="ct-right-panel" aria-label="Membros">
       <section className="ct-rp-section ct-rp-members">{members}</section>
     </aside>
   )

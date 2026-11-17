@@ -28,6 +28,9 @@ const desktop: DesktopBridge = {
   onTerminalExit: listener => subscribe('terminal-exit', listener),
   isElectron: true,
   setTitleBarAppearance: (theme, scale) => ipcRenderer.send('window-titlebar-appearance', theme, scale),
+  windowControl: (action: 'minimize' | 'maximize' | 'close') => ipcRenderer.invoke('window-control', action),
+  isWindowMaximized: () => ipcRenderer.invoke('window-maximized-state'),
+  onWindowMaximized: (listener: (maximized: boolean) => void) => { const handler = (_: unknown, value: boolean) => listener(value); ipcRenderer.on('window-maximized', handler); return () => { ipcRenderer.removeListener('window-maximized', handler) } },
   setInterfaceScale: percent => {
     if (!Number.isInteger(percent) || percent < 80 || percent > 120) throw new Error('Escala inválida.')
     webFrame.setZoomFactor(percent / 100)
@@ -41,6 +44,7 @@ const desktop: DesktopBridge = {
   uploadStorageFile: id => ipcRenderer.invoke('storage-upload', id),
   openStorageFile: id => ipcRenderer.invoke('storage-open', id),
   getStorageFileUrl: (id: string) => ipcRenderer.invoke('storage-file-url', id),
+  downloadStorageFile: (id: string) => ipcRenderer.invoke('storage-download', id),
   shareStorageFile: (id, recipient) => ipcRenderer.invoke('storage-share', id, recipient),
   speechVoices: () => ipcRenderer.invoke('speech-voices'),
   synthesizeSpeech: (text, voice) => ipcRenderer.invoke('speech-synthesize', text, voice),

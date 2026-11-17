@@ -9,6 +9,9 @@ import { DEFAULT_VOICE_CAPACITY, MAX_VOICE_CAPACITY, VOICE_ROOM_FULL_CLOSE_CODE 
 
 const sources = ['microphone', 'camera', 'screen_share', 'screen_share_audio']
 const maxConsumers = (MAX_VOICE_CAPACITY - 1) * sources.length
+const MAX_PENDING_SOCKETS = 256
+const MAX_PENDING_PER_ADDRESS = 8
+const MAX_AUTHENTICATED_SOCKETS = 512
 export function voicePermissions(policy, actor, channel, sessionId) {
   const connect = can(policy, actor, 'VIEW_CHANNEL', channel) && can(policy, actor, 'CONNECT', channel)
   const speaker=isStageSpeaker(policy,actor,channel,sessionId)
@@ -128,7 +131,7 @@ export function createCommunityVoice({ url, announcedAddress = '127.0.0.1', medi
     }
     if (method === 'data') {
       if (session.room !== 'presence' || typeof data.payload !== 'string' || data.payload.length > 1500000 || typeof data.topic !== 'string' || data.topic.length > 100) throw new Error('Mensagem inválida.')
-      if (data.destinations !== undefined && (!Array.isArray(data.destinations) || data.destinations.length > 4 || data.destinations.some(value => typeof value !== 'string'))) throw new Error('Destinatário inválido.')
+      if (data.destinations !== undefined && (!Array.isArray(data.destinations) || data.destinations.length > MAX_VOICE_CAPACITY || data.destinations.some(value => typeof value !== 'string'))) throw new Error('Destinatário inválido.')
       for (const peer of roomMembers(session)) if (peer !== session && (!data.destinations?.length || data.destinations.includes(peer.actor))) event(peer, 'data', { ...data, participant: profile(session) })
       return {}
     }
@@ -270,12 +273,21 @@ export function createCommunityVoice({ url, announcedAddress = '127.0.0.1', medi
     attach(server, getSnapshot) {
       snapshotFor = getSnapshot
       wss = new WebSocketServer({ server, path: endpoint.pathname, maxPayload: 1600000, perMessageDeflate: false })
-      wss.on('connection', socket => {
-        if (wss.clients.size > 32) { socket.close(1013, 'Server busy'); return }
+      // Conexões ainda sem autenticação têm limite próprio (global e por endereço), para que
+      // sockets anônimos não ocupem as vagas de quem já entrou na presença ou na voz.
+      const pending = new Map()
+      wss.on('connection', (socket, request) => {
+        // X-Forwarded-For só vale quando quem conecta é o proxy local (Traefik/Coolify); direto da internet ele seria forjável.
+        const remote = String(request?.socket?.remoteAddress || 'unknown')
+        const viaProxy = /^(::ffff:)?(127.|10.|172.(1[6-9]|2d|3[01]).|192.168.)|^::1$|^f[cd]/i.test(remote)
+        const address = (viaProxy && String(request?.headers?.['x-forwarded-for'] || '').split(',').pop().trim()) || remote
+        const fromAddress = [...pending.values()].filter(value => value === address).length
+        if (pending.size >= MAX_PENDING_SOCKETS || fromAddress >= MAX_PENDING_PER_ADDRESS || wss.clients.size - pending.size > MAX_AUTHENTICATED_SOCKETS) { socket.close(1013, 'Server busy'); return }
+        pending.set(socket, address)
         let session, queue = Promise.resolve(), frames = 0, queued = 0
-        const timer = setTimeout(() => socket.close(4001, 'Authentication required'), 5000)
+        const timer = setTimeout(() => socket.close(4001, 'Authentication required'), 3000)
         socket.on('error', () => {})
-        socket.on('close', () => { clearTimeout(timer); if (session) cleanup(session) })
+        socket.on('close', () => { pending.delete(socket); clearTimeout(timer); if (session) cleanup(session) })
         const limiter = setInterval(() => { frames = 0 }, 1000)
         socket.once('close', () => clearInterval(limiter))
         socket.on('message', payload => {
@@ -303,7 +315,7 @@ export function createCommunityVoice({ url, announcedAddress = '127.0.0.1', medi
                 }
                 if (previous) { cleanup(previous); previous.socket.close(4009, 'Session replaced') }
                 session = { ...ticket, sessionId:randomUUID(),serverId, channelId, socket, features:Array.isArray(message.features)&&message.features.includes('voice-move-v1')?['voice-move-v1']:[], inputMode:'voice-activity',holdUntil:0,priority:false,metadata: '', transports: new Map(), producers: new Map(), consumers: new Map() }
-                sessions.add(session); clearTimeout(timer)
+                sessions.add(session); pending.delete(socket); clearTimeout(timer)
                 send(session, { id: message.id, data: { self: profile(session), stage:viewStage(session),peers: roomMembers(session).filter(peer => peer !== session).map(profile) } })
                 broadcast(session, 'joined', profile(session));broadcastPriority(session,true);if(session.room!=='presence')refreshStages(serverId,channelId); return
               }

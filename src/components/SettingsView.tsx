@@ -8,6 +8,7 @@ import { Avatar } from './Avatar'
 import { DensityControl } from './DensityControl'
 import { CoastalScene } from './CoastalScene'
 import { SocialAccountsManager } from './SocialAccountsManager'
+import { SOCIAL_LOGIN_ENABLED } from '../features'
 
 export type SettingsTabId = 'appearance' | 'audio' | 'account' | 'about' | 'notifications'
 
@@ -56,7 +57,7 @@ export function SettingsView({
     ['audio', 'ear', 'Voz e áudio'],
     ['notifications', 'bell', 'Notificações'],
     ['account', 'user', 'Minha conta'],
-    ['about', 'info', 'Sobre o ConTALK']
+    ['about', 'info', 'Sobre o ConTalk']
   ]
 
   return (
@@ -65,7 +66,7 @@ export function SettingsView({
       ref={ref}
       role="dialog"
       aria-modal="true"
-      aria-label="Configurações do ConTALK"
+      aria-label="Configurações do ConTalk"
       onKeyDown={e => {
         if (e.key === 'Escape') {
           e.stopPropagation()
@@ -90,14 +91,14 @@ export function SettingsView({
       }}
     >
       <aside className="ct-settings-nav">
-        <div className="ct-settings-account">
+        <button type="button" className="ct-settings-account" onClick={() => { setTab('account'); setError('') }} title="Minha conta">
           <Avatar name={user.display_name} identity={user.username} />
           <span>
             <strong>{user.display_name}</strong>
-            <small>Configurações pessoais</small>
+            <small>Editar perfil <ControlIcon name="edit" size={12} /></small>
           </span>
-        </div>
-        <span className="ct-eyebrow">Configurações</span>
+        </button>
+        <span className="ct-eyebrow">Configurações do usuário</span>
         <nav aria-label="Seções de configurações">
           {navItems.map(([id, icon, label]) => (
             <button
@@ -115,14 +116,13 @@ export function SettingsView({
           ))}
         </nav>
         <button className="ct-settings-back" onClick={onClose}>
-          <ControlIcon name="back" /> Voltar ao ConTALK
+          <ControlIcon name="back" /> Voltar ao ConTalk
         </button>
       </aside>
 
       <div className="ct-settings-content">
         <header className="ct-settings-heading">
           <div>
-            <span className="ct-eyebrow">Configurações do usuário</span>
             <h1>
               {tab === 'appearance'
                 ? 'Aparência'
@@ -132,7 +132,7 @@ export function SettingsView({
                 ? 'Minha conta'
                 : tab === 'notifications'
                 ? 'Notificações'
-                : 'Sobre o ConTALK'}
+                : 'Sobre o ConTalk'}
             </h1>
             <p>
               {tab === 'appearance'
@@ -158,16 +158,16 @@ export function SettingsView({
               {preferences.theme === 'vice-city' && <CoastalScene />}
               <div>
                 <span className="ct-eyebrow">
-                  {preferences.theme === 'vice-city' ? 'Um novo horizonte' : 'O seu ponto de encontro'}
+                  {preferences.theme === 'vice-city' ? 'Pôr do sol em Vice City' : 'Menta'}
                 </span>
-                <h2>{preferences.theme === 'vice-city' ? 'Fim de tarde em Vice City.' : 'A noite é nossa.'}</h2>
+                <h2>{preferences.theme === 'vice-city' ? 'Roxo, rosa e laranja do fim de tarde.' : 'Escuro, calmo e verde-menta.'}</h2>
                 <p>
                   {preferences.theme === 'vice-city'
-                    ? 'Céu de pêssego. Mar tranquilo. Conversas sem pressa.'
-                    : 'O roxo e a noite que já fazem parte do ConTALK.'}
+                    ? 'Painéis translúcidos sobre o gradiente do céu, com destaques em rosa e laranja.'
+                    : 'O tema padrão do ConTalk: fundo grafite e destaques em verde-menta.'}
                 </p>
                 <span className="ct-feature-tag">
-                  {preferences.theme === 'vice-city' ? 'VICE CITY · PÔR DO SOL' : 'CONTALK · CLÁSSICO'}
+                  {preferences.theme === 'vice-city' ? 'VICE CITY' : 'CONTALK · MENTA'}
                 </span>
               </div>
             </div>
@@ -180,8 +180,8 @@ export function SettingsView({
             <div className="ct-theme-options" role="radiogroup" aria-label="Tema do aplicativo">
               {(
                 [
-                  ['classic', 'ConTALK clássico', 'Preto neutro e minimalista, no estilo do Codex.'],
-                  ['vice-city', 'Vice City', 'Inspirado no GTA VI: litoral, pôr do sol e cores foscas.']
+                  ['classic', 'Menta (padrão)', 'Grafite escuro com destaques em verde-menta.'],
+                  ['vice-city', 'Vice City', 'Gradiente roxo, rosa e laranja do pôr do sol, com painéis translúcidos.']
                 ] as [Theme, string, string][]
               ).map(([theme, title, description]) => (
                 <label
@@ -346,14 +346,14 @@ export function SettingsView({
                 Editar perfil e foto
               </button>
             </section>
-            <SocialAccountsManager />
+            {SOCIAL_LOGIN_ENABLED && <SocialAccountsManager />}
           </>
         )}
 
         {tab === 'about' && (
           <section className="ct-settings-about">
             <BrandMark />
-            <h2>ConTALK</h2>
+            <h2>ConTalk</h2>
             <span className="ct-pill">Versão {import.meta.env.VITE_APP_VERSION}</span>
             <p>Seu espaço para conversar, jogar e ficar perto de quem importa.</p>
             {window.contalkDesktop?.checkForUpdates && (

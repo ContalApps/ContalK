@@ -149,7 +149,7 @@ export function SocialAccountsManager() {
     <div className="ct-social-accounts-manager">
       <div className="ct-settings-section-title">
         <h2>Contas Vinculadas e Redes Sociais</h2>
-        <span>Vincule suas redes sociais para entrar no ConTALK com 1 clique (login social federado) sem precisar digitar senha.</span>
+        <span>Vincule suas redes sociais para entrar no ConTalk com 1 clique (login social federado) sem precisar digitar senha.</span>
       </div>
 
       {successMessage && (
@@ -245,7 +245,7 @@ export function SocialAccountsManager() {
 
             <div className="ct-social-modal-body">
               <p className="ct-social-modal-desc">
-                Conecte seu perfil do {modalProvider.name} para ativar o login direto de 1 clique no ConTALK.
+                Conecte seu perfil do {modalProvider.name} para ativar o login direto de 1 clique no ConTalk.
               </p>
 
               <label className="ct-social-field">

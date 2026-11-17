@@ -8,6 +8,11 @@ const digest = value => createHash('sha256').update(value).digest('hex')
 const USERNAME = /^[a-z0-9_-]{3,32}$/
 const EMAIL = /^[^\s@]{1,64}@[^\s@]{1,190}\.[^\s@]{2,63}$/
 const MAX_SESSIONS = 10
+// Senhas que o login social antigo derivava só do e-mail (qualquer pessoa conseguia calcular).
+// Contas criadas assim não entram mais por senha até existir recuperação ou OAuth real.
+const LEGACY_SOCIAL_PROVIDERS = ['google', 'instagram', 'linkedin']
+const legacySocialSecret = (secret, email) => LEGACY_SOCIAL_PROVIDERS.some(provider => digest(`${provider}:${email}:contalk-social-secret-v1`) === secret)
+const SOCIAL_DISABLED = 'O login social foi desativado por segurança. Use uma conta com senha.'
 
 export class AccountError extends Error { constructor(status, message) { super(message); this.status = status } }
 const need = (condition, status, message) => { if (!condition) throw new AccountError(status, message) }
@@ -68,6 +73,7 @@ export function createAccounts({ file } = {}) {
       need(typeof email === 'string' && EMAIL.test(email.trim()), 400, 'Informe um e-mail válido.')
       password(secret)
       const name = username.toLowerCase(), mail = email.trim().toLowerCase()
+      need(!legacySocialSecret(secret, mail), 403, SOCIAL_DISABLED)
       throttle(signups, client, 10, 3600000)
       const free = () => {
         need(!Object.hasOwn(data.accounts, name) && !taken(name), 409, 'Este nome de usuário já está em uso.')
@@ -90,6 +96,7 @@ export function createAccounts({ file } = {}) {
       throttle(attempts, client + ':' + key, 8, 900000)
       const account = name && Object.hasOwn(data.accounts, name) ? data.accounts[name] : null
       need(account, 404, 'Conta não encontrada. Crie uma conta para entrar.')
+      need(!legacySocialSecret(secret, account.email), 403, SOCIAL_DISABLED)
       const actual = Buffer.from(await hash(secret, account.salt)), expected = Buffer.from(account.hash)
       need(actual.length === expected.length && timingSafeEqual(actual, expected), 401, 'Senha incorreta.')
       attempts.delete(client + ':' + key)

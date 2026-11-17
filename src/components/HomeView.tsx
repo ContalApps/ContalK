@@ -8,6 +8,7 @@ import { useAppStore, type Message } from '../store/useAppStore'
 import { friendPeople } from '../social/people'
 import { Avatar } from './Avatar'
 import { FriendButton } from './FriendButton'
+import { FriendsPage } from './FriendsPage'
 
 interface RemoteUser {
   username: string
@@ -160,124 +161,23 @@ export function HomeView({
 
   if (mode === 'friends') {
     return (
-      <section className="ct-people-page">
-        <header className="ct-page-heading">
-          <div>
-            <h1>Amigos</h1>
-            <p>Adicione amigos pelo nome de usuário ou convide alguém da chamada.</p>
-          </div>
-          <span className={`ct-presence-badge ${status === 'online' ? 'connected' : ''}`}>
-            {status === 'online' ? `${friends.filter(m => m.online).length} ${friends.filter(m => m.online).length === 1 ? 'amigo online' : 'amigos online'}` : 'Presença indisponível'}
-          </span>
-        </header>
-
-        <div className="ct-people-toolbar">
-          <div role="group" aria-label="Filtrar amigos">
-            {([['online', 'Online'], ['all', 'Todos'], ['pending', `Pendentes (${pending.length})`], ['add', 'Adicionar amigo']] as const).map(([value, label]) => (
-              <button key={value} className={filter === value ? 'active' : ''} onClick={() => setFilter(value)}>
-                {label}
-              </button>
-            ))}
-          </div>
-          <input
-            aria-label="Buscar amigos"
-            placeholder={filter === 'add' ? 'Pesquisar usuários no ConTALK...' : 'Buscar por nome ou usuário...'}
-            value={search}
-            onChange={e => setSearch(e.target.value)}
-          />
-        </div>
-
-        {filter === 'add' && (
-          <div className="ct-add-friend-panel">
-            <div className="ct-add-friend-header">
-              <h3>Adicionar com nome de usuário</h3>
-              <p>Envie um pedido de amizade digitando o @nome de usuário da pessoa.</p>
-            </div>
-            <form onSubmit={handleDirectAdd} className="ct-add-friend-form">
-              <div className="ct-add-friend-input-wrapper">
-                <input
-                  type="text"
-                  aria-label="Nome de usuário para adicionar"
-                  placeholder="Digite o nome de usuário (ex: joao)..."
-                  value={addFriendInput}
-                  onChange={e => {
-                    setAddFriendInput(e.target.value)
-                    if (addFriendFeedback) setAddFriendFeedback(null)
-                  }}
-                  className="ct-add-friend-input"
-                />
-                <button
-                  type="submit"
-                  className="ct-primary"
-                  disabled={!addFriendInput.trim()}
-                >
-                  Enviar pedido
-                </button>
-              </div>
-              {addFriendFeedback && (
-                <p className={`ct-add-friend-feedback ct-feedback-${addFriendFeedback.type}`} role="alert">
-                  {addFriendFeedback.message}
-                </p>
-              )}
-            </form>
-          </div>
-        )}
-
-        {filter === 'add' && activeQuery.length >= 2 && (
-          <div className="ct-friend-search-status">
-            {isSearching ? 'Pesquisando usuários no ConTALK...' : `Pessoas encontradas (${shown.length}):`}
-          </div>
-        )}
-
-        {filter === 'add' && !activeQuery && (
-          <p className="ct-friend-hint">Sugestões de pessoas que compartilham servidores com você. Digite no campo de busca para pesquisar qualquer usuário no ConTALK.</p>
-        )}
-
-        <ul className="ct-people-list">
-          {shown.map(m => (
-            <li className="ct-person-row" key={m.username}>
-              <button className="ct-member-profile" onClick={() => onProfile(m.display_name, m.username)}>
-                <Avatar name={m.display_name} identity={m.username} />
-                <span>
-                  <strong>{m.display_name}</strong>
-                  <small>@{m.username} · {m.online ? 'Online' : status === 'online' ? 'Offline' : 'Status indisponível'}</small>
-                </span>
-              </button>
-              <div className="ct-person-actions">
-                <FriendButton username={m.username} name={m.display_name} />
-                {relations[m.username]?.status === 'friend' && (
-                  <button className="ct-secondary" aria-label={`Conversar com ${m.display_name}`} title="Conversar" onClick={() => onConversation(m.username)}>
-                    <ControlIcon name="chat" />
-                  </button>
-                )}
-              </div>
-            </li>
-          ))}
-        </ul>
-
-        {!shown.length && (
-          <div className="ct-empty ct-people-empty">
-            <span aria-hidden="true"><ControlIcon name="friends" size={22} /></span>
-            <h2>
-              {isSearching ? 'Buscando pessoas...' : (search || searchQuery) ? 'Nenhuma pessoa encontrada' : filter === 'pending' ? 'Nenhuma solicitação pendente' : filter === 'add' ? 'Nenhuma sugestão no momento' : filter === 'online' ? 'Nenhum amigo online agora' : 'Sua lista de amigos começa aqui'}
-            </h2>
-            <p>
-              {filter === 'pending'
-                ? 'Pedidos recebidos e enviados aparecem nesta aba.'
-                : filter === 'add'
-                ? 'Digite o nome de usuário acima para encontrar qualquer pessoa registrada no ConTALK.'
-                : (search || searchQuery) && remoteUsers.length > 0
-                ? 'Existem usuários com esse nome no ConTALK. Vá até a aba "Adicionar amigo" para encontrá-los.'
-                : 'Adicione amigos pela chamada ou pelo perfil. Participar do mesmo servidor não cria uma amizade automaticamente.'}
-            </p>
-            {(search || searchQuery) && filter !== 'add' && remoteUsers.length > 0 && (
-              <button className="ct-primary" style={{ marginTop: '12px' }} onClick={() => setFilter('add')}>
-                Ver {remoteUsers.length} usuário(s) em Adicionar amigo
-              </button>
-            )}
-          </div>
-        )}
-      </section>
+      <FriendsPage
+        filter={filter}
+        onFilter={value => { setFilter(value); setAddFriendFeedback(null) }}
+        people={shown}
+        pendingCount={pending.filter(item => item.status === 'incoming').length}
+        search={search}
+        onSearch={setSearch}
+        searching={isSearching}
+        presenceOnline={status === 'online'}
+        addInput={addFriendInput}
+        onAddInput={value => { setAddFriendInput(value); if (addFriendFeedback) setAddFriendFeedback(null) }}
+        onAdd={handleDirectAdd}
+        addFeedback={addFriendFeedback}
+        onConversation={onConversation}
+        onProfile={onProfile}
+        friends={friends}
+      />
     )
   }
 

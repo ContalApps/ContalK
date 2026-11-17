@@ -7,19 +7,40 @@ import type { User } from './useAuthStore'
 import { useFriendStore } from './useFriendStore'
 import { centralCommand, centralEnabled, centralPresenceToken } from '../roles/transport'
 
-export interface Member { username: string; display_name: string; avatar?: string; bio?: string; online: boolean }
+export interface Member { username: string; display_name: string; avatar?: string; bio?: string; online: boolean; status?: 'online' | 'idle' | 'dnd' }
 function cachedMembers(): Member[] { try { return JSON.parse(localStorage.getItem('contalk-members-v1') || '[]').map((m: Member) => ({ ...m, online: false })) } catch { return [] } }
 let room: Room | null = null
 let generation = 0
 let friendRetry: ReturnType<typeof setInterval> | undefined
 const encoder = new TextEncoder()
+const NOTEPAD_MAX_BYTES = 500000
+// O bloco de notas e os cursores são compartilhados apenas com quem está na mesma chamada de voz.
+function notepadCall(): { scope: string; peers: string[] } | null {
+  const voice = useVoiceStore.getState()
+  const call = voice.currentRoom
+  if (!call || call.state !== 'connected' || !voice.activeChannelId) return null
+  const peers = [...call.remoteParticipants.keys()].slice(0, 16)
+  return peers.length ? { scope: voice.activeChannelId, peers } : null
+}
+function fromNotepadPeer(identity: string | undefined, scope: unknown): identity is string {
+  const voice = useVoiceStore.getState()
+  return !!identity && typeof scope === 'string' && scope === voice.activeChannelId && !!voice.currentRoom?.remoteParticipants.has(identity)
+}
 function safeMember(identity: string, name: string, metadata?: string): Member {
-  let profile: {avatar?: string; bio?: string} = {}
+  let profile: {avatar?: string; bio?: string; status?: unknown} = {}
   try { const value = JSON.parse(metadata || '{}'); if(value && typeof value === 'object') profile = value } catch { /* Empty profile. */ }
   return { username: identity, display_name: name.slice(0,40) || identity,
     avatar: typeof profile.avatar === 'string' && profile.avatar.length < 50000 && /^data:image\/jpeg;base64,[A-Za-z0-9+/=]+$/.test(profile.avatar) ? profile.avatar : undefined,
-    bio: typeof profile.bio === 'string' ? profile.bio.slice(0,240) : '', online: true }
+    bio: typeof profile.bio === 'string' ? profile.bio.slice(0,240) : '',
+    // Invisível aparece como offline para os outros.
+    online: profile.status !== 'invisible',
+    status: profile.status === 'idle' || profile.status === 'dnd' ? profile.status : 'online' }
 }
+// Metadados de presença: avatar, bio e o status escolhido.
+// O status vem de usePresenceStatus, ligado em setupPresenceStatus (main.tsx), para esta store não depender dele.
+let currentStatus: () => string = () => 'online'
+export function setPresenceStatusSource(read: () => string) { currentStatus = read }
+const presenceMetadata = (user: User) => JSON.stringify({ avatar: user.avatar || '', bio: user.bio || '', status: currentStatus() })
 export const useCommunityStore = create<{ members: Member[]; status: string; profileError: string | null; connect: (user: User) => Promise<void>; disconnect: () => void; updateProfile: (user: User) => Promise<void>; broadcastChannels: () => Promise<void>; renameChannel:(serverId:string,channelId:string,name:string)=>Promise<void>; deleteChannel: (serverId: string, channelId: string) => Promise<void>; sendMessage: (channelId: string, content: string, destination?: string, attachment?: Attachment, options?: MessageOptions) => Promise<void>; changeMessage:(channelId:string,id:string,content?:string)=>Promise<void>; broadcastDevCursor: (fileId: string, filePath: string, line: number, ch: number) => Promise<void>; broadcastDevCode: (fileId: string, code: string) => Promise<void> }>((set,get) => ({
   members: cachedMembers(), status: 'offline', profileError: null,
   disconnect: () => { generation++; clearInterval(friendRetry); useFriendStore.getState().activate(null); const previous = room; room = null; void previous?.disconnect(); set({ members: get().members.map(m=>({...m,online:false})), status:'offline' }) },
@@ -50,6 +71,7 @@ export const useCommunityStore = create<{ members: Member[]; status: string; pro
         if (!participant?.identity || payload.byteLength > 2000) return
         try {
           const data = JSON.parse(new TextDecoder().decode(payload))
+          if (!fromNotepadPeer(participant.identity, data?.scope) || typeof data.fileId !== 'string' || typeof data.line !== 'number' || typeof data.ch !== 'number') return
           void import('./useDevCollaborationStore').then(({ useDevCollaborationStore, getCollaboratorColor }) => {
             useDevCollaborationStore.getState().handleRemoteCursor({
               id: participant.identity!,
@@ -67,9 +89,10 @@ export const useCommunityStore = create<{ members: Member[]; status: string; pro
       }
       if(topic === 'contalk-code-sync-v1') {
         const participant = _participant as {identity?: string; name?: string}
-        if (!participant?.identity || payload.byteLength > 500000) return
+        if (!participant?.identity || payload.byteLength > NOTEPAD_MAX_BYTES) return
         try {
           const data = JSON.parse(new TextDecoder().decode(payload))
+          if (!fromNotepadPeer(participant.identity, data?.scope) || typeof data.fileId !== 'string' || typeof data.code !== 'string') return
           void import('./useDevCollaborationStore').then(({ useDevCollaborationStore }) => {
             useDevCollaborationStore.getState().handleRemoteCode(data.fileId, data.code, data.timestamp || Date.now(), participant.identity!)
           })
@@ -169,7 +192,7 @@ export const useCommunityStore = create<{ members: Member[]; status: string; pro
       set({status:'online'});refresh()
       friendRetry = setInterval(() => { void useFriendStore.getState().flush(); void get().broadcastChannels().catch(()=>{}) }, 10000)
       void useFriendStore.getState().flush()
-      try { await connection.localParticipant.setMetadata(JSON.stringify({avatar:user.avatar || '',bio:user.bio || ''})) }
+      try { await connection.localParticipant.setMetadata(presenceMetadata(user)) }
       catch { if(version===generation)set({profileError:'O perfil não foi sincronizado. A presença continua conectada.'}) }
       if(version!==generation){await connection.disconnect();return}
       refresh();await get().broadcastChannels().catch(()=>{})
@@ -177,7 +200,7 @@ export const useCommunityStore = create<{ members: Member[]; status: string; pro
   },
   updateProfile: async user => {
     set({members:get().members.map(m=>m.username===user.username?{...m,display_name:user.display_name,avatar:user.avatar,bio:user.bio}:m)})
-    if(room?.state==='connected') {await room.localParticipant.setName(user.display_name);await room.localParticipant.setMetadata(JSON.stringify({avatar:user.avatar || '',bio:user.bio || ''}))}
+    if(room?.state==='connected') {await room.localParticipant.setName(user.display_name);await room.localParticipant.setMetadata(presenceMetadata(user))}
   },
   sendMessage: async (channelId, content, destination, attachment, options) => {
     if(centralEnabled()&&!destination&&!channelId.startsWith('dm:')){await centralCommand({type:'message-send',id:crypto.randomUUID(),channel:channelId,content,attachment,expression:options?.expression,voice:options?.voice,tts:options?.tts,poll:options?.poll,preview:options?.preview,once:options?.once});return}
@@ -243,17 +266,21 @@ export const useCommunityStore = create<{ members: Member[]; status: string; pro
     await sendRecords(useAppStore.getState().servers.flatMap(s=>s.channels), 'community-channels')
   },
   broadcastDevCursor: async (fileId: string, filePath: string, line: number, ch: number) => {
-    if (!room || room.state !== 'connected') return
+    const call = notepadCall()
+    if (!room || room.state !== 'connected' || !call) return
     try {
-      const data = JSON.stringify({ fileId, filePath, line, ch, timestamp: Date.now() })
-      await room.localParticipant.publishData(encoder.encode(data), { reliable: false, topic: 'contalk-cursor-v1' })
+      const data = JSON.stringify({ scope: call.scope, fileId, filePath, line, ch, timestamp: Date.now() })
+      await room.localParticipant.publishData(encoder.encode(data), { reliable: false, topic: 'contalk-cursor-v1', destinationIdentities: call.peers })
     } catch { /* ignore network blips */ }
   },
   broadcastDevCode: async (fileId: string, code: string) => {
-    if (!room || room.state !== 'connected') return
+    const call = notepadCall()
+    if (!room || room.state !== 'connected' || !call) return
+    const data = JSON.stringify({ scope: call.scope, fileId, code, timestamp: Date.now() })
+    if (encoder.encode(data).byteLength > NOTEPAD_MAX_BYTES) return
     try {
-      const data = JSON.stringify({ fileId, code, timestamp: Date.now() })
-      await room.localParticipant.publishData(encoder.encode(data), { reliable: true, topic: 'contalk-code-sync-v1' })
+      await room.localParticipant.publishData(encoder.encode(data), { reliable: true, topic: 'contalk-code-sync-v1', destinationIdentities: call.peers })
     } catch { /* ignore network blips */ }
   },
 }))
+
