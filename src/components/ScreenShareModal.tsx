@@ -126,229 +126,103 @@ export function ScreenShareModal({ isOpen, onClose, onStartShare }: ScreenShareM
     }
   }
 
+  const audioHint = audioMode === 'all-apps'
+    ? 'Inclui notificações e o som de outros monitores. O áudio do ConTalk fica de fora.'
+    : audioMode === 'isolated'
+    ? (useBrowserPicker ? 'Escolha uma aba com áudio no seletor do navegador.' : 'Captura o som do aplicativo escolhido. Janelas do mesmo programa podem compartilhar o áudio.')
+    : 'A transmissão vai sem som.'
+
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4 select-none">
-      <div className="w-full max-w-2xl bg-[#212121] border border-white/5 rounded-3xl overflow-hidden flex flex-col max-h-[90vh] animate-in fade-in zoom-in-95 duration-200">
-        {/* Header do Modal */}
-        <header className="px-6 py-4 border-b border-neutral-900/30 flex items-center justify-between flex-shrink-0 bg-[#0d0d0d]">
-          <div className="flex items-center gap-2.5">
-            <ControlIcon name="screen" size={18}/>
-            <div>
-              <h2 className="text-base font-semibold text-white tracking-wide">Compartilhe sua tela</h2>
-              <p className="text-[11px] text-neutral-300/60 font-medium">
-                Escolha o monitor ou aplicativo específico que deseja transmitir
-              </p>
-            </div>
+    <div className="ct-modal-backdrop ct-dialog-backdrop" onMouseDown={event => { if (event.target === event.currentTarget && !isStarting) onClose() }}>
+      <section
+        className="ct-dialog ct-share-dialog"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="ct-share-title"
+        onKeyDown={event => { if (event.key === 'Escape' && !isStarting) { event.stopPropagation(); onClose() } }}
+      >
+        <header className="ct-dialog-header">
+          <div>
+            <h2 id="ct-share-title">Compartilhar tela</h2>
+            <p>Escolha um monitor ou um aplicativo para transmitir na chamada.</p>
           </div>
-          <button
-            disabled={isStarting}
-            aria-label="Fechar seletor de transmissão"
-            onClick={onClose}
-            className="w-8 h-8 rounded-full bg-neutral-950/50 hover:bg-neutral-900/50 text-neutral-300 hover:text-white flex items-center justify-center transition-colors text-xs font-bold"
-          ><ControlIcon name="close"/></button>
+          <button type="button" className="ct-dialog-close" disabled={isStarting} aria-label="Fechar seletor de transmissão" title="Fechar (Esc)" onClick={onClose} autoFocus>
+            <ControlIcon name="close" />
+          </button>
         </header>
 
-        {/* Abas: Telas vs Aplicativos */}
-        <div className="px-6 pt-4 flex items-center gap-3 border-b border-neutral-900/30 bg-[#101010] flex-shrink-0">
-          <button
-            onClick={() => {
-              setActiveTab('screens')
-              setSelectedSource(screens[0] || null)
-            }}
-            className={`pb-3 text-xs font-bold transition-all relative ${
-              activeTab === 'screens' ? 'text-white' : 'text-[#9a9a9a] hover:text-white'
-            }`}
-          >
-            <span>Telas ({screens.length})</span>
-            {activeTab === 'screens' && (
-              <span className="absolute bottom-0 left-0 right-0 h-0.5 bg-white rounded-full" />
-            )}
+        <nav className="ct-share-tabs" role="tablist" aria-label="Tipo de fonte">
+          <button type="button" role="tab" aria-selected={activeTab === 'screens'} onClick={() => { setActiveTab('screens'); setSelectedSource(screens[0] || null) }}>
+            Telas <span>{screens.length}</span>
           </button>
-
-          <button
-            onClick={() => {
-              setActiveTab('windows')
-              setSelectedSource(windows[0] || null)
-            }}
-            className={`pb-3 text-xs font-bold transition-all relative ${
-              activeTab === 'windows' ? 'text-white' : 'text-[#9a9a9a] hover:text-white'
-            }`}
-          >
-            <span>Aplicativos ({windows.length})</span>
-            {activeTab === 'windows' && (
-              <span className="absolute bottom-0 left-0 right-0 h-0.5 bg-white rounded-full" />
-            )}
+          <button type="button" role="tab" aria-selected={activeTab === 'windows'} onClick={() => { setActiveTab('windows'); setSelectedSource(windows[0] || null) }}>
+            Aplicativos <span>{windows.length}</span>
           </button>
-        </div>
+        </nav>
 
-        {/* Conteúdo com Miniaturas */}
-        <div className="p-6 overflow-y-auto flex-1 space-y-5">
+        <div className="ct-share-sources">
           {isLoading ? (
-            <div className="py-16 text-center space-y-3">
-              <ControlIcon name="refresh" size={24}/>
-              <p className="text-xs text-neutral-300/70 font-medium">Buscando janelas e monitores...</p>
-            </div>
+            <p className="ct-share-empty" role="status"><ControlIcon name="refresh" size={18} />Procurando monitores e janelas…</p>
           ) : displayedSources.length === 0 ? (
-            <div className="py-12 text-center text-neutral-300/60 text-xs">
-              {useBrowserPicker ? 'O navegador abrirá o seletor de tela, janela ou aba ao continuar.' : 'Nenhuma fonte encontrada nesta categoria.'}
-            </div>
+            <p className="ct-share-empty">{useBrowserPicker ? 'O navegador abre o seletor de tela, janela ou aba quando você continuar.' : 'Nenhuma fonte encontrada nesta categoria.'}</p>
           ) : (
-            <div className="grid grid-cols-2 gap-3.5">
-              {displayedSources.map((source) => {
+            <div className="ct-share-grid" role="listbox" aria-label="Fontes de captura">
+              {displayedSources.map(source => {
                 const isSelected = selectedSource?.id === source.id
                 return (
-                  <div
-                    key={source.id}
-                    onClick={() => setSelectedSource(source)}
-                    className={`cursor-pointer rounded-2xl overflow-hidden border p-2.5 transition-all duration-200 flex flex-col gap-2 ${
-                      isSelected
-                        ? 'bg-neutral-950/60 border-neutral-400 ring-2 ring-neutral-500/40'
-                        : 'bg-[#161616] border-neutral-900/40 hover:border-neutral-500/40 hover:bg-[#1b1b1b]'
-                    }`}
-                  >
-                    {/* Preview da tela ou miniatura */}
-                    <div className="aspect-video w-full rounded-xl overflow-hidden bg-[#0b0b0b] border border-white/5 relative flex items-center justify-center">
-                      {source.thumbnail ? (
-                        <img
-                          src={source.thumbnail}
-                          alt={source.title}
-                          className="w-full h-full object-cover"
-                        />
-                      ) : (
-                        <div className="flex flex-col items-center gap-1.5 text-neutral-400/60">
-                          <span className="text-3xl">
-                            <ControlIcon name={source.source_type === 'monitor' ? 'screen' : 'sidebar'}/>
-                          </span>
-                          <span className="text-[10px] font-semibold">{source.width}x{source.height}</span>
-                        </div>
-                      )}
-
-                      {source.is_primary && (
-                        <span className="absolute top-2 left-2 bg-white text-black! text-[9px] font-bold px-1.5 py-0.5 rounded shadow">
-                          PRINCIPAL
-                        </span>
-                      )}
-                    </div>
-
-                    <div className="min-w-0 px-1">
-                      <div className="text-xs font-bold text-white truncate">{source.name}</div>
-                      <div className="text-[10px] text-neutral-300/60 truncate">{source.title}</div>
-                    </div>
-                  </div>
+                  <button type="button" role="option" aria-selected={isSelected} key={source.id} className="ct-share-source" onClick={() => setSelectedSource(source)} onDoubleClick={() => { setSelectedSource(source); void handleStart() }}>
+                    <span className="ct-share-thumb">
+                      {source.thumbnail ? <img src={source.thumbnail} alt="" /> : <ControlIcon name={source.source_type === 'monitor' ? 'screen' : 'sidebar'} size={28} />}
+                      {source.is_primary && <span className="ct-share-primary">Principal</span>}
+                    </span>
+                    <span className="ct-share-name">{source.name}</span>
+                  </button>
                 )
               })}
             </div>
           )}
+        </div>
 
-          {startError && <p role="alert" className="rounded-xl border border-red-500/40 bg-red-950/30 p-3 text-xs text-red-200">{startError}</p>}
-          {/* Configurações de Transmissão (Áudio & Qualidade) */}
-          <div className="p-4 rounded-2xl bg-[#0d0d0d] border border-neutral-900/40 space-y-3.5">
-            <div className="text-xs font-bold text-white flex items-center gap-2">
-              <ControlIcon name="settings"/>
-              <span>Opções de Áudio e Performance</span>
-            </div>
-
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
-              <label className="flex flex-col gap-1.5 p-2 rounded-xl bg-[#151515] border border-neutral-900/40">
-                <span className="font-semibold text-white">Áudio da transmissão</span>
-                <select
-                  value={audioMode}
-                  onChange={event => setAudioMode(event.target.value as typeof audioMode)}
-                  disabled={isStarting}
-                  className="min-w-0 rounded-md bg-[#212121] px-2 py-1.5 text-white"
-                >
-                  <option value="off">Sem áudio</option>
-                  <option value="isolated">{useBrowserPicker ? 'Áudio da aba' : selectedSource?.source_type === 'monitor' ? 'Aplicativos desta tela' : 'Aplicativo selecionado'}</option>
-                  {!useBrowserPicker && <option value="all-apps">Todos os aplicativos</option>}
-                </select>
-              </label>
-
-              <div className="p-2 rounded-xl bg-[#151515] border border-neutral-900/30 text-[10px] text-neutral-200/80 leading-relaxed">
-                {audioMode === 'all-apps'
-                  ? 'Inclui notificações e som de outros monitores. O áudio do ConTALK fica de fora.'
-                  : audioMode === 'isolated' && (useBrowserPicker
-                    ? 'Escolha uma aba com áudio no seletor do navegador.'
-                    : 'O áudio é capturado por aplicativo. Janelas e abas que usam o mesmo processo podem compartilhar áudio entre si.')}
-              </div>
-            </div>
-
-            {/* Resolução e Taxa de Quadros */}
-            <div className="flex items-center justify-between pt-1 border-t border-neutral-900/30 text-xs">
-              <div className="flex items-center gap-2">
-                <span className="text-[#a2a2a2] text-[11px] font-bold">Resolução:</span>
-                {(['720', '1080', 'source'] as const).map((r) => (
-                  <button
-                    key={r}
-                    onClick={() => setResolution(r)}
-                    className={`px-2.5 py-1 rounded-lg font-bold text-[11px] transition-all ${
-                      resolution === r
-                        ? 'bg-white text-black! shadow'
-                        : 'bg-[#161616] text-neutral-300 hover:text-white'
-                    }`}
-                  >
-                    {r === 'source' ? 'Original' : `${r}p`}
-                  </button>
+        <div className="ct-share-options">
+          <label className="ct-field">
+            <span>Áudio da transmissão</span>
+            <select aria-label="Áudio da transmissão" value={audioMode} onChange={event => setAudioMode(event.target.value as typeof audioMode)} disabled={isStarting}>
+              <option value="off">Sem áudio</option>
+              <option value="isolated">{useBrowserPicker ? 'Áudio da aba' : selectedSource?.source_type === 'monitor' ? 'Aplicativos desta tela' : 'Aplicativo selecionado'}</option>
+              {!useBrowserPicker && <option value="all-apps">Todos os aplicativos</option>}
+            </select>
+            <small>{audioHint}</small>
+          </label>
+          <div className="ct-share-quality">
+            <div className="ct-field">
+              <span>Resolução</span>
+              <div className="ct-segmented" role="group" aria-label="Resolução">
+                {(['720', '1080', 'source'] as const).map(value => (
+                  <button key={value} type="button" aria-pressed={resolution === value} onClick={() => setResolution(value)}>{value === 'source' ? 'Original' : `${value}p`}</button>
                 ))}
               </div>
-
-              <div className="flex items-center gap-2">
-                <span className="text-[#a2a2a2] text-[11px] font-bold">Taxa:</span>
-                {([30, 60] as const).map((f) => (
-                  <button
-                    key={f}
-                    onClick={() => setFps(f)}
-                    className={`px-2.5 py-1 rounded-lg font-bold text-[11px] transition-all ${
-                      fps === f
-                        ? 'bg-white text-black! shadow'
-                        : 'bg-[#161616] text-neutral-300 hover:text-white'
-                    }`}
-                  >
-                    {f} FPS
-                  </button>
+            </div>
+            <div className="ct-field">
+              <span>Quadros por segundo</span>
+              <div className="ct-segmented" role="group" aria-label="Quadros por segundo">
+                {([30, 60] as const).map(value => (
+                  <button key={value} type="button" aria-pressed={fps === value} onClick={() => setFps(value)}>{value} FPS</button>
                 ))}
               </div>
             </div>
           </div>
         </div>
 
-        {/* Footer com Botões de Ação */}
-        <footer className="px-6 py-4 border-t border-neutral-900/30 flex items-center justify-between bg-[#0d0d0d] flex-shrink-0">
-          <div className="text-xs text-neutral-300/70">
-            {selectedSource ? (
-              <span>Selecionado: <strong className="text-white">{selectedSource.name}</strong></span>
-            ) : (
-              <span>Nenhuma fonte selecionada</span>
-            )}
-          </div>
+        {startError && <p className="ct-vs-error" role="alert">{startError}</p>}
 
-          <div className="flex items-center gap-2.5">
-            <button
-              onClick={onClose}
-              disabled={isStarting}
-              className="px-4 py-2 rounded-xl text-xs font-semibold text-neutral-300 hover:text-white hover:bg-neutral-950/40 transition-colors"
-            >
-              Cancelar
-            </button>
-            <button
-              onClick={handleStart}
-              disabled={(!selectedSource && !useBrowserPicker) || isStarting || isLoading}
-              className="px-6 py-2.5 bg-white hover:bg-neutral-200 text-black! font-bold text-xs rounded-xl transition-all disabled:opacity-40 disabled:cursor-not-allowed flex items-center gap-2"
-            >
-              {isStarting ? (
-                <>
-                  <span className="w-2 h-2 rounded-full bg-white animate-ping" />
-                  <span>Conectando...</span>
-                </>
-              ) : (
-                <>
-                  <span className="w-2 h-2 rounded-full bg-red-500" aria-hidden="true"/>
-                  <span>Transmitir ao Vivo</span>
-                </>
-              )}
-            </button>
-          </div>
+        <footer className="ct-dialog-footer ct-share-footer">
+          <span className="ct-share-selected">{selectedSource ? <>Selecionado: <strong>{selectedSource.name}</strong></> : 'Nenhuma fonte selecionada'}</span>
+          <button type="button" className="ct-button-secondary" onClick={onClose} disabled={isStarting}>Cancelar</button>
+          <button type="button" className="ct-button-primary ct-share-start" onClick={() => void handleStart()} disabled={(!selectedSource && !useBrowserPicker) || isStarting || isLoading}>
+            <span className="ct-share-live-dot" aria-hidden="true" />{isStarting ? 'Conectando…' : 'Transmitir ao vivo'}
+          </button>
         </footer>
-      </div>
+      </section>
     </div>
   )
 }

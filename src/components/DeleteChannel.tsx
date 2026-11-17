@@ -60,7 +60,7 @@ export function DeleteChannel({ channel, onClose }: { channel: Channel; onClose:
         <h2 id="delete-channel-title">{deleted ? 'Canal excluído' : `Excluir ${channel.name}?`}</h2>
         <p id="delete-channel-description">
           {deleted
-            ? 'A exclusão ficou salva. A sincronização será tentada novamente enquanto o ConTALK estiver conectado.'
+            ? 'A exclusão ficou salva. A sincronização será tentada novamente enquanto o ConTalk estiver conectado.'
             : `O canal de ${channel.type === 'text' ? 'texto' : 'voz'} será removido da comunidade. O histórico salvo deste canal será apagado.${channel.type === 'voice' ? ' Quem estiver conectado sairá da chamada ao receber a exclusão.' : ''}`}
         </p>
         {error && <p role="status">{error}</p>}

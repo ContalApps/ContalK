@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { BrandMark } from './BrandMark'
 import { useAuthStore, type SocialProvider } from '../store/useAuthStore'
 import { GoogleLogo, LinkedInLogo, InstagramLogo } from './SocialAccountsManager'
+import { SOCIAL_LOGIN_ENABLED } from '../features'
 import { ControlIcon } from './ControlIcon'
 
 export function AuthScreen() {
@@ -80,7 +81,7 @@ export function AuthScreen() {
         }}
       >
         <BrandMark className="ct-auth-logo" />
-        <h1>{registering ? 'Criar conta' : 'Bem-vindo ao ConTALK'}</h1>
+        <h1>{registering ? 'Criar conta' : 'Bem-vindo ao ConTalk'}</h1>
 
         <label>
           {registering ? 'Nome de usuário' : 'Usuário ou e-mail'}
@@ -120,6 +121,7 @@ export function AuthScreen() {
           {isLoading ? 'Aguarde...' : registering ? 'Criar minha conta' : 'Entrar'}
         </button>
 
+        {SOCIAL_LOGIN_ENABLED && <>
         {/* Divisor de Login Social */}
         <div className="ct-auth-divider">
           <span>ou continue com</span>
@@ -160,6 +162,7 @@ export function AuthScreen() {
             <span>{socialLoading === 'instagram' ? 'Conectando...' : 'Instagram'}</span>
           </button>
         </div>
+        </>}
 
         <button
           type="button"
@@ -173,7 +176,7 @@ export function AuthScreen() {
       </form>
 
       {/* Modal de Login Rápido com Rede Social */}
-      {socialModal && (
+      {SOCIAL_LOGIN_ENABLED && socialModal && (
         <div role="dialog" aria-modal="true" className="ct-modal-backdrop" onClick={() => setSocialModal(null)}>
           <div className="ct-social-modal" onClick={e => e.stopPropagation()}>
             <div className="ct-social-modal-header">

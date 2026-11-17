@@ -3,6 +3,7 @@ import { useVoiceStore, VoiceParticipant } from '../store/useVoiceStore'
 import { useAuthStore } from '../store/useAuthStore'
 import { useCommunityStore } from '../store/useCommunityStore'
 import { Track } from '../media/realtime'
+import { Avatar } from './Avatar'
 import { ControlIcon } from './ControlIcon'
 import { FriendButton } from './FriendButton'
 import { RoleName } from './RoleName'
@@ -332,15 +333,17 @@ function ParticipantTile({
 }
 
 export function VoiceStage({
-  showMemberList,
-  onToggleMemberList,
   onProfile,
   onParticipantMenu,
+  onMinimize,
+  footer,
 }: {
-  showMemberList?: boolean
-  onToggleMemberList?: () => void
   onProfile:(participant:VoiceParticipant)=>void
   onParticipantMenu:(participant:VoiceParticipant,event:React.MouseEvent)=>void
+  // Volta para a aba Conversa com a chamada no mini-player.
+  onMinimize?: () => void
+  // Pílula de controles da chamada, fixada no rodapé do palco.
+  footer?: React.ReactNode
 }) {
   const { user } = useAuthStore()
   const voice = useVoiceStore()
@@ -492,96 +495,35 @@ export function VoiceStage({
           </div> : <p className="ct-stream-ended" role="status">As transmissões foram encerradas.</p>}
         </div>
       </> : <>
-      {/* Header do palco de voz estilo Discord */}
-      <header className="ct-voice-toolbar">
-        {/* Canto direito do Header: Controles de Grade/Foco, Contador e Membros */}
-        <div className="flex items-center gap-3">
-          {/* Seletor Grade vs Foco quando há telas compartilhadas e estamos assistindo */}
+      <header className="ct-stage-header">
+        <span className="ct-stage-header-icon" aria-hidden="true"><ControlIcon name="voice" size={20}/></span>
+        <div className="ct-stage-header-text">
+          <h2>{activeChannelName || 'Chamada'}</h2>
+          <small>
+            {connectionStatus === 'connecting' ? 'Conectando…'
+              : connectionStatus === 'reconnecting' ? 'Reconectando…'
+              : screenShares.length === 1 ? `${screenShares[0].isLocal ? 'Você está' : voiceName(screenShares[0]) + ' está'} compartilhando a tela`
+              : screenShares.length > 1 ? `${screenShares.length} transmissões ao vivo`
+              : participants.length <= 1 ? 'Só você por aqui' : 'Conversando'}
+          </small>
+        </div>
+        <div className="ct-stage-header-actions">
           {screenShares.length > 0 && isWatchingStream && (
-            <div className="flex items-center bg-[#0f0f0f] p-0.5 rounded-xl border border-neutral-900/40">
-              <button
-                onClick={openGrid}
-                aria-pressed={inGrid}
-                className={`px-3 py-1 rounded-lg text-xs font-bold transition flex items-center gap-1.5 ${
-                  inGrid
-                    ? 'bg-white text-black!'
-                    : 'text-neutral-300 hover:text-white'
-                }`}
-                title="Escolher transmissões na grade"
-              >
-                <span>⊞</span>
-                <span>Modo Grade {screenShares.length > 1 ? `(${screenShares.length})` : ''}</span>
-              </button>
-              <button
-                onClick={() => openTheater(focusedScreen?.identity ?? screenShares[0].identity)}
-                aria-pressed={!inGrid}
-                className={`px-3 py-1 rounded-lg text-xs font-bold transition flex items-center gap-1.5 ${
-                  !inGrid
-                    ? 'bg-white text-black!'
-                    : 'text-neutral-300 hover:text-white'
-                }`}
-                title="Modo Teatro (tela dedicada sem bordas)"
-              >
-                <ControlIcon name="screen" size={13}/>
-                <span>Modo Teatro</span>
-              </button>
-              <button
-                onClick={exitStream}
-                className="px-2.5 py-1 rounded-lg text-xs font-bold transition flex items-center gap-1 text-neutral-400 hover:text-red-400 hover:bg-white/5 cursor-pointer ml-0.5"
-                title="Sair da transmissão (voltar aos participantes)"
-                aria-label="Sair da transmissão"
-              >
-                <ControlIcon name="close" size={12}/>
-                <span>Sair</span>
-              </button>
+            <div className="ct-segmented" role="group" aria-label="Modo de exibição das transmissões">
+              <button type="button" onClick={openGrid} aria-pressed={inGrid} title="Escolher transmissões na grade">Grade{screenShares.length > 1 ? ` (${screenShares.length})` : ''}</button>
+              <button type="button" onClick={() => openTheater(focusedScreen?.identity ?? screenShares[0].identity)} aria-pressed={!inGrid} title="Transmissão em destaque">Teatro</button>
+              <button type="button" onClick={exitStream} aria-label="Sair da transmissão" title="Sair da transmissão (voltar aos participantes)">Sair</button>
             </div>
           )}
-
-          {/* Botão para voltar a assistir quando tiver saído da transmissão */}
           {screenShares.length > 0 && !isWatchingStream && (
-            <button
-              onClick={() => {
-                setIsWatchingStream(true)
-                openTheater(screenShares[0].identity)
-              }}
-              className="px-3 py-1 rounded-xl text-xs font-bold transition flex items-center gap-1.5 bg-red-600/90 hover:bg-red-600 text-white shadow-sm border border-red-500/40 cursor-pointer"
-              title="Voltar a assistir à transmissão de tela"
-            >
-              <span className="w-2 h-2 rounded-full bg-white animate-pulse" />
-              <span>Assistir transmissão {screenShares.length > 1 ? `(${screenShares.length})` : ''}</span>
+            <button type="button" className="ct-button-secondary ct-stage-watch" onClick={() => { setIsWatchingStream(true); openTheater(screenShares[0].identity) }} title="Voltar a assistir à transmissão de tela">
+              <span className="ct-share-live-dot" aria-hidden="true" />Assistir transmissão{screenShares.length > 1 ? ` (${screenShares.length})` : ''}
             </button>
           )}
-
-          <button
-            onClick={() => void voice.toggleScreenShare()}
-            disabled={connectionStatus !== 'connected' || voice.currentRoom?.localParticipant.canStream === false}
-            className={`p-1.5 rounded-xl border transition text-xs flex items-center gap-1.5 font-bold ${
-              voice.isScreenSharing
-                ? 'bg-red-600 border-red-500 text-white'
-                : 'bg-[#161616] border-neutral-900/40 text-neutral-300 hover:text-white hover:border-neutral-500/40'
-            }`}
-            title={voice.isScreenSharing ? 'Parar transmissão de tela' : 'Compartilhar tela nesta chamada'}
-          >
-            <ControlIcon name="screen" size={14}/>
-            <span className="hidden md:inline">{voice.isScreenSharing ? 'Parar Tela' : 'Transmitir'}</span>
-          </button>
-
-          <span className="text-xs text-neutral-300/80 font-medium hidden sm:inline">
-            {participants.length} {participants.length === 1 ? 'participante' : 'participantes'}
-          </span>
-
-          {onToggleMemberList && (
-            <button
-              onClick={onToggleMemberList}
-              className={`p-1.5 rounded-xl border transition text-xs flex items-center gap-1.5 font-bold ${
-                showMemberList
-                  ? 'bg-white border-white text-black'
-                  : 'bg-[#161616] border-neutral-900/40 text-neutral-300 hover:text-white hover:border-neutral-500/40'
-              }`}
-              title="Mostrar/Ocultar lista de membros do servidor"
-            >
-              <ControlIcon name="friends"/>
-              <span className="hidden md:inline">Membros</span>
+          <span className="ct-chip"><ControlIcon name="friends" size={14}/>{participants.length} {participants.length === 1 ? 'pessoa' : 'pessoas'}</span>
+          {onMinimize && (
+            <button type="button" className="ct-icon-button" onClick={onMinimize} aria-label="Minimizar chamada" title="Minimizar (continua no mini-player)">
+              <ControlIcon name="shrink" size={16}/>
             </button>
           )}
         </div>
@@ -616,9 +558,6 @@ export function VoiceStage({
             <p className="text-xs text-neutral-400/60">Aguardando outros participantes entrarem...</p>
           </div>
         ) : isWatchingStream && gridTracks && screenShares.length > 0 ? (
-          /* ═══════════════════════════════════════════════════════════════════ */
-          /* MODO GRADE: TRANSMISSÕES DE TELA LADO A LADO                       */
-          /* ═══════════════════════════════════════════════════════════════════ */
           <div className="ct-share-layout flex-1 flex flex-col min-h-0 w-full h-full">
             <div
               className="ct-stream-grid"
@@ -638,18 +577,13 @@ export function VoiceStage({
                       onFocus={watching ? () => openTheater(p.identity) : undefined}
                       objectFit={objectFit}
                       onToggleObjectFit={watching ? handleToggleObjectFit : undefined}
-                      showMemberList={showMemberList}
-                      onToggleMemberList={onToggleMemberList}
                     />
                   </div>
                 )
               })}
             </div>
           </div>
-        ) : isWatchingStream && screenShares.length > 0 && focusedScreen ? (
-          /* ═══════════════════════════════════════════════════════════════════ */
-          /* MODO TEATRO PADRÃO: TRANSMISSÃO OCUPANDO TODO O ESPAÇO SEM BORDAS  */
-          /* ═══════════════════════════════════════════════════════════════════ */
+        ) : isWatchingStream && screenShares.length > 0 && focusedScreen ? (<>
           <div className="ct-theater-stage flex-1 flex flex-col min-h-0 w-full h-full relative overflow-hidden select-none bg-black">
             <ScreenShareViewer
               participant={focusedScreen}
@@ -660,8 +594,6 @@ export function VoiceStage({
               isTheater={true}
               objectFit={objectFit}
               onToggleObjectFit={handleToggleObjectFit}
-              showMemberList={showMemberList}
-              onToggleMemberList={onToggleMemberList}
             />
             {screenShares.length > 1 && (
               <div className="ct-theater-thumbs">
@@ -679,10 +611,23 @@ export function VoiceStage({
               </div>
             )}
           </div>
+          {participants.length > 0 && (
+            <div className="ct-stage-strip" aria-label="Participantes">
+              {participants.map(p => (
+                <button type="button" key={p.identity} className="ct-stage-person" data-speaking={p.isSpeaking} data-sharing={p.isScreenShareEnabled}
+                  onClick={() => onProfile(p)} onContextMenu={event => { event.preventDefault(); onParticipantMenu(p, event) }} title={voiceName(p)}>
+                  <Avatar name={p.name} identity={p.identity} />
+                  <span>
+                    <strong>{voiceName(p)}{p.isLocal ? ' (você)' : ''}</strong>
+                    <small>{p.isScreenShareEnabled ? 'Compartilhando a tela' : !p.isAudioEnabled ? 'Microfone desligado' : p.isSpeaking ? 'Falando' : 'Ouvindo'}</small>
+                  </span>
+                  {!p.isAudioEnabled && <span className="ct-stage-person-muted" aria-hidden="true"><ControlIcon name="mic" slashed size={13}/></span>}
+                </button>
+              ))}
+            </div>
+          )}
+          </>
         ) : pinnedParticipant ? (
-          /* ═══════════════════════════════════════════════════════════════════ */
-          /* MODO SPOTLIGHT DE UM PARTICIPANTE ESPECÍFICO                       */
-          /* ═══════════════════════════════════════════════════════════════════ */
           <div className="flex-1 flex flex-col gap-3 min-h-0 w-full max-w-5xl mx-auto h-full">
             <div className="flex-1 flex items-center justify-center min-h-0">
               <ParticipantTile
@@ -723,19 +668,8 @@ export function VoiceStage({
             </div>
           </div>
         ) : (
-          /* ═══════════════════════════════════════════════════════════════════ */
-          /* MODO GRADE NORMAL (AVATARES / WEBCAMS ESTILO DISCORD)              */
-          /* ═══════════════════════════════════════════════════════════════════ */
-          <div className="overflow-y-auto flex items-center justify-center w-full h-full py-4">
-            <div
-              className={`w-full max-w-5xl grid gap-4 items-center justify-center ${
-                participants.length === 1
-                  ? 'grid-cols-1 max-w-xl'
-                  : participants.length === 2
-                  ? 'grid-cols-2 max-w-3xl'
-                  : 'grid-cols-2 max-w-4xl'
-              }`}
-            >
+          <div className="ct-participant-grid-scroll">
+            <div className="ct-participant-grid" data-count={Math.min(participants.length, 9)}>
               {participants.map((p) => (
                 <ParticipantTile
                   key={p.identity}
@@ -752,6 +686,7 @@ export function VoiceStage({
       </div>
       </>}
 
+      {!isFullscreen && footer && <footer className="ct-stage-footer">{footer}</footer>}
       {fullscreenError && <p role="alert">{fullscreenError}</p>}
       {screenShareError && <div role="alert" className="mx-4 mb-2 rounded-xl border border-red-500/40 bg-red-950/30 p-3 text-xs text-red-200">{screenShareError}</div>}
 

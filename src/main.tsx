@@ -14,12 +14,21 @@ import { setupVoiceInput } from './media/push-to-talk'
 import { setupTrayControls } from './media/trayControls'
 import { setupActivityNotifications } from './notifications/activity'
 import { setupCentralCommunity } from './roles/runtime'
+import { setupPresenceStatus } from './store/usePresenceStatus'
+import { useCommunityStore, setPresenceStatusSource } from './store/useCommunityStore'
+import { useAuthStore } from './store/useAuthStore'
 import './roles.css'
 import './codex.css'
+import './shell.css'
+import './screens.css'
+import './panels.css'
+import './settings.css'
 
 const stopTraySpeaking=setupTraySpeaking(useVoiceStore,speaking=>window.contalkDesktop?.setSpeaking(speaking))
 const stopNotifications=setupActivityNotifications()
 const stopCommunity=setupCentralCommunity()
+const stopPresenceStatus=setupPresenceStatus({setPresenceStatusSource,republish:()=>{const user=useAuthStore.getState().user;if(user)void useCommunityStore.getState().updateProfile(user).catch(()=>{})}})
+if(import.meta.hot)import.meta.hot.dispose(stopPresenceStatus)
 const stopVoiceInput=setupVoiceInput()
 const stopSoundboardPlayback=setupSoundboardPlayback()
 if(import.meta.hot)import.meta.hot.dispose(stopSoundboardPlayback)

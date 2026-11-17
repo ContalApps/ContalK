@@ -29,8 +29,8 @@ export function VoiceInputSettings() {
   return (
     <section className="ct-voice-input-settings" aria-label="Modo de entrada de voz">
       <h3>Modo de entrada</h3>
-      <label>
-        Transmissão
+      <label className="ct-field">
+        <span>Como sua voz é transmitida</span>
         <select
           aria-label="Modo de entrada de voz"
           value={preferences.voiceInputMode}
@@ -48,17 +48,13 @@ export function VoiceInputSettings() {
       )}
 
       {!forced && preferences.voiceInputMode === 'voice-activity' && (
-        <div style={{ marginTop: 8, display: 'flex', flexDirection: 'column', gap: 6 }}>
-          <p className="ct-muted" style={{ margin: '4px 0 0', fontSize: '0.85em', lineHeight: '1.45' }}>
-            A transmissão de voz opera em tempo real com baixa latência pelo WebRTC, com cancelamento de eco acústico (AEC), supressão de ruído ambiente, filtro de teclado e DTX nativos.
-          </p>
-        </div>
+        <p className="ct-vs-hint">O microfone transmite sempre que detecta sua voz.</p>
       )}
 
       {(forced || preferences.voiceInputMode === 'push-to-talk') && (
         <>
-          <label>
-            Tecla de transmissão
+          <label className="ct-field">
+            <span>Tecla para falar</span>
             <select
               aria-label="Tecla para falar"
               value={preferences.pushToTalkKey}
@@ -90,16 +86,13 @@ export function VoiceInputSettings() {
               Seu cargo não permite prioridade nesta sala; o atalho continua como Pressionar para falar normal.
             </p>
           )}
-          <p>
-            Mantenha a tecla pressionada para transmitir, inclusive com o app na bandeja no Windows. Escolha uma tecla
-            livre nos outros aplicativos.
+          <p className="ct-vs-hint">
+            Mantenha a tecla pressionada para transmitir, inclusive com o app na bandeja. Escolha uma tecla livre nos outros aplicativos.
           </p>
         </>
       )}
 
-      <p className="ct-muted">
-        Alterar o modo silencia o microfone; reative-o no seu card quando estiver pronto.
-      </p>
+      <p className="ct-vs-hint">Ao trocar o modo, o microfone é silenciado; reative-o no seu card quando quiser falar.</p>
       {error && <p role="alert">{error}</p>}
       {voice.voiceInputError && <p role="alert">{voice.voiceInputError}</p>}
     </section>

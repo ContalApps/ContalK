@@ -45,7 +45,7 @@ export const useRoleStore=create<RoleState>((set,get)=>({
       set({configured:configuration.configured,url:configuration.url||'',status:configuration.configured?'loading':'off',error:configuration.configured?'':configuration.reason||''})
       if(!configuration.configured)return
       // Only servers the account belongs to are listed; fall back to the first one (or none) when the remembered one is gone.
-      let list:Array<{id:string;name:string}>|undefined
+      let list:Array<{id:string;name:string;icon?:string|null}>|undefined
       try{list=await bridge.communityServers()}catch{/* Offline: keep the cached list. */}
       if(version!==generation)return
       if(list){

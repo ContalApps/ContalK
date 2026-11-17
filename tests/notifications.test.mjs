@@ -61,7 +61,9 @@ test('activity routes messages, friendships and live calls to the center and res
  const auth=observable({user:{username:'alice'}}),app=observable({messages:{},servers:[{channels:[{id:'general',name:'geral'}]}]}),friends=observable({relations:{}}),preferences=observable({systemNotifications:true}),voice=observable({connectionStatus:'connected',activeChannelId:'call',activeChannelName:'Sala',participants:[]})
  const rolesApi=loadTypescript('src/roles/permissions.ts');const policy=rolesApi.initialPolicy('group',['alice','bob']);policy.roles.push({...rolesApi.everyoneRole('team'),position:1,name:'Equipe',permissions:'0'});policy.memberRoles.alice=['team']
  const roles=observable({owner:'alice',status:'connected',snapshot:{policy,id:'group',actor:'alice',channels:[{id:'general'}],events:[]}})
+ const toasts=[],toastStore={getState:()=>({push:toast=>toasts.push(toast)})},presence=observable({status:'online'})
  const {setupActivityNotifications}=loadTypescript('src/notifications/activity.ts',{
+  '../store/useToastStore':{useToastStore:toastStore},'../store/usePresenceStatus':{usePresenceStatus:presence},
   '../roles/events':{eventStatusLabels},'../store/useRoleStore':{useRoleStore:roles},'../roles/permissions':rolesApi,'../store/useAuthStore':{useAuthStore:auth},'../store/useAppStore':{useAppStore:app},'../store/useFriendStore':{useFriendStore:friends},'../store/useVoiceStore':{useVoiceStore:voice},'../store/usePreferencesStore':{usePreferencesStore:preferences},'../store/useNotificationStore':{useNotificationStore:f.store},
  },{document:{hasFocus:()=>false,hidden:false,addEventListener(){},removeEventListener(){}},window:{contalkDesktop:{notifyActivity:notice=>sent.push(notice)},addEventListener(){},removeEventListener(){}}})
  const stop=setupActivityNotifications()
@@ -74,12 +76,16 @@ test('activity routes messages, friendships and live calls to the center and res
  assert.equal(sent.at(-1).kind,'friendship')
  friends.update({relations:{bob:{status:'friend',requestId:'friend-one',display_name:'Bob'}}})
  assert.equal(sent.at(-1).title,'Amizade confirmada')
+ // Entries and streams in the call are quick toasts: no bell entry and no system notification.
+ const beforeVoice=sent.length,entriesBefore=f.store.getState().entries.length
  voice.update({participants:[{identity:'bob',name:'Bob',isScreenShareEnabled:false}]})
- assert.equal(sent.at(-1).kind,'voice')
- // Advance the same peer to a live stream: this is a separate event.
- const beforeLive=sent.length
+ assert.equal(toasts.at(-1).kind,'voice');assert.equal(sent.length,beforeVoice);assert.equal(f.store.getState().entries.length,entriesBefore)
  voice.update({participants:[{identity:'charlie',name:'Charlie',isScreenShareEnabled:true}]})
- assert.equal(sent.length,beforeLive+1);assert.equal(sent.at(-1).kind,'live')
+ assert.equal(toasts.at(-1).kind,'live');assert.equal(sent.length,beforeVoice)
+ // Do not disturb silences call toasts.
+ presence.update({status:'dnd'});const toastCount=toasts.length
+ voice.update({participants:[{identity:'dave',name:'Dave',isScreenShareEnabled:false}]})
+ assert.equal(toasts.length,toastCount);presence.update({status:'online'})
  app.update({messages:{general:[message,{id:'role-ping',userId:'bob',userName:'Bob',content:'<@&team>',roleMentions:['team']}]}});assert.equal(sent.at(-1).mention,true);assert.match(sent.at(-1).body,/@Equipe/);preferences.update({roleMentionNotifications:false});app.update({messages:{general:[message,{id:'muted-role-ping',userId:'bob',userName:'Bob',content:'<@&team>',roleMentions:['team']}]}});assert.equal(sent.at(-1).mention,false)
  preferences.update({systemNotifications:false});const before=sent.length
  app.update({messages:{general:[message,{id:'private',userId:'bob',userName:'Bob',once:true,content:'Conteúdo privado'}]}})

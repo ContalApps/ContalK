@@ -79,7 +79,7 @@ interface AppState {
   removeChannel: (serverId: string, channelId: string) => void
   setCurrentUser: (user: User) => void
   addServer: (server: Server) => void
-  syncServers: (list: Array<{id:string;name:string}>) => void
+  syncServers: (list: Array<{id:string;name:string;icon?:string|null}>) => void
   setActiveServer: (serverId: string) => void
   setActiveChannel: (channelId: string) => void
   addMessage: (channelId: string, content: string, user: { username: string; display_name: string }, attachment?: Attachment, options?: MessageOptions) => void
@@ -146,7 +146,9 @@ export const useAppStore = create<AppState>()(persist((set) => ({
   setCurrentUser: (user) => set({ currentUser: user }),
   addServer: (server) => set((state) => ({ servers: [...state.servers.filter(item => item.id !== server.id), server] })),
   // The account's server list on the community is the truth; cached channels are kept for servers still in it.
-  syncServers: (list) => set((state) => ({ servers: list.map(item => state.servers.find(server => server.id === item.id) ?? { id: item.id, name: item.name, channels: [] }) })),
+  syncServers: (list) => set((state) => ({ servers: list.map(item => { const existing = state.servers.find(server => server.id === item.id)
+    // Sem o campo (serviço antigo), mantém a foto já conhecida; null quer dizer que foi removida.
+    const icon = item.icon === undefined ? existing?.icon : item.icon || undefined; return existing ? { ...existing, name: item.name, icon } : { id: item.id, name: item.name, icon, channels: [] } }) })),
   setActiveServer: (serverId) => set({ activeServerId: serverId }),
   setActiveChannel: (channelId) => set({ activeChannelId: channelId }),
 

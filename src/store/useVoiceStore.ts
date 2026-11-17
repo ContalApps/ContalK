@@ -516,9 +516,9 @@ export const useVoiceStore = create<VoiceState>((set, get) => ({
         participants: [], isScreenSharing: false, isCameraOn: false, isMicMuted: true,
         channelOccupants: Object.fromEntries(Object.entries(get().channelOccupants).map(([id, users]) => [id, users.filter(p => p.identity !== user.username)])),
         error: /session replaced|replaced|conectada em outro/i.test(err?.message || '')
-          ? 'Esta conta foi conectada na sala de voz em outro computador. Para que você e seu amigo entrem juntos na mesma chamada, cada um deve usar sua própria conta no ConTALK.'
+          ? 'Esta conta foi conectada na sala de voz em outro computador. Para que você e seu amigo entrem juntos na mesma chamada, cada um deve usar sua própria conta no ConTalk.'
           : /não está conectada à comunidade|Sua sessão terminou/i.test(err?.message || '')
-          ? 'Sua conta não possui sessão ativa na comunidade. Saia e entre novamente no ConTALK ou crie uma conta para acessar a voz.'
+          ? 'Sua conta não possui sessão ativa na comunidade. Saia e entre novamente no ConTalk ou crie uma conta para acessar a voz.'
           : /websocket|signal|connection refused/i.test(err?.message || '')
           ? 'Não foi possível conectar ao servidor de voz. Verifique o domínio de voz, HTTPS e WebSocket no Coolify.'
           : /ICE|peer connection/i.test(err?.message || '')

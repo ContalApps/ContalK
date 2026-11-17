@@ -1,4 +1,20 @@
-# Retomada do ConTALK
+# Retomada do ConTalk
+
+## Versão 0.1.46 (dev/vg, 17/11/2026): ConTalk, QA e layout novo
+
+Publicada a partir da dev/vg depois de juntar a main com a v0.1.45 da dev/caliari (arrastar e soltar, sair da transmissão, carregamento sob demanda). Confira PR, tag, release e /health antes de afirmar que está no ar.
+
+- Nome passa a ser **ConTalk** (textos, `productName`, atalho e `ConTalk-Setup-<versão>.exe`). O Windows não diferencia maiúsculas, então a pasta de dados e a de instalação continuam as mesmas. O canal do Telegram "ConTALK Storage", o serviço "ConTALK Community" e o servidor "ConTALK HQ" mantêm o nome antigo de propósito.
+- Ícone novo (balão com ondas de voz) em `build/icon.svg`; `scripts/generate-icons.cjs` gera `.ico` e PNGs (rodar com o Electron de `release/electron-runtime`).
+- Segurança: login social desativado (a senha era derivada do e-mail). O serviço recusa essas senhas derivadas em `/login` e `/register`; contas criadas só pelo login social ficam sem acesso até existir recuperação de senha ou OAuth.
+- Correções: bloco de notas e cursores só vão para quem está na mesma chamada; limite do sinal de voz separa conexões sem login (64 no total, 8 por endereço) das autenticadas (512); `Track.stop` não remove mais o `<video>` do React; saída de áudio ausente volta para a padrão; mute, ensurdecer e câmera valem durante a reconexão; fechar o terminal encerra os shells.
+- Foto do servidor implementada de ponta a ponta (`server-edit` com `icon`, até 60 000 caracteres em PNG, JPEG ou WebP). Avatar continua só local e via presença; persistir no servidor é o próximo passo.
+- Anexos de imagem e vídeo aparecem só como mídia; o visualizador (`MediaViewer.tsx`) tem ampliar, girar, baixar e abrir no navegador. Baixar usa o IPC `storage-download`.
+- Layout novo descrito no AGENTS.md (`src/shell.css`, `CallTabs`, `CallControls`, `MiniPlayer`, `CommunitySwitcher`, `HomeDashboard`, `ServerDialog`). Conferido numa prévia com dados sintéticos, não no app conectado à VPS. Tema Claro ainda não existe.
+- Depois do primeiro teste no app, o VG pediu: coluna de servidores de volta (como no Discord), visual menos arredondado, Amigos no formato do Discord com "Ativo agora" (`FriendsPage.tsx`), Voz e áudio limpo com medidor (`AudioSettings.tsx`), Compartilhar tela no tema novo, compositor com anexar à esquerda e ferramentas à direita, e painel de emojis organizado. Estilos dessas telas em `src/screens.css`.
+- Terceira rodada do VG: notificações menos insistentes (`useToastStore`, `ActivityToasts`, sino em `UpdateNotification.tsx`), status de presença (`usePresenceStatus.ts`, ligado em `main.tsx`), cartão de perfil (`ProfilePopover.tsx`), configurações do servidor em tela cheia (`RoleManager.tsx`, `ServerOverview.tsx`, estilos em `src/panels.css`) e foto do servidor preservada na coluna quando o serviço antigo não manda o campo.
+- Para rodar em modo dev neste computador: `$env:ELECTRON_OVERRIDE_DIST_PATH='<repo>\release\electron-runtime'; npm run dev` (o Electron de `node_modules` está sem binário) e feche antes o ConTalk instalado, por causa da instância única.
+- Mockups e relatório de QA ficam em `release/layout-concepts/` (ignorado pelo Git).
 
 ## Versão 0.1.45
 

@@ -3,11 +3,12 @@ import { usePreferencesStore } from '../store/usePreferencesStore'
 import { UpdateNotification } from './UpdateNotification'
 import { BrandMark } from './BrandMark'
 import { ControlIcon } from './ControlIcon'
+import { WindowControls } from './WindowControls'
 function TitleIcon({name}: {name: 'back' | 'forward' | 'search' | 'help' | 'close'}) {
   return <ControlIcon name={name}/>
 }
 
-export function TitleBar({title = 'ConTALK', authenticated = false, disabled = false, canBack = false, canForward = false, onBack, onForward, search = '', onSearch,onOpenNotification,scope,onToggleSidebar,sidebarOpen=true,onOpenCommandMenu}: {
+export function TitleBar({title = 'ConTalk', authenticated = false, disabled = false, canBack = false, canForward = false, onBack, onForward, search = '', onSearch,onOpenNotification,scope,onToggleSidebar,sidebarOpen=true,onOpenCommandMenu}: {
   title?: string; authenticated?: boolean; disabled?: boolean; canBack?: boolean; canForward?: boolean; onBack?: () => void; onForward?: () => void; search?: string; onSearch?: (value: string) => void;onOpenNotification?:(id:string)=>void
   scope?: string; onToggleSidebar?: () => void; sidebarOpen?: boolean; onOpenCommandMenu?: () => void
 }) {
@@ -52,26 +53,27 @@ export function TitleBar({title = 'ConTALK', authenticated = false, disabled = f
     return () => document.removeEventListener('keydown', keys)
   }, [authenticated, disabled, canBack, canForward, onBack, onForward])
 
-  return <header ref={ref} className="ct-topbar ct-titlebar" data-native-controls={!!window.contalkDesktop?.isElectron} data-theme={theme} inert={disabled}
+  return <header ref={ref} className="ct-topbar ct-titlebar" data-native-controls={false} data-window-controls={!!window.contalkDesktop?.windowControl} data-theme="classic" data-skin={theme} inert={disabled}
     onKeyDown={event => { if (event.key === 'Escape' && panel) { event.stopPropagation(); closePanel() } }}>
     <div className="ct-titlebar-safe">
       <nav className="ct-titlebar-navigation" aria-label="Histórico de navegação">{authenticated && <>
         <button aria-label="Voltar" title="Voltar (Alt+←)" disabled={!canBack} onClick={onBack}><TitleIcon name="back"/></button>
         <button aria-label="Avançar" title="Avançar (Alt+→)" disabled={!canForward} onClick={onForward}><TitleIcon name="forward"/></button>
         {onToggleSidebar && <button aria-label={sidebarOpen ? 'Ocultar barra lateral' : 'Mostrar barra lateral'} title="Barra lateral (Ctrl+B)" aria-pressed={sidebarOpen} onClick={onToggleSidebar}><ControlIcon name="sidebar"/></button>}
-        </>}{!authenticated && <span className="ct-titlebar-brand"><BrandMark/>ConTALK</span>}</nav>
-      <div className="ct-titlebar-context" title={title}>{authenticated && preferences.titleBarSearch ? <button className="ct-titlebar-search-trigger" ref={searchButton} aria-label="Buscar no ConTALK" aria-expanded={panel==='search'} onClick={()=>onOpenCommandMenu ? onOpenCommandMenu() : setPanel(panel==='search'?null:'search')} data-active={!!search}><TitleIcon name="search"/><span>{search || `Pesquisar em ${scope || title}…`}</span><kbd>Ctrl K</kbd></button> : authenticated ? <><BrandMark/><span>{title}</span></> : null}</div>
+        </>}{!authenticated && <span className="ct-titlebar-brand"><BrandMark/>ConTalk</span>}</nav>
+      <div className="ct-titlebar-context" title={title}>{authenticated && preferences.titleBarSearch ? <button className="ct-titlebar-search-trigger" ref={searchButton} aria-label="Buscar no ConTalk" aria-expanded={panel==='search'} onClick={()=>onOpenCommandMenu ? onOpenCommandMenu() : setPanel(panel==='search'?null:'search')} data-active={!!search}><TitleIcon name="search"/><span>{search || `Pesquisar em ${scope || title}…`}</span><kbd>Ctrl K</kbd></button> : authenticated ? <><BrandMark/><span>{title}</span></> : null}</div>
       <div className="ct-titlebar-actions">{authenticated && <>
         <UpdateNotification onOpenNotification={onOpenNotification}/>
-        {preferences.titleBarHelp && <button ref={helpButton} aria-label="Ajuda do ConTALK" title="Ajuda (F1)" aria-expanded={panel==='help'} onClick={()=>setPanel(panel==='help'?null:'help')}><TitleIcon name="help"/></button>}
+        {preferences.titleBarHelp && <button ref={helpButton} aria-label="Ajuda do ConTalk" title="Ajuda (F1)" aria-expanded={panel==='help'} onClick={()=>setPanel(panel==='help'?null:'help')}><TitleIcon name="help"/></button>}
       </>}</div>
+      <WindowControls/>
     </div>
     {panel==='search' && <section className="ct-titlebar-popover ct-titlebar-search" aria-label="Busca" role="search">
       <label htmlFor="ct-global-search">Buscar pessoas e mensagens</label>
       <div><input ref={input} id="ct-global-search" aria-label="Buscar pessoas" placeholder="Digite para filtrar a tela atual…" value={search} onChange={event=>onSearch?.(event.target.value)}/><button title="Limpar busca" aria-label="Limpar busca" onClick={()=>{onSearch?.('');input.current?.focus()}}><TitleIcon name="close"/></button></div>
       <small>A busca filtra o conteúdo da área aberta. <kbd>Esc</kbd> fecha este painel.</small>
     </section>}
-    {panel==='help' && <section className="ct-titlebar-popover ct-titlebar-help" role="dialog" aria-label="Ajuda do ConTALK">
+    {panel==='help' && <section className="ct-titlebar-popover ct-titlebar-help" role="dialog" aria-label="Ajuda do ConTalk">
       <div className="ct-titlebar-help-header">
         <strong>Atalhos do teclado e ajuda</strong>
         <button aria-label="Fechar ajuda" title="Fechar ajuda" onClick={closePanel}><TitleIcon name="close"/></button>

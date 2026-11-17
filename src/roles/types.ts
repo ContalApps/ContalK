@@ -6,7 +6,7 @@ export interface CommunitySnapshot {
   id:string
   name:string
   description?:string
-  icon?:string
+  icon?:string|null
   revision:number
   actor:string
   voiceSync?:'synced'|'pending'|'unconfigured'

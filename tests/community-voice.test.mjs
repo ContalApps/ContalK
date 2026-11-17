@@ -67,3 +67,24 @@ test('real WebSocket tickets enforce the default voice capacity, identity, targe
   alice.socket.send(JSON.stringify({id:2,method:'data',data:{payload:'hello',topic:'dm',destinations:['bob']}}))
   const received=await data; assert.equal(received.participant.identity,'alice');assert.equal(received.payload,'hello')
 })
+
+test('anonymous sockets cannot exhaust the signaling slots of authenticated users', async t => {
+  const members = ['alice','bob']
+  const voice = createCommunityVoice({url:'ws://127.0.0.1/realtime'})
+  const service = createCommunityService({ tokens:{['a'.repeat(32)]:'alice'},initialState:createCommunityState(members),voice })
+  service.server.listen(0,'127.0.0.1'); await once(service.server,'listening')
+  const url = `ws://127.0.0.1:${service.server.address().port}/realtime`, sockets=[]
+  t.after(async()=>{ voice.close(); for(const socket of sockets)socket.terminate(); service.server.closeAllConnections(); await new Promise(resolve=>service.server.close(resolve)) })
+  const open = async address => { const socket = new WebSocket(url,{headers:{'x-forwarded-for':address}}); sockets.push(socket); await once(socket,'open'); return socket }
+  // An idle unauthenticated flood from one address is capped per address.
+  const flood = []
+  for (let index = 0; index < 8; index++) flood.push(await open('198.51.100.7'))
+  const extra = await open('198.51.100.7'); const [code] = await once(extra,'close'); assert.equal(code,1013)
+  // More than the old global limit of 32 connections, across addresses (four each, below the per-address cap), while real users still authenticate.
+  for (let index = 0; index < 40; index++) flood.push(await open(`198.51.100.${10 + Math.floor(index / 4)}`))
+  const socket = await open('203.0.113.5')
+  const message = once(socket,'message'), closed = once(socket,'close')
+  socket.send(JSON.stringify({id:1,method:'auth',token:(await voice.presenceToken('bob','Bob')).token}))
+  const result = await Promise.race([message.then(([value])=>JSON.parse(value)),closed.then(([value])=>({closed:value}))])
+  assert.equal(result.data?.self.identity,'bob')
+})

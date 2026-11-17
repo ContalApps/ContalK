@@ -14,7 +14,7 @@ function App() {
 
   if (isLoading && !isAuthenticated) {
     return (
-      <div className="ct-session-shell"><TitleBar/><div className="ct-session-content ct-boot" role="status"><BrandMark/><span>Iniciando ConTALK…</span></div></div>
+      <div className="ct-session-shell"><TitleBar/><div className="ct-session-content ct-boot" role="status"><BrandMark/><span>Iniciando ConTalk…</span></div></div>
     )
   }
 

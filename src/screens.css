@@ -1,0 +1,223 @@
+/* ConTalk 2026: telas internas (Amigos, configurações de voz, compartilhar tela, expressões,
+   compositor). Usa os tokens --sk-* de shell.css. Carregado depois de shell.css. Regras planas. */
+
+/* ─── Amigos (formato do Discord) ───────────────────────────────────────────────── */
+.ct-friends { height: 100%; min-height: 0; display: flex; flex-direction: column; }
+.ct-friends-bar { display: flex; align-items: center; gap: 14px; height: 52px; flex-shrink: 0; padding: 0 20px; border-bottom: 1px solid var(--sk-border); }
+.ct-friends-title { display: flex; align-items: center; gap: 8px; font-size: 15px; font-weight: 600; color: var(--sk-fg); }
+.ct-friends-title .ct-glyph { color: var(--sk-fg-3); }
+.ct-friends-sep { width: 4px; height: 4px; border-radius: 50%; background: var(--sk-fg-3); }
+.ct-friends-bar nav { display: flex; align-items: center; gap: 6px; min-width: 0; overflow-x: auto; }
+.ct-friends-bar nav button { display: inline-flex; align-items: center; gap: 6px; height: 30px; padding: 0 12px; border: 0; background: transparent; color: var(--sk-fg-2); font-size: 14px; font-weight: 500; white-space: nowrap; cursor: pointer; }
+.ct-friends-bar nav button:hover { background: var(--sk-hover); color: var(--sk-fg); }
+.ct-friends-bar nav button[aria-selected=true] { background: var(--sk-active); color: var(--sk-fg); }
+.ct-friends-bar nav .ct-friends-add-tab { background: var(--sk-accent); color: var(--sk-on-accent); font-weight: 600; }
+.ct-app[data-skin=vice-city] .ct-friends-bar nav .ct-friends-add-tab { background: var(--sk-selected-bg); }
+.ct-friends-bar nav .ct-friends-add-tab:hover { background: var(--sk-accent-hover); color: var(--sk-on-accent); }
+.ct-friends-bar nav .ct-friends-add-tab[aria-selected=true] { background: transparent; color: var(--sk-accent); box-shadow: inset 0 0 0 1px var(--sk-accent-line); }
+.ct-friends-badge { min-width: 16px; height: 16px; padding: 0 4px; display: grid; place-items: center; border-radius: 8px; background: var(--sk-danger); color: #fff; font-size: 10px; font-weight: 700; }
+.ct-friends-body { flex: 1; min-height: 0; display: flex; }
+.ct-friends-main { flex: 1; min-width: 0; overflow-y: auto; padding: 16px 20px 24px 28px; display: flex; flex-direction: column; }
+.ct-friends-add { display: flex; flex-direction: column; gap: 6px; padding-bottom: 20px; margin-bottom: 16px; border-bottom: 1px solid var(--sk-border); }
+.ct-friends-add h2 { margin: 0; font-size: 16px; font-weight: 700; color: var(--sk-fg); }
+.ct-friends-add p { margin: 0 0 8px; font-size: 13px; color: var(--sk-fg-2); }
+.ct-friends-add-field { display: flex; align-items: center; gap: 8px; padding: 6px 6px 6px 14px; border: 1px solid var(--sk-border-strong); border-radius: 6px; background: var(--sk-field); }
+.ct-friends-add-field:focus-within { border-color: var(--sk-accent-line); }
+.ct-friends-add-field[data-state=error] { border-color: var(--sk-danger); }
+.ct-friends-add-field input { flex: 1; min-width: 0; height: 36px; border: 0; outline: 0; background: transparent; color: var(--sk-fg); font: inherit; font-size: 14px; }
+.ct-friends-add-field .ct-button-primary { height: 34px; }
+.ct-friends-add-field .ct-button-primary:disabled { opacity: .45; cursor: default; filter: none; }
+.ct-friends-feedback { margin: 4px 0 0; font-size: 13px; }
+.ct-friends-feedback-success { color: var(--sk-accent); }
+.ct-friends-feedback-error { color: var(--sk-danger); }
+.ct-friends-feedback-info { color: var(--sk-fg-2); }
+.ct-friends-search { display: flex; align-items: center; gap: 8px; height: 36px; padding: 0 10px; border: 1px solid var(--sk-border); border-radius: 6px; background: var(--sk-field); color: var(--sk-fg-3); }
+.ct-friends-search:focus-within { border-color: var(--sk-accent-line); }
+.ct-friends-search input { flex: 1; min-width: 0; height: 100%; border: 0; outline: 0; background: transparent; color: var(--sk-fg); font: inherit; font-size: 14px; }
+.ct-friends-search button { width: 24px; height: 24px; display: grid; place-items: center; border: 0; background: transparent; color: var(--sk-fg-3); cursor: pointer; }
+.ct-friends-count { margin: 20px 0 8px; font-size: 12px; font-weight: 600; letter-spacing: .02em; color: var(--sk-fg-3); }
+.ct-friends-list { margin: 0; padding: 0; list-style: none; }
+.ct-friends-list > li { display: flex; align-items: center; gap: 12px; min-height: 62px; margin: 0 -10px; padding: 0 10px; border-top: 1px solid var(--sk-border); border-radius: 6px; }
+.ct-friends-list > li:hover { background: var(--sk-hover); border-top-color: transparent; }
+.ct-friends-list > li:hover + li { border-top-color: transparent; }
+.ct-friends-person { flex: 1; min-width: 0; display: flex; align-items: center; gap: 12px; padding: 8px 0; border: 0; background: transparent; color: var(--sk-fg); text-align: left; cursor: pointer; }
+.ct-friends-person .ct-avatar { width: 36px; height: 36px; font-size: 12px; }
+.ct-friends-person > span:last-child { min-width: 0; display: flex; flex-direction: column; gap: 1px; }
+.ct-friends-person strong { font-size: 15px; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ct-friends-person strong small { font-size: 13px; font-weight: 400; color: var(--sk-fg-3); opacity: 0; transition: opacity 120ms ease; }
+.ct-friends-list > li:hover .ct-friends-person strong small { opacity: 1; }
+.ct-friends-person > span > small { font-size: 13px; color: var(--sk-fg-3); }
+.ct-friends-actions { display: flex; align-items: center; gap: 10px; flex-shrink: 0; }
+.ct-app[data-skin] .ct-friends-round { width: 36px; height: 36px; display: grid; place-items: center; border: 0; border-radius: 50% !important; background: var(--sk-surface-2); color: var(--sk-fg-2); cursor: pointer; }
+.ct-friends-list > li:hover .ct-friends-round { background: var(--sk-panel); }
+.ct-app[data-skin] .ct-friends-round:hover { color: var(--sk-fg); }
+.ct-friends-more { position: relative; }
+.ct-friends-menu { position: absolute; right: 0; top: calc(100% + 4px); z-index: 40; min-width: 180px; display: flex; flex-direction: column; padding: 6px; border: 1px solid var(--sk-border-strong); border-radius: 8px; background: var(--sk-raised); box-shadow: var(--sk-shadow); }
+.ct-friends-menu button { height: 34px; padding: 0 10px; border: 0; background: transparent; color: var(--sk-fg-2); font-size: 13px; text-align: left; cursor: pointer; }
+.ct-friends-menu button:hover { background: var(--sk-hover); color: var(--sk-fg); }
+.ct-friends-menu .ct-danger-item { color: var(--sk-danger); }
+.ct-friends-menu .ct-danger-item:hover { background: rgba(242, 85, 90, .14); color: var(--sk-danger); }
+.ct-friends-actions .ct-friend-actions { display: flex; align-items: center; gap: 8px; }
+.ct-friends-actions .ct-friend-actions button { height: 32px; padding: 0 12px; font-size: 13px; }
+.ct-friends-empty { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 10px; padding: 40px 0; color: var(--sk-fg-3); text-align: center; }
+.ct-friends-empty span { width: 56px; height: 56px; display: grid; place-items: center; border-radius: 8px; background: var(--sk-surface); }
+.ct-friends-empty p { margin: 0; font-size: 14px; }
+.ct-friends-active { width: 340px; flex-shrink: 0; overflow-y: auto; padding: 16px; border-left: 1px solid var(--sk-border); display: flex; flex-direction: column; gap: 12px; }
+.ct-friends-active h2 { margin: 4px 0; font-size: 18px; font-weight: 700; color: var(--sk-fg); }
+.ct-active-card { border: 1px solid var(--sk-border); border-radius: 8px; background: var(--sk-surface); overflow: hidden; }
+.ct-active-card header, .ct-active-card footer { display: flex; align-items: center; gap: 10px; padding: 12px; }
+.ct-active-card footer { border-top: 1px solid var(--sk-border); background: var(--sk-field); color: var(--sk-accent); }
+.ct-active-card .ct-avatar { width: 34px; height: 34px; font-size: 11px; }
+.ct-active-card span { min-width: 0; display: flex; flex-direction: column; }
+.ct-active-card strong { font-size: 14px; font-weight: 600; color: var(--sk-fg); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ct-active-card small { font-size: 12px; color: var(--sk-fg-3); }
+.ct-active-empty { padding: 16px; text-align: center; }
+.ct-active-empty strong { display: block; margin-bottom: 4px; font-size: 15px; color: var(--sk-fg); }
+.ct-active-empty p { margin: 0; font-size: 13px; color: var(--sk-fg-3); }
+@media (max-width: 1280px) { .ct-friends-active { display: none; } }
+
+/* ─── Compositor (formato do Discord: + | texto | ferramentas | enviar) ─────────── */
+.ct-sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0; }
+.ct-app[data-skin] .ct-chat-compose { padding: 0 16px 16px; }
+.ct-app[data-skin] .ct-send-options { display: none; }
+.ct-app[data-skin] .ct-composer {
+  display: flex; align-items: center; gap: 2px; min-height: 48px; margin: 0; padding: 4px 6px 4px 4px;
+  border: 1px solid var(--sk-border-strong); background: var(--sk-field); box-shadow: none;
+}
+.ct-app[data-skin] .ct-composer > input[aria-label=Mensagem] {
+  flex: 1 1 auto; min-width: 80px; height: 38px; padding: 0 8px; border: 0 !important; outline: 0; background: transparent; color: var(--sk-fg); font: inherit; font-size: 14px;
+}
+.ct-app[data-skin] .ct-composer > input[aria-label=Mensagem]::placeholder { color: var(--sk-fg-3); }
+.ct-composer-tools { display: flex; align-items: center; gap: 2px; flex-shrink: 0; }
+.ct-app[data-skin] .ct-composer .ct-attach-button,
+.ct-app[data-skin] .ct-composer .ct-view-once-btn,
+.ct-composer-toggle {
+  width: 36px; height: 36px; display: grid; place-items: center; flex-shrink: 0; padding: 0; border: 0; background: transparent; color: var(--sk-fg-3); cursor: pointer;
+}
+.ct-app[data-skin] .ct-composer .ct-attach-button:hover:not(:disabled),
+.ct-app[data-skin] .ct-composer .ct-view-once-btn:hover:not(:disabled),
+.ct-composer-toggle:hover { background: var(--sk-hover); color: var(--sk-fg); }
+.ct-app[data-skin] .ct-composer .ct-attach-button:disabled { opacity: .35; cursor: default; }
+.ct-app[data-skin] .ct-composer .ct-composer-plus { background: var(--sk-surface-2); color: var(--sk-fg-2); }
+.ct-app[data-skin] .ct-composer .ct-view-once-btn.active,
+.ct-composer-toggle.active { color: var(--sk-accent); background: var(--sk-accent-soft); }
+.ct-composer-toggle { position: relative; border-radius: 6px; }
+.ct-composer-toggle input { position: absolute; inset: 0; opacity: 0; margin: 0; cursor: pointer; }
+.ct-composer-toggle[data-disabled=true] { opacity: .35; }
+.ct-app[data-skin] .ct-composer .ct-composer-send-btn { width: 38px; height: 38px; min-width: 38px; display: grid; place-items: center; flex-shrink: 0; margin-left: 4px; padding: 0; border: 0; background: var(--sk-accent); color: var(--sk-on-accent); }
+.ct-app[data-skin=vice-city] .ct-composer .ct-composer-send-btn { background: var(--sk-selected-bg); }
+.ct-app[data-skin] .ct-composer .ct-composer-send-btn:disabled { background: var(--sk-surface-2); color: var(--sk-fg-3); opacity: 1; }
+.ct-app[data-skin] .ct-composer-hint { margin: 6px 4px 0; font-size: 12px; color: var(--sk-fg-3); text-align: left; }
+.ct-app[data-skin] .ct-composer-hint[role=alert] { color: var(--sk-danger); }
+/* Na gaveta estreita da aba Chamada, o texto ocupa a linha de cima e as ferramentas a de baixo. */
+.ct-app[data-skin] .ct-chat-pane.is-compact .ct-chat-compose { padding: 0 10px 10px; }
+.ct-app[data-skin] .ct-chat-pane.is-compact .ct-composer { flex-wrap: wrap; row-gap: 0; padding: 4px; }
+.ct-app[data-skin] .ct-chat-pane.is-compact .ct-composer > input[aria-label=Mensagem] { order: -1; flex: 1 1 100%; height: 40px; padding: 0 10px; }
+.ct-app[data-skin] .ct-chat-pane.is-compact .ct-composer-tools { flex: 1; }
+.ct-app[data-skin] .ct-chat-pane.is-compact .ct-composer .ct-composer-send-btn { margin-left: auto; }
+
+/* ─── Emojis e figurinhas ───────────────────────────────────────────────────────── */
+.ct-app[data-skin] .ct-expression-dialog { width: min(600px, calc(100vw - 32px)); max-height: min(640px, calc(100vh - 48px)); display: flex; flex-direction: column; gap: 14px; padding: 20px; overflow-y: auto; }
+.ct-app[data-skin] .ct-expression-dialog > header { display: flex; align-items: center; justify-content: space-between; margin: 0; }
+.ct-app[data-skin] .ct-expression-dialog > header h2 { margin: 0; font-size: 18px; font-weight: 700; }
+.ct-app[data-skin] .ct-expression-dialog > nav { display: flex; flex-wrap: wrap; align-items: center; gap: 4px; padding-bottom: 12px; border-bottom: 1px solid var(--sk-border); }
+.ct-app[data-skin] .ct-expression-dialog > nav button { height: 32px; padding: 0 12px; border: 0; background: transparent; color: var(--sk-fg-2); font-size: 13px; font-weight: 500; cursor: pointer; }
+.ct-app[data-skin] .ct-expression-dialog > nav button:hover:not(:disabled) { background: var(--sk-hover); color: var(--sk-fg); }
+.ct-app[data-skin] .ct-expression-dialog > nav button:nth-child(3) { order: -2; }
+.ct-app[data-skin] .ct-expression-dialog > nav button:nth-child(4) { order: -1; margin-right: auto; }
+.ct-app[data-skin] .ct-expression-dialog > nav button[aria-current=page] { background: var(--sk-active); color: var(--sk-fg); }
+.ct-app[data-skin] .ct-expression-dialog > nav button[aria-pressed=true] { background: var(--sk-accent-soft); color: var(--sk-accent); }
+.ct-app[data-skin] .ct-expression-dialog > label { display: flex; align-items: center; gap: 10px; font-size: 13px; font-weight: 600; color: var(--sk-fg-2); }
+.ct-app[data-skin] .ct-expression-dialog > label select { flex: 1; max-width: 280px; height: 36px; padding: 0 10px; border: 1px solid var(--sk-border-strong); background: var(--sk-field); color: var(--sk-fg); font: inherit; font-size: 13px; }
+.ct-app[data-skin] .ct-expression-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(84px, 1fr)); gap: 8px; }
+.ct-app[data-skin] .ct-expression-grid > p { grid-column: 1 / -1; margin: 0; padding: 28px 12px; border: 1px dashed var(--sk-border-strong); border-radius: 8px; text-align: center; color: var(--sk-fg-3); font-size: 13px; }
+.ct-app[data-skin] .ct-expression-grid > div > button:first-child { width: 100%; display: flex; flex-direction: column; align-items: center; gap: 6px; padding: 10px 6px; border: 1px solid var(--sk-border); background: var(--sk-surface); color: var(--sk-fg-2); font-size: 11px; cursor: pointer; }
+.ct-app[data-skin] .ct-expression-grid > div > button:first-child:hover:not(:disabled) { border-color: var(--sk-accent-line); color: var(--sk-fg); }
+.ct-app[data-skin] .ct-expression-grid img { width: 40px; height: 40px; object-fit: contain; }
+.ct-app[data-skin] .ct-expression-create { display: grid; grid-template-columns: 1fr auto; gap: 8px; padding: 14px; border: 1px solid var(--sk-border); border-radius: 8px; background: var(--sk-surface); }
+.ct-app[data-skin] .ct-expression-create h3 { grid-column: 1 / -1; margin: 0; font-size: 14px; }
+.ct-app[data-skin] .ct-expression-create small { grid-column: 1 / -1; color: var(--sk-fg-3); }
+
+/* ─── Configurações: Voz e áudio (formato do Discord) ───────────────────────────── */
+.ct-voice-settings { display: flex; flex-direction: column; color: var(--sk-fg); }
+.ct-voice-settings.is-embedded { max-width: 720px; }
+.ct-voice-settings.ct-dialog { width: min(680px, 100%); gap: 0; }
+.ct-vs-section { display: flex; flex-direction: column; gap: 14px; padding: 24px 0; border-bottom: 1px solid var(--sk-border); }
+.ct-vs-section:first-of-type { padding-top: 8px; }
+.ct-vs-section:last-of-type { border-bottom: 0; }
+.ct-vs-title { margin: 0 0 6px; font-size: 22px; font-weight: 700; }
+.ct-vs-section h3 { margin: 0; font-size: 15px; font-weight: 700; color: var(--sk-fg); }
+.ct-vs-devices { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 20px; }
+.ct-voice-settings .ct-field > span { font-size: 13px; font-weight: 700; color: var(--sk-fg); }
+.ct-voice-settings .ct-field select { height: 42px; padding: 0 12px; border: 1px solid var(--sk-border-strong); background: var(--sk-field); color: var(--sk-fg); font: inherit; font-size: 14px; cursor: pointer; }
+.ct-voice-settings .ct-field select:focus { outline: 0; border-color: var(--sk-accent-line); box-shadow: 0 0 0 3px var(--sk-accent-soft); }
+.ct-vs-test { display: flex; align-items: center; gap: 18px; margin-top: 6px; }
+.ct-vs-test > button { min-width: 168px; height: 40px; }
+.ct-vs-meter { flex: 1; min-width: 0; height: 26px; display: flex; align-items: stretch; gap: 3px; }
+.ct-vs-meter i { flex: 1; border-radius: 2px; background: var(--sk-surface-2); transition: background 60ms linear; }
+.ct-vs-meter i[data-on=true][data-zone=low] { background: var(--sk-accent); }
+.ct-vs-meter i[data-on=true][data-zone=mid] { background: #f0b232; }
+.ct-vs-meter i[data-on=true][data-zone=high] { background: var(--sk-danger); }
+.ct-vs-hint { margin: 0; font-size: 13px; line-height: 1.5; color: var(--sk-fg-3); }
+.ct-vs-saved { display: flex; align-items: center; gap: 6px; margin: 0; font-size: 13px; color: var(--sk-accent); }
+.ct-vs-error { margin: 0; padding: 10px 12px; border: 1px solid rgba(242, 85, 90, .4); border-radius: 6px; background: rgba(242, 85, 90, .1); color: var(--sk-fg); font-size: 13px; }
+.ct-vs-protections { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 8px 20px; margin: 0; padding: 0; list-style: none; }
+.ct-vs-protections li { display: flex; align-items: center; gap: 8px; font-size: 14px; color: var(--sk-fg-2); }
+.ct-vs-protections .ct-glyph { color: var(--sk-accent); }
+.ct-voice-settings .ct-voice-input-settings { display: flex; flex-direction: column; gap: 14px; margin: 0; padding: 0; border: 0; background: transparent; }
+.ct-voice-settings .ct-voice-input-settings > p[role] { margin: 0; font-size: 13px; color: #f0b232; }
+.ct-voice-settings .ct-voice-priority-check { display: flex; flex-direction: column; gap: 4px; font-size: 14px; }
+.ct-voice-settings .ct-voice-priority-check span { display: flex; align-items: center; gap: 10px; font-weight: 600; }
+.ct-voice-settings .ct-voice-priority-check small { padding-left: 26px; color: var(--sk-fg-3); font-size: 13px; }
+.ct-voice-settings input[type=checkbox] { width: 16px; height: 16px; accent-color: var(--sk-accent); }
+.ct-voice-settings .ct-speech-settings { margin: 0; padding: 0; border: 0; background: transparent; }
+.ct-voice-settings .ct-speech-settings > summary { display: flex; align-items: center; justify-content: space-between; font-size: 15px; font-weight: 700; color: var(--sk-fg); cursor: pointer; list-style: none; }
+.ct-voice-settings .ct-speech-settings > summary::-webkit-details-marker { display: none; }
+.ct-voice-settings .ct-speech-settings > summary::after { content: 'Mostrar'; font-size: 13px; font-weight: 500; color: var(--sk-accent); }
+.ct-voice-settings .ct-speech-settings[open] > summary::after { content: 'Ocultar'; }
+.ct-voice-settings .ct-speech-settings[open] > summary { margin-bottom: 14px; }
+.ct-voice-settings .ct-speech-settings label { display: flex; flex-direction: column; gap: 6px; margin-bottom: 12px; font-size: 13px; font-weight: 600; }
+.ct-voice-settings .ct-speech-settings p { margin: 0 0 12px; font-size: 13px; color: var(--sk-fg-3); }
+.ct-voice-settings .ct-speech-settings select { height: 40px; padding: 0 12px; border: 1px solid var(--sk-border-strong); background: var(--sk-field); color: var(--sk-fg); }
+.ct-voice-settings input[type=range] { accent-color: var(--sk-accent); }
+.ct-dialog-footer { display: flex; justify-content: flex-end; gap: 10px; padding-top: 16px; border-top: 1px solid var(--sk-border); }
+
+/* Configurações em geral: mais limpas, sem cartões dentro de cartões. */
+.ct-app[data-skin] .ct-settings-content { max-width: 760px; padding-top: 40px; }
+.ct-app[data-skin] .ct-settings-heading h1 { font-size: 22px; font-weight: 700; }
+.ct-app[data-skin] .ct-settings-screen .ct-edit-dialog { background: transparent; border: 0; box-shadow: none; padding: 0; }
+
+/* ─── Compartilhar tela ─────────────────────────────────────────────────────────── */
+.ct-share-dialog { width: min(820px, 100%); gap: 18px; }
+.ct-share-tabs { display: flex; gap: 4px; border-bottom: 1px solid var(--sk-border); }
+.ct-share-tabs button { position: relative; display: flex; align-items: center; gap: 8px; height: 40px; padding: 0 14px; border: 0; background: transparent; color: var(--sk-fg-2); font-size: 14px; font-weight: 600; cursor: pointer; }
+.ct-share-tabs button span { min-width: 22px; height: 20px; padding: 0 6px; display: grid; place-items: center; border-radius: 4px; background: var(--sk-surface-2); color: var(--sk-fg-3); font-size: 12px; }
+.ct-share-tabs button:hover { color: var(--sk-fg); }
+.ct-share-tabs button[aria-selected=true] { color: var(--sk-fg); }
+.ct-share-tabs button[aria-selected=true]::after { content: ''; position: absolute; left: 10px; right: 10px; bottom: -1px; height: 2px; background: var(--sk-accent); }
+.ct-share-sources { max-height: 340px; overflow-y: auto; }
+.ct-share-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 12px; }
+.ct-share-source { display: flex; flex-direction: column; gap: 8px; padding: 8px; border: 1px solid var(--sk-border); background: var(--sk-surface); color: var(--sk-fg); text-align: left; cursor: pointer; }
+.ct-share-source:hover { border-color: var(--sk-border-strong); background: var(--sk-surface-2); }
+.ct-share-source[aria-selected=true] { border-color: var(--sk-accent); box-shadow: 0 0 0 1px var(--sk-accent); }
+.ct-share-thumb { position: relative; aspect-ratio: 16 / 9; display: grid; place-items: center; overflow: hidden; border-radius: 4px; background: #000; color: var(--sk-fg-3); }
+.ct-share-thumb img { width: 100%; height: 100%; object-fit: cover; }
+.ct-share-primary { position: absolute; top: 6px; left: 6px; padding: 2px 6px; border-radius: 4px; background: var(--sk-accent); color: var(--sk-on-accent); font-size: 10px; font-weight: 700; letter-spacing: .03em; text-transform: uppercase; }
+.ct-share-name { padding: 0 2px; font-size: 13px; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ct-share-empty { display: flex; align-items: center; justify-content: center; gap: 8px; margin: 0; padding: 48px 16px; border: 1px dashed var(--sk-border-strong); border-radius: 8px; color: var(--sk-fg-3); font-size: 13px; }
+.ct-share-options { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; padding: 16px; border: 1px solid var(--sk-border); border-radius: 8px; background: var(--sk-surface); }
+.ct-share-options .ct-field > span { font-size: 13px; font-weight: 700; color: var(--sk-fg); }
+.ct-share-options .ct-field select { height: 40px; padding: 0 10px; border: 1px solid var(--sk-border-strong); background: var(--sk-field); color: var(--sk-fg); font: inherit; font-size: 14px; }
+.ct-share-options .ct-field small { font-size: 12px; font-weight: 400; line-height: 1.45; color: var(--sk-fg-3); }
+.ct-share-quality { display: flex; flex-direction: column; gap: 14px; }
+.ct-share-quality .ct-segmented { align-self: flex-start; }
+.ct-share-footer { align-items: center; }
+.ct-share-selected { margin-right: auto; font-size: 13px; color: var(--sk-fg-3); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ct-share-selected strong { color: var(--sk-fg); }
+.ct-share-live-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--sk-danger); box-shadow: 0 0 0 3px rgba(242, 85, 90, .25); }
+@media (max-width: 720px) { .ct-share-options { grid-template-columns: 1fr; } }
+/* index.css zera margens de h1-h3/p com seletor mais forte; reforça os espaçamentos das telas novas. */
+.ct-app[data-skin] .ct-friends-count { margin: 22px 0 6px; }
+.ct-app[data-skin] .ct-friends-add p { margin: 0 0 8px; }
+.ct-app[data-skin] .ct-vs-title { margin: 0 0 6px; }
+.ct-app[data-skin] .ct-friends-active h2 { margin: 4px 0; }

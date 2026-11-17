@@ -17,6 +17,8 @@ import { setupTerminal } from './terminal'
 import { setupAppMenu } from './app-menu'
 import { setupLinkPreview } from './link-preview'
 
+const SOCIAL_LOGIN_ENABLED = false
+
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 
 // The built directory structure
@@ -38,7 +40,7 @@ let win: BrowserWindow | null = null
 const isPrimaryInstance=setupSingleInstance(()=>win)
 
 
-// Database local de usuários (armazenado em AppData/ConTALK/users.json)
+// Database local de usuários (armazenado em AppData/ConTalk/users.json)
 function getUsersFilePath(): string {
   const dir = app.getPath('userData')
   if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true })
@@ -190,6 +192,8 @@ async function syncSocialCommunityAccount(provider: string, email: string, displ
 }
 
 ipcMain.handle('auth-social-popup', async (_event, provider: 'google' | 'instagram' | 'linkedin') => {
+  // Desativado: sem OAuth real, a conta era tomada só com o e-mail. Veja src/features.ts.
+  if (!SOCIAL_LOGIN_ENABLED) { void provider; return { success: false, error: 'O login social está desativado até existir uma verificação segura com o provedor.' } }
   return new Promise(resolve => {
     let resolved = false
     const finish = (result: any) => {
@@ -214,7 +218,7 @@ ipcMain.handle('auth-social-popup', async (_event, provider: 'google' | 'instagr
     const authWin = new BrowserWindow({
       width: 520,
       height: 680,
-      title: `Entrar com ${titles[provider]} - ConTALK`,
+      title: `Entrar com ${titles[provider]} - ConTalk`,
       parent: win || undefined,
       modal: true,
       autoHideMenuBar: true,
@@ -322,6 +326,7 @@ ipcMain.handle('auth-social-popup', async (_event, provider: 'google' | 'instagr
 })
 
 ipcMain.handle('auth-social-login', async (_event, { provider, accountData }: { provider: 'google' | 'instagram' | 'linkedin'; accountData?: { email?: string; username?: string; displayName?: string; accountId?: string; avatarUrl?: string } }) => {
+  if (!SOCIAL_LOGIN_ENABLED) return { success: false, error: 'O login social está desativado até existir uma verificação segura com o provedor.' }
   try {
     const data = accountData || {}
     const rawEmail = data.email || (data.accountId?.includes('@') ? data.accountId : '')
@@ -391,7 +396,7 @@ function createWindow() {
     icon: fs.existsSync(iconPath) ? iconPath : undefined,
     autoHideMenuBar: true,
     ...titleBarOptions,
-    title: 'ConTALK',
+    title: 'ConTalk',
     webPreferences: {
       preload: path.join(__dirname, 'preload.mjs'),
       nodeIntegration: false,
@@ -460,7 +465,7 @@ ipcMain.handle('get-desktop-sources', async () => {
 })
 
 // ─── IPC: Autenticação de Usuários ──────────────────────────────────
-// Accounts exist only on the ConTALK server; this computer keeps the session and a profile cache (name, photo, bio).
+// Accounts exist only on the ConTalk server; this computer keeps the session and a profile cache (name, photo, bio).
 function rememberProfile(remote: { username: string; email: string }, fresh: boolean) {
   const users = loadUsers(), cached = users[remote.username]
   const profile: StoredUser = !fresh && cached?.server ? { ...cached, email: remote.email } : { id: `usr_${Date.now()}`, username: remote.username, display_name: remote.username, email: remote.email, password_hash: '', created_at: new Date().toISOString(), server: true }
