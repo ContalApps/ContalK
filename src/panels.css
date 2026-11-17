@@ -189,3 +189,10 @@
 .ct-window-controls svg { width: 10px !important; height: 10px !important; fill: none; stroke: currentColor; stroke-width: 1; shape-rendering: crispEdges; }
 .ct-window-controls .ct-window-close svg { shape-rendering: geometricPrecision; }
 .ct-titlebar[data-window-controls=true] .ct-titlebar-popover { right: 8px; }
+
+/* Arrasto da janela: os grupos da barra de título continuam arrastáveis; só os controles
+   (botões, campos, popovers e o painel do sino) bloqueiam o arrasto. */
+.ct-titlebar .ct-inbox,
+.ct-titlebar .ct-update-chip,
+.ct-titlebar .ct-bell-button,
+.ct-titlebar .ct-titlebar-search-trigger { -webkit-app-region: no-drag; }
